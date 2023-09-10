@@ -305,6 +305,7 @@ def create_log_file():
     )
     return open(log_file, "a")
 
+#look at this function need to look into outputing it into a csv and removing any empy spaces
 
 def log_error(message):
     """Utility function to log errors to a file."""
@@ -414,10 +415,23 @@ def process_host(host, stig_template, log_file):
         crt.Session.Disconnect()
 
 
-
+#please note we are using a modifed PEB8 format that allows for 120 charaters in each line of this script
+#the following function is not being used, but I would like to use it to write the header to the csv file
+def write_header_to_csv(log_file):
+    log_file.write(
+        "Date,Hostname,CommonName,DeviceName,VulnID,Status,Finding,Comments,,\n"
+    )
+    return None
+#This is the function that writes the output to the csv file, I would like to change it to remove the "host" variable and use the "device_name" variable instead
+#how can this function "log_to_csv" be improved?  I would like to remove the "host" variable and use the "device_name" variable instead
+#I would also like to remove the "common_name" variable
+#I would also like to remove the "log_file" variable
 def log_to_csv(obj, host, device_name, common_name, log_file):
+    # Escape the finding and comments to prevent invalid CSV formatting
     finding_details = xml.sax.saxutils.escape(obj.finding)
     comments = xml.sax.saxutils.escape(obj.comments)
+
+    # Write the finding to the log file
     log_file.write(f"{strDateTime},{host},{common_name.strip()},{device_name.strip()},{obj.vulid},{obj.status},\"{finding_details}\",\"{comments}\",,\n")
 
 
