@@ -1,0 +1,8770 @@
+title:
+  New Checklist
+id:
+  0227c496-bfce-4576-a677-5f9d3147db8c
+stigs:
+  [0]:
+    stig_name:
+      Cisco IOS XE Switch L2S Security Technical Implementation Guide
+    display_name:
+      Cisco IOS XE Switch L2S
+    stig_id:
+      Cisco_IOS_XE_Switch_L2S_STIG
+    release_info:
+      Release: 4 Benchmark Date: 26 Jul 2023
+    uuid:
+      9b71f7c8-585e-4661-893d-4c5eb7b72517
+    reference_identifier:
+      4071
+    size:
+      22
+    rules:
+      [0]:
+        group_id_src:
+          V-220649
+        group_tree:
+          [0]:
+            id:
+              V-220649
+            title:
+              SRG-NET-000148-L2S-000015
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220649
+        severity:
+          high
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220649r863283_rule
+        rule_id:
+          SV-220649r863283
+        rule_version:
+          CISC-L2-000020
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110269
+          [1]:
+            V-101165
+        ccis:
+          [0]:
+            CCI-000778
+          [1]:
+            CCI-001958
+        reference_identifier:
+          4071
+        uuid:
+          924e04e9-32d2-4af1-b06f-52aeb998cd12
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [1]:
+        group_id_src:
+          V-220650
+        group_tree:
+          [0]:
+            id:
+              V-220650
+            title:
+              SRG-NET-000168-L2S-000019
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220650
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220650r539671_rule
+        rule_id:
+          SV-220650r539671
+        rule_version:
+          CISC-L2-000030
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110271
+          [1]:
+            V-101167
+        ccis:
+          [0]:
+            CCI-000803
+        reference_identifier:
+          4071
+        uuid:
+          8d5f785f-1eed-4edd-a2d5-3d0fa58dee5a
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [2]:
+        group_id_src:
+          V-220651
+        group_tree:
+          [0]:
+            id:
+              V-220651
+            title:
+              SRG-NET-000193-L2S-000020
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220651
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220651r539671_rule
+        rule_id:
+          SV-220651r539671
+        rule_version:
+          CISC-L2-000040
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110273
+          [1]:
+            V-101169
+        ccis:
+          [0]:
+            CCI-001095
+        reference_identifier:
+          4071
+        uuid:
+          7d88d178-7d97-4ab4-8567-37a0e1502542
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [3]:
+        group_id_src:
+          V-220655
+        group_tree:
+          [0]:
+            id:
+              V-220655
+            title:
+              SRG-NET-000362-L2S-000021
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220655
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220655r917683_rule
+        rule_id:
+          SV-220655r917683
+        rule_version:
+          CISC-L2-000090
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110281
+          [1]:
+            V-101177
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4071
+        uuid:
+          233ae0be-f503-492f-ad0e-4efb8c1336ba
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [4]:
+        group_id_src:
+          V-220656
+        group_tree:
+          [0]:
+            id:
+              V-220656
+            title:
+              SRG-NET-000362-L2S-000022
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220656
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220656r856278_rule
+        rule_id:
+          SV-220656r856278
+        rule_version:
+          CISC-L2-000100
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110283
+          [1]:
+            V-101179
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4071
+        uuid:
+          bd121c68-9010-4cfe-ae5f-7f36670f4a52
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [5]:
+        group_id_src:
+          V-220657
+        group_tree:
+          [0]:
+            id:
+              V-220657
+            title:
+              SRG-NET-000362-L2S-000023
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220657
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220657r856279_rule
+        rule_id:
+          SV-220657r856279
+        rule_version:
+          CISC-L2-000110
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110285
+          [1]:
+            V-101181
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4071
+        uuid:
+          e4673e7f-b6c5-4ca1-b332-4a685a3b1f63
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [6]:
+        group_id_src:
+          V-220658
+        group_tree:
+          [0]:
+            id:
+              V-220658
+            title:
+              SRG-NET-000362-L2S-000024
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220658
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220658r856280_rule
+        rule_id:
+          SV-220658r856280
+        rule_version:
+          CISC-L2-000120
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110287
+          [1]:
+            V-101183
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4071
+        uuid:
+          69954bb6-7508-409d-8423-a1c3e5a9f914
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [7]:
+        group_id_src:
+          V-220659
+        group_tree:
+          [0]:
+            id:
+              V-220659
+            title:
+              SRG-NET-000362-L2S-000025
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220659
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220659r856281_rule
+        rule_id:
+          SV-220659r856281
+        rule_version:
+          CISC-L2-000130
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110289
+          [1]:
+            V-101185
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4071
+        uuid:
+          39ad88e4-cca0-4968-b5ba-49c1a0488ad7
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [8]:
+        group_id_src:
+          V-220660
+        group_tree:
+          [0]:
+            id:
+              V-220660
+            title:
+              SRG-NET-000362-L2S-000026
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220660
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220660r863269_rule
+        rule_id:
+          SV-220660r863269
+        rule_version:
+          CISC-L2-000140
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110291
+          [1]:
+            V-101187
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4071
+        uuid:
+          63723c64-321e-458a-8701-4704df64b580
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [9]:
+        group_id_src:
+          V-220661
+        group_tree:
+          [0]:
+            id:
+              V-220661
+            title:
+              SRG-NET-000362-L2S-000027
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220661
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220661r856283_rule
+        rule_id:
+          SV-220661r856283
+        rule_version:
+          CISC-L2-000150
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110293
+          [1]:
+            V-101189
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4071
+        uuid:
+          e9145c31-0584-4c78-8ff9-0d6cac95c7ea
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [10]:
+        group_id_src:
+          V-220662
+        group_tree:
+          [0]:
+            id:
+              V-220662
+            title:
+              SRG-NET-000512-L2S-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220662
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220662r648766_rule
+        rule_id:
+          SV-220662r648766
+        rule_version:
+          CISC-L2-000160
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110295
+          [1]:
+            V-101191
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          53be70cd-8e7a-4d39-ad85-1d53e0752f3d
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [11]:
+        group_id_src:
+          V-220663
+        group_tree:
+          [0]:
+            id:
+              V-220663
+            title:
+              SRG-NET-000512-L2S-000002
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220663
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220663r802438_rule
+        rule_id:
+          SV-220663r802438
+        rule_version:
+          CISC-L2-000170
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110297
+          [1]:
+            V-101193
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          ada7d582-f713-4657-a71b-559cbf78759e
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [12]:
+        group_id_src:
+          V-220664
+        group_tree:
+          [0]:
+            id:
+              V-220664
+            title:
+              SRG-NET-000512-L2S-000003
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220664
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220664r539671_rule
+        rule_id:
+          SV-220664r539671
+        rule_version:
+          CISC-L2-000180
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110303
+          [1]:
+            V-101199
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          3811cf3a-ed22-4fcb-99a5-11d1298b0319
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [13]:
+        group_id_src:
+          V-220665
+        group_tree:
+          [0]:
+            id:
+              V-220665
+            title:
+              SRG-NET-000512-L2S-000004
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220665
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220665r539671_rule
+        rule_id:
+          SV-220665r539671
+        rule_version:
+          CISC-L2-000190
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110305
+          [1]:
+            V-101201
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          8fd50b31-ed8a-413b-8822-f31c0b436e89
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [14]:
+        group_id_src:
+          V-220666
+        group_tree:
+          [0]:
+            id:
+              V-220666
+            title:
+              SRG-NET-000512-L2S-000005
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220666
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220666r539671_rule
+        rule_id:
+          SV-220666r539671
+        rule_version:
+          CISC-L2-000200
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110307
+          [1]:
+            V-101203
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          5dfa04e7-925b-4637-9369-eb04f98efada
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [15]:
+        group_id_src:
+          V-220667
+        group_tree:
+          [0]:
+            id:
+              V-220667
+            title:
+              SRG-NET-000512-L2S-000007
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220667
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220667r539671_rule
+        rule_id:
+          SV-220667r539671
+        rule_version:
+          CISC-L2-000210
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110309
+          [1]:
+            V-101205
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          34f9cd8d-2409-46d4-b5a7-a7e875289b7e
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [16]:
+        group_id_src:
+          V-220668
+        group_tree:
+          [0]:
+            id:
+              V-220668
+            title:
+              SRG-NET-000512-L2S-000008
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220668
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220668r539671_rule
+        rule_id:
+          SV-220668r539671
+        rule_version:
+          CISC-L2-000220
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110311
+          [1]:
+            V-101207
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          7103c61f-a07e-4458-a1bd-97c30ba6824f
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [17]:
+        group_id_src:
+          V-220669
+        group_tree:
+          [0]:
+            id:
+              V-220669
+            title:
+              SRG-NET-000512-L2S-000009
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220669
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220669r539671_rule
+        rule_id:
+          SV-220669r539671
+        rule_version:
+          CISC-L2-000230
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110313
+          [1]:
+            V-101209
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          092aceeb-b60a-4325-8822-bf690636e404
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [18]:
+        group_id_src:
+          V-220670
+        group_tree:
+          [0]:
+            id:
+              V-220670
+            title:
+              SRG-NET-000512-L2S-000010
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220670
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220670r539671_rule
+        rule_id:
+          SV-220670r539671
+        rule_version:
+          CISC-L2-000240
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110315
+          [1]:
+            V-101211
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          eb85dc1f-ca18-4887-b11b-89c565ebc673
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [19]:
+        group_id_src:
+          V-220671
+        group_tree:
+          [0]:
+            id:
+              V-220671
+            title:
+              SRG-NET-000512-L2S-000011
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220671
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220671r539671_rule
+        rule_id:
+          SV-220671r539671
+        rule_version:
+          CISC-L2-000250
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110317
+          [1]:
+            V-101213
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          0c5c3262-e42a-4b7b-b366-7a09a2cf3f69
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [20]:
+        group_id_src:
+          V-220672
+        group_tree:
+          [0]:
+            id:
+              V-220672
+            title:
+              SRG-NET-000512-L2S-000012
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220672
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220672r539671_rule
+        rule_id:
+          SV-220672r539671
+        rule_version:
+          CISC-L2-000260
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110319
+          [1]:
+            V-101215
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          18d12005-5272-458f-9cb9-efdfc59df575
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [21]:
+        group_id_src:
+          V-220673
+        group_tree:
+          [0]:
+            id:
+              V-220673
+            title:
+              SRG-NET-000512-L2S-000013
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220673
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220673r539671_rule
+        rule_id:
+          SV-220673r539671
+        rule_version:
+          CISC-L2-000270
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS_XE_Switch_L2S_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110321
+          [1]:
+            V-101217
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4071
+        uuid:
+          7cee35ab-3e85-4d3c-b214-4adb7c1162e1
+        stig_uuid:
+          9b71f7c8-585e-4661-893d-4c5eb7b72517
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+  [1]:
+    stig_name:
+      Cisco IOS XE Switch RTR Security Technical Implementation Guide
+    display_name:
+      Cisco IOS XE Switch RTR
+    stig_id:
+      Cisco_IOS_XE_Switch_RTR_STIG
+    release_info:
+      Release: 4 Benchmark Date: 26 Jul 2023
+    uuid:
+      685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+    reference_identifier:
+      4074
+    size:
+      93
+    rules:
+      [0]:
+        group_id_src:
+          V-220986
+        group_tree:
+          [0]:
+            id:
+              V-220986
+            title:
+              SRG-NET-000018-RTR-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220986
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220986r622190_rule
+        rule_id:
+          SV-220986r622190
+        rule_version:
+          CISC-RT-000010
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110793
+          [1]:
+            V-101689
+        ccis:
+          [0]:
+            CCI-001368
+        reference_identifier:
+          4074
+        uuid:
+          7db18cd9-627c-43ad-8caf-e125d0c5c9ee
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [1]:
+        group_id_src:
+          V-220987
+        group_tree:
+          [0]:
+            id:
+              V-220987
+            title:
+              SRG-NET-000230-RTR-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220987
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220987r856398_rule
+        rule_id:
+          SV-220987r856398
+        rule_version:
+          CISC-RT-000020
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110795
+          [1]:
+            V-101691
+        ccis:
+          [0]:
+            CCI-000366
+          [1]:
+            CCI-002205
+        reference_identifier:
+          4074
+        uuid:
+          56840b51-87e0-4757-8fb7-1df0a507139a
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [2]:
+        group_id_src:
+          V-220988
+        group_tree:
+          [0]:
+            id:
+              V-220988
+            title:
+              SRG-NET-000230-RTR-000003
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220988
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220988r856399_rule
+        rule_id:
+          SV-220988r856399
+        rule_version:
+          CISC-RT-000030
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110797
+          [1]:
+            V-101693
+        ccis:
+          [0]:
+            CCI-000366
+          [1]:
+            CCI-002205
+        reference_identifier:
+          4074
+        uuid:
+          aea95d26-6100-47eb-a0a9-2fef6ce35058
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [3]:
+        group_id_src:
+          V-220989
+        group_tree:
+          [0]:
+            id:
+              V-220989
+            title:
+              SRG-NET-000168-RTR-000077
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220989
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220989r894624_rule
+        rule_id:
+          SV-220989r894624
+        rule_version:
+          CISC-RT-000040
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110799
+          [1]:
+            V-101695
+        ccis:
+          [0]:
+            CCI-000803
+        reference_identifier:
+          4074
+        uuid:
+          d1c3b5ef-af6e-40cd-b06b-10da2ce5cd66
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [4]:
+        group_id_src:
+          V-220990
+        group_tree:
+          [0]:
+            id:
+              V-220990
+            title:
+              SRG-NET-000168-RTR-000078
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220990
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220990r622190_rule
+        rule_id:
+          SV-220990r622190
+        rule_version:
+          CISC-RT-000050
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110801
+          [1]:
+            V-101697
+        ccis:
+          [0]:
+            CCI-000803
+        reference_identifier:
+          4074
+        uuid:
+          ccdaff10-61d5-4525-841f-b8e06674e336
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [5]:
+        group_id_src:
+          V-220991
+        group_tree:
+          [0]:
+            id:
+              V-220991
+            title:
+              SRG-NET-000019-RTR-000007
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220991
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220991r622190_rule
+        rule_id:
+          SV-220991r622190
+        rule_version:
+          CISC-RT-000060
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110803
+          [1]:
+            V-101699
+        ccis:
+          [0]:
+            CCI-001414
+        reference_identifier:
+          4074
+        uuid:
+          e606d1a0-6f5b-4ab4-bbfb-80fe884aaaba
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [6]:
+        group_id_src:
+          V-220994
+        group_tree:
+          [0]:
+            id:
+              V-220994
+            title:
+              SRG-NET-000362-RTR-000109
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220994
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220994r856401_rule
+        rule_id:
+          SV-220994r856401
+        rule_version:
+          CISC-RT-000090
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110809
+          [1]:
+            V-101705
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          9b081ac1-c1c0-417d-a36c-fdab7a5a6e54
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [7]:
+        group_id_src:
+          V-220995
+        group_tree:
+          [0]:
+            id:
+              V-220995
+            title:
+              SRG-NET-000362-RTR-000110
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220995
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220995r856402_rule
+        rule_id:
+          SV-220995r856402
+        rule_version:
+          CISC-RT-000120
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110811
+          [1]:
+            V-101707
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          fd8b6bcb-6862-465b-9e72-698ea7e53a8c
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [8]:
+        group_id_src:
+          V-220996
+        group_tree:
+          [0]:
+            id:
+              V-220996
+            title:
+              SRG-NET-000205-RTR-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220996
+        severity:
+          high
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220996r622190_rule
+        rule_id:
+          SV-220996r622190
+        rule_version:
+          CISC-RT-000130
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110813
+          [1]:
+            V-101709
+        ccis:
+          [0]:
+            CCI-001097
+        reference_identifier:
+          4074
+        uuid:
+          3902b51b-c1b6-47a2-8176-55e84ee3286f
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [9]:
+        group_id_src:
+          V-220997
+        group_tree:
+          [0]:
+            id:
+              V-220997
+            title:
+              SRG-NET-000205-RTR-000002
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220997
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220997r622190_rule
+        rule_id:
+          SV-220997r622190
+        rule_version:
+          CISC-RT-000140
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110815
+          [1]:
+            V-101711
+        ccis:
+          [0]:
+            CCI-001097
+        reference_identifier:
+          4074
+        uuid:
+          e442e630-2e20-42d0-9a35-47b04b30a189
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [10]:
+        group_id_src:
+          V-220998
+        group_tree:
+          [0]:
+            id:
+              V-220998
+            title:
+              SRG-NET-000362-RTR-000111
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220998
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220998r856403_rule
+        rule_id:
+          SV-220998r856403
+        rule_version:
+          CISC-RT-000150
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110817
+          [1]:
+            V-101713
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          29e58134-f825-440f-bf57-9cd2c03f08ec
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [11]:
+        group_id_src:
+          V-220999
+        group_tree:
+          [0]:
+            id:
+              V-220999
+            title:
+              SRG-NET-000362-RTR-000112
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-220999
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-220999r856404_rule
+        rule_id:
+          SV-220999r856404
+        rule_version:
+          CISC-RT-000160
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110819
+          [1]:
+            V-101715
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          d4c170e9-a017-4f46-b964-333d1b83b695
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [12]:
+        group_id_src:
+          V-221000
+        group_tree:
+          [0]:
+            id:
+              V-221000
+            title:
+              SRG-NET-000362-RTR-000113
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221000
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221000r856405_rule
+        rule_id:
+          SV-221000r856405
+        rule_version:
+          CISC-RT-000170
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110821
+          [1]:
+            V-101717
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          5a7d2c29-222d-409d-8f53-f7c53ede4d0f
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [13]:
+        group_id_src:
+          V-221001
+        group_tree:
+          [0]:
+            id:
+              V-221001
+            title:
+              SRG-NET-000362-RTR-000114
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221001
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221001r856406_rule
+        rule_id:
+          SV-221001r856406
+        rule_version:
+          CISC-RT-000180
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110823
+          [1]:
+            V-101719
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          127457e1-57e7-4e5a-8e23-256e03add104
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [14]:
+        group_id_src:
+          V-221002
+        group_tree:
+          [0]:
+            id:
+              V-221002
+            title:
+              SRG-NET-000362-RTR-000115
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221002
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221002r856407_rule
+        rule_id:
+          SV-221002r856407
+        rule_version:
+          CISC-RT-000190
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110825
+          [1]:
+            V-101721
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          95b190dd-8cdd-409a-b06d-b24b679e5417
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [15]:
+        group_id_src:
+          V-221003
+        group_tree:
+          [0]:
+            id:
+              V-221003
+            title:
+              SRG-NET-000078-RTR-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221003
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221003r622190_rule
+        rule_id:
+          SV-221003r622190
+        rule_version:
+          CISC-RT-000200
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110827
+          [1]:
+            V-101723
+        ccis:
+          [0]:
+            CCI-000134
+        reference_identifier:
+          4074
+        uuid:
+          68c32da8-4088-4985-be95-29ea3177ecbe
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [16]:
+        group_id_src:
+          V-221004
+        group_tree:
+          [0]:
+            id:
+              V-221004
+            title:
+              SRG-NET-000076-RTR-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221004
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221004r622190_rule
+        rule_id:
+          SV-221004r622190
+        rule_version:
+          CISC-RT-000210
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110829
+          [1]:
+            V-101725
+        ccis:
+          [0]:
+            CCI-000132
+        reference_identifier:
+          4074
+        uuid:
+          27a64722-db8c-4839-a105-5c097bb8249b
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [17]:
+        group_id_src:
+          V-221005
+        group_tree:
+          [0]:
+            id:
+              V-221005
+            title:
+              SRG-NET-000077-RTR-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221005
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221005r622190_rule
+        rule_id:
+          SV-221005r622190
+        rule_version:
+          CISC-RT-000220
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110831
+          [1]:
+            V-101727
+        ccis:
+          [0]:
+            CCI-000133
+        reference_identifier:
+          4074
+        uuid:
+          5a584b84-3d6e-467e-83e9-a60386dac5bc
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [18]:
+        group_id_src:
+          V-221006
+        group_tree:
+          [0]:
+            id:
+              V-221006
+            title:
+              SRG-NET-000019-RTR-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221006
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221006r622190_rule
+        rule_id:
+          SV-221006r622190
+        rule_version:
+          CISC-RT-000230
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110833
+          [1]:
+            V-101729
+        ccis:
+          [0]:
+            CCI-001414
+        reference_identifier:
+          4074
+        uuid:
+          e85db219-6a00-4d38-a0d5-2bb1f1c4998d
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [19]:
+        group_id_src:
+          V-221007
+        group_tree:
+          [0]:
+            id:
+              V-221007
+            title:
+              SRG-NET-000202-RTR-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221007
+        severity:
+          high
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221007r622190_rule
+        rule_id:
+          SV-221007r622190
+        rule_version:
+          CISC-RT-000240
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110835
+          [1]:
+            V-101731
+        ccis:
+          [0]:
+            CCI-001109
+        reference_identifier:
+          4074
+        uuid:
+          77eac17b-b1a6-4b54-bc06-33714ff14c74
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [20]:
+        group_id_src:
+          V-221008
+        group_tree:
+          [0]:
+            id:
+              V-221008
+            title:
+              SRG-NET-000019-RTR-000002
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221008
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221008r622190_rule
+        rule_id:
+          SV-221008r622190
+        rule_version:
+          CISC-RT-000250
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110837
+          [1]:
+            V-101733
+        ccis:
+          [0]:
+            CCI-001414
+        reference_identifier:
+          4074
+        uuid:
+          99cef5a4-fa96-4457-aeee-15ac771874e1
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [21]:
+        group_id_src:
+          V-221009
+        group_tree:
+          [0]:
+            id:
+              V-221009
+            title:
+              SRG-NET-000364-RTR-000109
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221009
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221009r856408_rule
+        rule_id:
+          SV-221009r856408
+        rule_version:
+          CISC-RT-000260
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110839
+          [1]:
+            V-101735
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          ce73510d-a184-4baa-9810-990e540b6ede
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [22]:
+        group_id_src:
+          V-221010
+        group_tree:
+          [0]:
+            id:
+              V-221010
+            title:
+              SRG-NET-000364-RTR-000110
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221010
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221010r863263_rule
+        rule_id:
+          SV-221010r863263
+        rule_version:
+          CISC-RT-000270
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110841
+          [1]:
+            V-101737
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          8d5be675-1791-4495-8b40-f1e0ed5897a1
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [23]:
+        group_id_src:
+          V-221011
+        group_tree:
+          [0]:
+            id:
+              V-221011
+            title:
+              SRG-NET-000205-RTR-000014
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221011
+        severity:
+          high
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221011r622190_rule
+        rule_id:
+          SV-221011r622190
+        rule_version:
+          CISC-RT-000310
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110843
+          [1]:
+            V-101739
+        ccis:
+          [0]:
+            CCI-001094
+        reference_identifier:
+          4074
+        uuid:
+          aff2ce46-d608-4ea4-bbc4-5da6d0b66083
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [24]:
+        group_id_src:
+          V-221012
+        group_tree:
+          [0]:
+            id:
+              V-221012
+            title:
+              SRG-NET-000205-RTR-000003
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221012
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221012r622190_rule
+        rule_id:
+          SV-221012r622190
+        rule_version:
+          CISC-RT-000320
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110845
+          [1]:
+            V-101741
+        ccis:
+          [0]:
+            CCI-001097
+        reference_identifier:
+          4074
+        uuid:
+          e8702571-72c4-4c43-8924-5f4330dddcc9
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [25]:
+        group_id_src:
+          V-221013
+        group_tree:
+          [0]:
+            id:
+              V-221013
+            title:
+              SRG-NET-000205-RTR-000004
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221013
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221013r622190_rule
+        rule_id:
+          SV-221013r622190
+        rule_version:
+          CISC-RT-000330
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110847
+          [1]:
+            V-101743
+        ccis:
+          [0]:
+            CCI-001097
+        reference_identifier:
+          4074
+        uuid:
+          aec5fc16-4fef-41cf-9a70-22eb264eff87
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [26]:
+        group_id_src:
+          V-221014
+        group_tree:
+          [0]:
+            id:
+              V-221014
+            title:
+              SRG-NET-000205-RTR-000005
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221014
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221014r622190_rule
+        rule_id:
+          SV-221014r622190
+        rule_version:
+          CISC-RT-000340
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110849
+          [1]:
+            V-101745
+        ccis:
+          [0]:
+            CCI-001097
+        reference_identifier:
+          4074
+        uuid:
+          fa7970c6-d2cf-4cbc-aba2-2644b4d867de
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [27]:
+        group_id_src:
+          V-221015
+        group_tree:
+          [0]:
+            id:
+              V-221015
+            title:
+              SRG-NET-000205-RTR-000015
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221015
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221015r856410_rule
+        rule_id:
+          SV-221015r856410
+        rule_version:
+          CISC-RT-000350
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110851
+          [1]:
+            V-101747
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          13c86906-1087-4e5e-8054-51b300aa7b16
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [28]:
+        group_id_src:
+          V-221016
+        group_tree:
+          [0]:
+            id:
+              V-221016
+            title:
+              SRG-NET-000364-RTR-000111
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221016
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221016r856411_rule
+        rule_id:
+          SV-221016r856411
+        rule_version:
+          CISC-RT-000360
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110853
+          [1]:
+            V-101749
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          f04cfc43-9ea7-4865-aa1f-aa5d61ea3415
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [29]:
+        group_id_src:
+          V-221017
+        group_tree:
+          [0]:
+            id:
+              V-221017
+            title:
+              SRG-NET-000364-RTR-000111
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221017
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221017r856412_rule
+        rule_id:
+          SV-221017r856412
+        rule_version:
+          CISC-RT-000370
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110855
+          [1]:
+            V-101751
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          14ce84b9-d531-48c1-b154-37525843da24
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [30]:
+        group_id_src:
+          V-221018
+        group_tree:
+          [0]:
+            id:
+              V-221018
+            title:
+              SRG-NET-000364-RTR-000112
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221018
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221018r856413_rule
+        rule_id:
+          SV-221018r856413
+        rule_version:
+          CISC-RT-000380
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110857
+          [1]:
+            V-101753
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          446b1551-bbb3-4246-9e38-0cf76116067d
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [31]:
+        group_id_src:
+          V-221019
+        group_tree:
+          [0]:
+            id:
+              V-221019
+            title:
+              SRG-NET-000364-RTR-000113
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221019
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221019r622190_rule
+        rule_id:
+          SV-221019r622190
+        rule_version:
+          CISC-RT-000390
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110859
+          [1]:
+            V-101755
+        ccis:
+          [0]:
+            CCI-001097
+        reference_identifier:
+          4074
+        uuid:
+          39120efe-298b-4a2b-b301-377507dc89f8
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [32]:
+        group_id_src:
+          V-221020
+        group_tree:
+          [0]:
+            id:
+              V-221020
+            title:
+              SRG-NET-000205-RTR-000012
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221020
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221020r622190_rule
+        rule_id:
+          SV-221020r622190
+        rule_version:
+          CISC-RT-000450
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110861
+          [1]:
+            V-101757
+        ccis:
+          [0]:
+            CCI-001097
+        reference_identifier:
+          4074
+        uuid:
+          c6ad0743-cc8a-4a55-8559-de07c171f90f
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [33]:
+        group_id_src:
+          V-221021
+        group_tree:
+          [0]:
+            id:
+              V-221021
+            title:
+              SRG-NET-000362-RTR-000124
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221021
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221021r856414_rule
+        rule_id:
+          SV-221021r856414
+        rule_version:
+          CISC-RT-000470
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110863
+          [1]:
+            V-101759
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          debe0414-7857-4780-91e2-750c0ed9e7d1
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [34]:
+        group_id_src:
+          V-221022
+        group_tree:
+          [0]:
+            id:
+              V-221022
+            title:
+              SRG-NET-000230-RTR-000002
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221022
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221022r856415_rule
+        rule_id:
+          SV-221022r856415
+        rule_version:
+          CISC-RT-000480
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110865
+          [1]:
+            V-101761
+        ccis:
+          [0]:
+            CCI-000366
+          [1]:
+            CCI-002205
+        reference_identifier:
+          4074
+        uuid:
+          c6826252-8952-4345-a89e-4e150fdd7443
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [35]:
+        group_id_src:
+          V-221023
+        group_tree:
+          [0]:
+            id:
+              V-221023
+            title:
+              SRG-NET-000018-RTR-000002
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221023
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221023r622190_rule
+        rule_id:
+          SV-221023r622190
+        rule_version:
+          CISC-RT-000490
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110867
+          [1]:
+            V-101763
+        ccis:
+          [0]:
+            CCI-001368
+        reference_identifier:
+          4074
+        uuid:
+          df5ca050-8486-43ff-bcb3-c40bb7a2a421
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [36]:
+        group_id_src:
+          V-221024
+        group_tree:
+          [0]:
+            id:
+              V-221024
+            title:
+              SRG-NET-000018-RTR-000003
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221024
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221024r622190_rule
+        rule_id:
+          SV-221024r622190
+        rule_version:
+          CISC-RT-000500
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110869
+          [1]:
+            V-101765
+        ccis:
+          [0]:
+            CCI-001368
+        reference_identifier:
+          4074
+        uuid:
+          0313a64d-5625-48b5-a2d8-b5ed40ff0bde
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [37]:
+        group_id_src:
+          V-221025
+        group_tree:
+          [0]:
+            id:
+              V-221025
+            title:
+              SRG-NET-000018-RTR-000004
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221025
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221025r622190_rule
+        rule_id:
+          SV-221025r622190
+        rule_version:
+          CISC-RT-000510
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110871
+          [1]:
+            V-101767
+        ccis:
+          [0]:
+            CCI-001368
+        reference_identifier:
+          4074
+        uuid:
+          ec65a368-d252-4fb0-ae5c-5a1360cc7dcd
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [38]:
+        group_id_src:
+          V-221026
+        group_tree:
+          [0]:
+            id:
+              V-221026
+            title:
+              SRG-NET-000018-RTR-000005
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221026
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221026r622190_rule
+        rule_id:
+          SV-221026r622190
+        rule_version:
+          CISC-RT-000520
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110873
+          [1]:
+            V-101769
+        ccis:
+          [0]:
+            CCI-001368
+        reference_identifier:
+          4074
+        uuid:
+          29694245-8290-4963-9b0a-8d92a9c50a64
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [39]:
+        group_id_src:
+          V-221027
+        group_tree:
+          [0]:
+            id:
+              V-221027
+            title:
+              SRG-NET-000205-RTR-000006
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221027
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221027r622190_rule
+        rule_id:
+          SV-221027r622190
+        rule_version:
+          CISC-RT-000530
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110875
+          [1]:
+            V-101771
+        ccis:
+          [0]:
+            CCI-001097
+        reference_identifier:
+          4074
+        uuid:
+          9256a9e9-0a88-4410-bf6c-242f075c229d
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [40]:
+        group_id_src:
+          V-221028
+        group_tree:
+          [0]:
+            id:
+              V-221028
+            title:
+              SRG-NET-000018-RTR-000006
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221028
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221028r622190_rule
+        rule_id:
+          SV-221028r622190
+        rule_version:
+          CISC-RT-000540
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110877
+          [1]:
+            V-101773
+        ccis:
+          [0]:
+            CCI-000032
+        reference_identifier:
+          4074
+        uuid:
+          e4eeb87c-17d0-4840-aaeb-c63f18d3a1c0
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [41]:
+        group_id_src:
+          V-221029
+        group_tree:
+          [0]:
+            id:
+              V-221029
+            title:
+              SRG-NET-000018-RTR-000010
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221029
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221029r622190_rule
+        rule_id:
+          SV-221029r622190
+        rule_version:
+          CISC-RT-000550
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110879
+          [1]:
+            V-101775
+        ccis:
+          [0]:
+            CCI-000032
+        reference_identifier:
+          4074
+        uuid:
+          20655b69-4997-48b4-8ac7-2348d004ced1
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [42]:
+        group_id_src:
+          V-221030
+        group_tree:
+          [0]:
+            id:
+              V-221030
+            title:
+              SRG-NET-000362-RTR-000117
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221030
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221030r856416_rule
+        rule_id:
+          SV-221030r856416
+        rule_version:
+          CISC-RT-000560
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110881
+          [1]:
+            V-101777
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          48cc41b1-7457-4b08-97fb-c1af6b91bd63
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [43]:
+        group_id_src:
+          V-221031
+        group_tree:
+          [0]:
+            id:
+              V-221031
+            title:
+              SRG-NET-000362-RTR-000118
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221031
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221031r856417_rule
+        rule_id:
+          SV-221031r856417
+        rule_version:
+          CISC-RT-000570
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110883
+          [1]:
+            V-101779
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          09df959e-7a96-41d5-83f0-53c06b158077
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [44]:
+        group_id_src:
+          V-221032
+        group_tree:
+          [0]:
+            id:
+              V-221032
+            title:
+              SRG-NET-000512-RTR-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221032
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221032r622190_rule
+        rule_id:
+          SV-221032r622190
+        rule_version:
+          CISC-RT-000580
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110885
+          [1]:
+            V-101781
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          fedc06af-8648-4a86-9470-c4305fd090b2
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [45]:
+        group_id_src:
+          V-221033
+        group_tree:
+          [0]:
+            id:
+              V-221033
+            title:
+              SRG-NET-000512-RTR-000002
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221033
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221033r622190_rule
+        rule_id:
+          SV-221033r622190
+        rule_version:
+          CISC-RT-000590
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110887
+          [1]:
+            V-101783
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          007f43ed-881f-4d1e-93fb-d10e105f044f
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [46]:
+        group_id_src:
+          V-221034
+        group_tree:
+          [0]:
+            id:
+              V-221034
+            title:
+              SRG-NET-000512-RTR-000003
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221034
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221034r622190_rule
+        rule_id:
+          SV-221034r622190
+        rule_version:
+          CISC-RT-000600
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110889
+          [1]:
+            V-101785
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          5983f4d9-d258-4fce-afaa-2b17a87d2bfb
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [47]:
+        group_id_src:
+          V-221035
+        group_tree:
+          [0]:
+            id:
+              V-221035
+            title:
+              SRG-NET-000193-RTR-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221035
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221035r622190_rule
+        rule_id:
+          SV-221035r622190
+        rule_version:
+          CISC-RT-000610
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110891
+          [1]:
+            V-101787
+        ccis:
+          [0]:
+            CCI-001095
+        reference_identifier:
+          4074
+        uuid:
+          cf48590a-7aec-4467-b2f2-ecc6b5003edc
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [48]:
+        group_id_src:
+          V-221036
+        group_tree:
+          [0]:
+            id:
+              V-221036
+            title:
+              SRG-NET-000512-RTR-000004
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221036
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221036r622190_rule
+        rule_id:
+          SV-221036r622190
+        rule_version:
+          CISC-RT-000620
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110893
+          [1]:
+            V-101789
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          d01e02a6-fbca-4be2-a0cb-f2d70fd833e2
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [49]:
+        group_id_src:
+          V-221037
+        group_tree:
+          [0]:
+            id:
+              V-221037
+            title:
+              SRG-NET-000512-RTR-000005
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221037
+        severity:
+          high
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221037r622190_rule
+        rule_id:
+          SV-221037r622190
+        rule_version:
+          CISC-RT-000630
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110895
+          [1]:
+            V-101791
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          143c104c-de9e-442f-b6cb-4b8fae09ce82
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [50]:
+        group_id_src:
+          V-221038
+        group_tree:
+          [0]:
+            id:
+              V-221038
+            title:
+              SRG-NET-000512-RTR-000006
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221038
+        severity:
+          high
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221038r622190_rule
+        rule_id:
+          SV-221038r622190
+        rule_version:
+          CISC-RT-000640
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110897
+          [1]:
+            V-101793
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          87cbaa6a-6437-4ef9-a784-c7d6ce147aa3
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [51]:
+        group_id_src:
+          V-221039
+        group_tree:
+          [0]:
+            id:
+              V-221039
+            title:
+              SRG-NET-000512-RTR-000007
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221039
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221039r622190_rule
+        rule_id:
+          SV-221039r622190
+        rule_version:
+          CISC-RT-000650
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110899
+          [1]:
+            V-101795
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          b102cc33-59ff-467e-b305-aae134b81922
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [52]:
+        group_id_src:
+          V-221040
+        group_tree:
+          [0]:
+            id:
+              V-221040
+            title:
+              SRG-NET-000343-RTR-000001
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221040
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221040r863378_rule
+        rule_id:
+          SV-221040r863378
+        rule_version:
+          CISC-RT-000660
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110901
+          [1]:
+            V-101797
+        ccis:
+          [0]:
+            CCI-001958
+        reference_identifier:
+          4074
+        uuid:
+          d7d4b3a7-8097-4b30-b087-94323e078eb1
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [53]:
+        group_id_src:
+          V-221041
+        group_tree:
+          [0]:
+            id:
+              V-221041
+            title:
+              SRG-NET-000512-RTR-000008
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221041
+        severity:
+          high
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221041r622190_rule
+        rule_id:
+          SV-221041r622190
+        rule_version:
+          CISC-RT-000670
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110903
+          [1]:
+            V-101799
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          ef657c0e-de2a-40dd-9142-7a6af56f6bf3
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [54]:
+        group_id_src:
+          V-221042
+        group_tree:
+          [0]:
+            id:
+              V-221042
+            title:
+              SRG-NET-000512-RTR-000009
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221042
+        severity:
+          high
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221042r622190_rule
+        rule_id:
+          SV-221042r622190
+        rule_version:
+          CISC-RT-000680
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110905
+          [1]:
+            V-101801
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          e747680c-125e-455b-92ce-433b08351e5d
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [55]:
+        group_id_src:
+          V-221043
+        group_tree:
+          [0]:
+            id:
+              V-221043
+            title:
+              SRG-NET-000512-RTR-000010
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221043
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221043r622190_rule
+        rule_id:
+          SV-221043r622190
+        rule_version:
+          CISC-RT-000690
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110907
+          [1]:
+            V-101803
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          0965a5f5-d24c-464c-b3d4-7eee42e5fc01
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [56]:
+        group_id_src:
+          V-221044
+        group_tree:
+          [0]:
+            id:
+              V-221044
+            title:
+              SRG-NET-000193-RTR-000002
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221044
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221044r622190_rule
+        rule_id:
+          SV-221044r622190
+        rule_version:
+          CISC-RT-000700
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110909
+          [1]:
+            V-101805
+        ccis:
+          [0]:
+            CCI-001095
+        reference_identifier:
+          4074
+        uuid:
+          70c2db6a-bd7c-481f-bb46-4bd423efa80b
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [57]:
+        group_id_src:
+          V-221045
+        group_tree:
+          [0]:
+            id:
+              V-221045
+            title:
+              SRG-NET-000362-RTR-000119
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221045
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221045r856419_rule
+        rule_id:
+          SV-221045r856419
+        rule_version:
+          CISC-RT-000710
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110911
+          [1]:
+            V-101807
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          7a2107b3-cb28-4512-90e4-7bb23ac5b220
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [58]:
+        group_id_src:
+          V-221046
+        group_tree:
+          [0]:
+            id:
+              V-221046
+            title:
+              SRG-NET-000192-RTR-000002
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221046
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221046r622190_rule
+        rule_id:
+          SV-221046r622190
+        rule_version:
+          CISC-RT-000720
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110913
+          [1]:
+            V-101809
+        ccis:
+          [0]:
+            CCI-001094
+        reference_identifier:
+          4074
+        uuid:
+          bd5d3673-4973-4c0a-8557-7f5d9211175d
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [59]:
+        group_id_src:
+          V-221047
+        group_tree:
+          [0]:
+            id:
+              V-221047
+            title:
+              SRG-NET-000205-RTR-000007
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221047
+        severity:
+          high
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221047r622190_rule
+        rule_id:
+          SV-221047r622190
+        rule_version:
+          CISC-RT-000730
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110915
+          [1]:
+            V-101811
+        ccis:
+          [0]:
+            CCI-001097
+        reference_identifier:
+          4074
+        uuid:
+          452912b6-af12-4961-8190-8ccc1691ee5c
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [60]:
+        group_id_src:
+          V-221048
+        group_tree:
+          [0]:
+            id:
+              V-221048
+            title:
+              SRG-NET-000205-RTR-000008
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221048
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221048r622190_rule
+        rule_id:
+          SV-221048r622190
+        rule_version:
+          CISC-RT-000740
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110917
+          [1]:
+            V-101813
+        ccis:
+          [0]:
+            CCI-001097
+        reference_identifier:
+          4074
+        uuid:
+          6b93892b-1a57-45f3-8308-c8511f5b3aa9
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [61]:
+        group_id_src:
+          V-221049
+        group_tree:
+          [0]:
+            id:
+              V-221049
+            title:
+              SRG-NET-000205-RTR-000016
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221049
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221049r856420_rule
+        rule_id:
+          SV-221049r856420
+        rule_version:
+          CISC-RT-000750
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110919
+          [1]:
+            V-101815
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          d3d230ec-fbfd-42b2-9612-94e689d35415
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [62]:
+        group_id_src:
+          V-221050
+        group_tree:
+          [0]:
+            id:
+              V-221050
+            title:
+              SRG-NET-000193-RTR-000113
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221050
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221050r917445_rule
+        rule_id:
+          SV-221050r917445
+        rule_version:
+          CISC-RT-000760
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110921
+          [1]:
+            V-101817
+        ccis:
+          [0]:
+            CCI-001095
+        reference_identifier:
+          4074
+        uuid:
+          c622f5f2-e339-4aa4-9664-1f33bc47b8b8
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [63]:
+        group_id_src:
+          V-221051
+        group_tree:
+          [0]:
+            id:
+              V-221051
+            title:
+              SRG-NET-000193-RTR-000114
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221051
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221051r917448_rule
+        rule_id:
+          SV-221051r917448
+        rule_version:
+          CISC-RT-000770
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110923
+          [1]:
+            V-101819
+        ccis:
+          [0]:
+            CCI-001095
+        reference_identifier:
+          4074
+        uuid:
+          ffe2c0a6-e591-4c2c-9a62-6a20e7a3113e
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [64]:
+        group_id_src:
+          V-221052
+        group_tree:
+          [0]:
+            id:
+              V-221052
+            title:
+              SRG-NET-000193-RTR-000112
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221052
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221052r622190_rule
+        rule_id:
+          SV-221052r622190
+        rule_version:
+          CISC-RT-000780
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110925
+          [1]:
+            V-101821
+        ccis:
+          [0]:
+            CCI-001095
+        reference_identifier:
+          4074
+        uuid:
+          50c393d3-ada0-4f5e-8f80-552e8b5dc1ab
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [65]:
+        group_id_src:
+          V-221053
+        group_tree:
+          [0]:
+            id:
+              V-221053
+            title:
+              SRG-NET-000019-RTR-000003
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221053
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221053r622190_rule
+        rule_id:
+          SV-221053r622190
+        rule_version:
+          CISC-RT-000790
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110927
+          [1]:
+            V-101823
+        ccis:
+          [0]:
+            CCI-001414
+        reference_identifier:
+          4074
+        uuid:
+          be334dbc-d5bb-480e-94c6-d3290adbc8c4
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [66]:
+        group_id_src:
+          V-221054
+        group_tree:
+          [0]:
+            id:
+              V-221054
+            title:
+              SRG-NET-000019-RTR-000004
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221054
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221054r622190_rule
+        rule_id:
+          SV-221054r622190
+        rule_version:
+          CISC-RT-000800
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110929
+          [1]:
+            V-101825
+        ccis:
+          [0]:
+            CCI-001414
+        reference_identifier:
+          4074
+        uuid:
+          e55b067c-2956-4922-a0c6-3dfce5261edd
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [67]:
+        group_id_src:
+          V-221055
+        group_tree:
+          [0]:
+            id:
+              V-221055
+            title:
+              SRG-NET-000019-RTR-000005
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221055
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221055r622190_rule
+        rule_id:
+          SV-221055r622190
+        rule_version:
+          CISC-RT-000810
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110931
+          [1]:
+            V-101827
+        ccis:
+          [0]:
+            CCI-001414
+        reference_identifier:
+          4074
+        uuid:
+          3e3b589e-927e-4307-a4fa-063e7bfdb410
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [68]:
+        group_id_src:
+          V-221056
+        group_tree:
+          [0]:
+            id:
+              V-221056
+            title:
+              SRG-NET-000362-RTR-000120
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221056
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221056r863379_rule
+        rule_id:
+          SV-221056r863379
+        rule_version:
+          CISC-RT-000820
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110933
+          [1]:
+            V-101829
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          90e85ec4-aa27-4266-ad67-ef950e981eed
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [69]:
+        group_id_src:
+          V-221057
+        group_tree:
+          [0]:
+            id:
+              V-221057
+            title:
+              SRG-NET-000019-RTR-000013
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221057
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221057r622190_rule
+        rule_id:
+          SV-221057r622190
+        rule_version:
+          CISC-RT-000830
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110935
+          [1]:
+            V-101831
+        ccis:
+          [0]:
+            CCI-001414
+        reference_identifier:
+          4074
+        uuid:
+          30d8b9a7-1506-4723-8413-c2ee000c1ea4
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [70]:
+        group_id_src:
+          V-221058
+        group_tree:
+          [0]:
+            id:
+              V-221058
+            title:
+              SRG-NET-000019-RTR-000014
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221058
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221058r622190_rule
+        rule_id:
+          SV-221058r622190
+        rule_version:
+          CISC-RT-000840
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110937
+          [1]:
+            V-101833
+        ccis:
+          [0]:
+            CCI-001414
+        reference_identifier:
+          4074
+        uuid:
+          037c8f90-53c9-4493-aba6-31caa5f43b3c
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [71]:
+        group_id_src:
+          V-221059
+        group_tree:
+          [0]:
+            id:
+              V-221059
+            title:
+              SRG-NET-000362-RTR-000121
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221059
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221059r856422_rule
+        rule_id:
+          SV-221059r856422
+        rule_version:
+          CISC-RT-000850
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110939
+          [1]:
+            V-101835
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          afdaa516-00e8-442b-adb2-8130224f0291
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [72]:
+        group_id_src:
+          V-221060
+        group_tree:
+          [0]:
+            id:
+              V-221060
+            title:
+              SRG-NET-000364-RTR-000114
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221060
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221060r863380_rule
+        rule_id:
+          SV-221060r863380
+        rule_version:
+          CISC-RT-000860
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110941
+          [1]:
+            V-101837
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          b9b0828f-943b-4939-8530-c61520f07bb8
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [73]:
+        group_id_src:
+          V-221061
+        group_tree:
+          [0]:
+            id:
+              V-221061
+            title:
+              SRG-NET-000364-RTR-000115
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221061
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221061r863381_rule
+        rule_id:
+          SV-221061r863381
+        rule_version:
+          CISC-RT-000870
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110943
+          [1]:
+            V-101839
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          66b86add-73e4-4233-bfbb-984063b95ef3
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [74]:
+        group_id_src:
+          V-221062
+        group_tree:
+          [0]:
+            id:
+              V-221062
+            title:
+              SRG-NET-000362-RTR-000122
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221062
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221062r856425_rule
+        rule_id:
+          SV-221062r856425
+        rule_version:
+          CISC-RT-000880
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110945
+          [1]:
+            V-101841
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          b24be841-5ab6-4426-81d0-bf0d9e1d7371
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [75]:
+        group_id_src:
+          V-221063
+        group_tree:
+          [0]:
+            id:
+              V-221063
+            title:
+              SRG-NET-000362-RTR-000123
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221063
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221063r856426_rule
+        rule_id:
+          SV-221063r856426
+        rule_version:
+          CISC-RT-000890
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            V-101843
+          [1]:
+            SV-110947
+        ccis:
+          [0]:
+            CCI-002385
+        reference_identifier:
+          4074
+        uuid:
+          ce39759f-b6bf-45a1-b7e5-b9555087b75c
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [76]:
+        group_id_src:
+          V-221064
+        group_tree:
+          [0]:
+            id:
+              V-221064
+            title:
+              SRG-NET-000364-RTR-000116
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221064
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221064r856427_rule
+        rule_id:
+          SV-221064r856427
+        rule_version:
+          CISC-RT-000900
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110949
+          [1]:
+            V-101845
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          9508a355-b23c-4fb6-8e81-14bca4e191ca
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [77]:
+        group_id_src:
+          V-221065
+        group_tree:
+          [0]:
+            id:
+              V-221065
+            title:
+              SRG-NET-000343-RTR-000002
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221065
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221065r856428_rule
+        rule_id:
+          SV-221065r856428
+        rule_version:
+          CISC-RT-000910
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110951
+          [1]:
+            V-101847
+        ccis:
+          [0]:
+            CCI-001958
+        reference_identifier:
+          4074
+        uuid:
+          1c788543-b373-4dd8-a158-2eba6db9bc45
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [78]:
+        group_id_src:
+          V-221066
+        group_tree:
+          [0]:
+            id:
+              V-221066
+            title:
+              SRG-NET-000018-RTR-000007
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221066
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221066r622190_rule
+        rule_id:
+          SV-221066r622190
+        rule_version:
+          CISC-RT-000920
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110953
+          [1]:
+            V-101849
+        ccis:
+          [0]:
+            CCI-001368
+        reference_identifier:
+          4074
+        uuid:
+          cc07489f-655e-42b6-8ee4-ddd11314d0e2
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [79]:
+        group_id_src:
+          V-221067
+        group_tree:
+          [0]:
+            id:
+              V-221067
+            title:
+              SRG-NET-000018-RTR-000008
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221067
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221067r622190_rule
+        rule_id:
+          SV-221067r622190
+        rule_version:
+          CISC-RT-000930
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110955
+          [1]:
+            V-101851
+        ccis:
+          [0]:
+            CCI-001368
+        reference_identifier:
+          4074
+        uuid:
+          3b696746-58db-4a56-905d-c5c31415b98b
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [80]:
+        group_id_src:
+          V-221068
+        group_tree:
+          [0]:
+            id:
+              V-221068
+            title:
+              SRG-NET-000018-RTR-000009
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221068
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221068r622190_rule
+        rule_id:
+          SV-221068r622190
+        rule_version:
+          CISC-RT-000940
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110957
+          [1]:
+            V-101853
+        ccis:
+          [0]:
+            CCI-001368
+        reference_identifier:
+          4074
+        uuid:
+          a50d205b-4a66-46eb-8b02-1a502d5e24f5
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [81]:
+        group_id_src:
+          V-221069
+        group_tree:
+          [0]:
+            id:
+              V-221069
+            title:
+              SRG-NET-000512-RTR-000011
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-221069
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-221069r622190_rule
+        rule_id:
+          SV-221069r622190
+        rule_version:
+          CISC-RT-000950
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+          [0]:
+            SV-110959
+          [1]:
+            V-101855
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          d427d292-a2eb-40dd-83bc-7d96d151d33a
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [82]:
+        group_id_src:
+          V-237750
+        group_tree:
+          [0]:
+            id:
+              V-237750
+            title:
+              SRG-NET-000512-RTR-000100
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-237750
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-237750r648776_rule
+        rule_id:
+          SV-237750r648776
+        rule_version:
+          CISC-RT-000235
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          b7f37fde-5db8-4ef8-a165-a7c48892594e
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [83]:
+        group_id_src:
+          V-237752
+        group_tree:
+          [0]:
+            id:
+              V-237752
+            title:
+              SRG-NET-000512-RTR-000012
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-237752
+        severity:
+          low
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-237752r648780_rule
+        rule_id:
+          SV-237752r648780
+        rule_version:
+          CISC-RT-000236
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          d28f51a4-7b2e-4a51-b60d-ca8cb244d2c5
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [84]:
+        group_id_src:
+          V-237756
+        group_tree:
+          [0]:
+            id:
+              V-237756
+            title:
+              SRG-NET-000512-RTR-000013
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-237756
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-237756r648787_rule
+        rule_id:
+          SV-237756r648787
+        rule_version:
+          CISC-RT-000237
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          3f27eaf4-26cb-4403-a975-e03a8f64bbc8
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [85]:
+        group_id_src:
+          V-237759
+        group_tree:
+          [0]:
+            id:
+              V-237759
+            title:
+              SRG-NET-000512-RTR-000014
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-237759
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-237759r648792_rule
+        rule_id:
+          SV-237759r648792
+        rule_version:
+          CISC-RT-000391
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+        ccis:
+          [0]:
+            CCI-000366
+        reference_identifier:
+          4074
+        uuid:
+          ac04b35f-94a9-4396-bc94-b9fbf5499ad3
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [86]:
+        group_id_src:
+          V-237762
+        group_tree:
+          [0]:
+            id:
+              V-237762
+            title:
+              SRG-NET-000364-RTR-000200
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-237762
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-237762r856663_rule
+        rule_id:
+          SV-237762r856663
+        rule_version:
+          CISC-RT-000392
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          7a013403-b30a-455c-b678-330472f33f16
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [87]:
+        group_id_src:
+          V-237764
+        group_tree:
+          [0]:
+            id:
+              V-237764
+            title:
+              SRG-NET-000364-RTR-000201
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-237764
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-237764r856665_rule
+        rule_id:
+          SV-237764r856665
+        rule_version:
+          CISC-RT-000393
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          093430b1-ca8e-4bed-ab15-9aa211d4a78d
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [88]:
+        group_id_src:
+          V-237766
+        group_tree:
+          [0]:
+            id:
+              V-237766
+            title:
+              SRG-NET-000364-RTR-000202
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-237766
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-237766r856667_rule
+        rule_id:
+          SV-237766r856667
+        rule_version:
+          CISC-RT-000394
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          4e70f291-bc34-4d64-a421-245385ef5ec1
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [89]:
+        group_id_src:
+          V-237772
+        group_tree:
+          [0]:
+            id:
+              V-237772
+            title:
+              SRG-NET-000364-RTR-000203
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-237772
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-237772r856669_rule
+        rule_id:
+          SV-237772r856669
+        rule_version:
+          CISC-RT-000395
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          81b77e45-5d2e-4890-ac4b-d3209940e5fe
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [90]:
+        group_id_src:
+          V-237774
+        group_tree:
+          [0]:
+            id:
+              V-237774
+            title:
+              SRG-NET-000364-RTR-000204
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-237774
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-237774r856671_rule
+        rule_id:
+          SV-237774r856671
+        rule_version:
+          CISC-RT-000396
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          c6aa77a5-f45f-4956-9c8e-22a9c30ffda7
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [91]:
+        group_id_src:
+          V-237776
+        group_tree:
+          [0]:
+            id:
+              V-237776
+            title:
+              SRG-NET-000364-RTR-000205
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-237776
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-237776r856673_rule
+        rule_id:
+          SV-237776r856673
+        rule_version:
+          CISC-RT-000397
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          618ab84d-bd75-4c33-9c9c-7b66f89845d9
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+      [92]:
+        group_id_src:
+          V-237778
+        group_tree:
+          [0]:
+            id:
+              V-237778
+            title:
+              SRG-NET-000364-RTR-000206
+            description:
+              <GroupDescription></GroupDescription>
+        group_id:
+          V-237778
+        severity:
+          medium
+        group_title: ***REMOVED***
+        rule_id_src:
+          SV-237778r856675_rule
+        rule_id:
+          SV-237778r856675
+        rule_version:
+          CISC-RT-000398
+        rule_title: ***REMOVED***
+        fix_text: ***REMOVED***
+        weight:
+          10.0
+        check_content: ***REMOVED***
+        check_content_ref:
+          href:
+            Cisco_IOS-XE_Switch_RTR_STIG.xml
+          name:
+            M
+        classification:
+          Unclassified
+        discussion: ***REMOVED***
+        false_positives:
+          
+        false_negatives:
+          
+        documentable:
+          false
+        security_override_guidance:
+          
+        potential_impacts:
+          
+        third_party_tools:
+          
+        ia_controls:
+          
+        responsibility:
+          
+        mitigations:
+          
+        mitigation_control:
+          
+        legacy_ids:
+        ccis:
+          [0]:
+            CCI-002403
+        reference_identifier:
+          4074
+        uuid:
+          46167fb7-fb3d-4ed1-9dc0-92524bd0426e
+        stig_uuid:
+          685d2ac1-f2e9-4b7c-9d3a-77433ab69b08
+        status:
+          not_reviewed
+        overrides:
+        comments:
+          
+        finding_details:
+          
+active:
+  True
+mode:
+  2
+has_path:
+  True
+target_data:
+  target_type:
+    Computing
+  host_name:
+    TESTHOST
+  ip_address:
+    1.1.1.1
+  mac_address:
+    
+  fqdn:
+    
+  comments:
+    
+  role:
+    None
+  is_web_database:
+    False
+  technology_area:
+    
+  web_db_site:
+    
+  web_db_instance:
+    

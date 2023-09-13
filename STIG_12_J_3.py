@@ -16,7 +16,6 @@ t1 = time.perf_counter()
 # CommandCache = []
 
 
-
 class Stig:
     def __init__(self):
         self.vulid = ""
@@ -198,9 +197,14 @@ def format_vulid():
     return f"{inspect.stack()[1].function[:1]}-{inspect.stack()[1].function[1:]}"    
 
 def get_script_path():
-    return os.path.dirname(os.path.abspath(__file__)) + "\\"
+    # Get the current script's directory using SecureCRT's scripting API
+    script_dir = crt.ScriptFullName
+    return os.path.dirname(script_dir)
 
 strFilePath = get_script_path()
+
+# Append the script's directory to sys.path
+sys.path.append(strFilePath)
 
 def read_function_names_from_ckl(filename):
     """Reads the Vuln_Num values from the CKL file and returns them in the V###### format."""
@@ -219,7 +223,8 @@ def read_function_names_from_ckl(filename):
 
 def read_function_names_from_csv(filename):
     """Reads the function names from the STIG CSV file."""
-    with open(filename, "r") as file:
+    full_path = os.path.join(strFilePath, filename)
+    with open(full_path, "r") as file:
         reader = csv.reader(file)
         # Skip the header
         next(reader, None)
@@ -227,8 +232,8 @@ def read_function_names_from_csv(filename):
         return [row[0] for row in reader if row]
 
 def read_function_names():
-    stig_csv_file = strFilePath + "stig_vul.csv"
-    stig_ckl_file = strFilePath + "Stigtemplate-XE-Switch-NDM-L2S-v2r6_07_Jun_2023.ckl"
+    stig_csv_file = os.path.join(strFilePath, "stig_vul.csv")
+    stig_ckl_file = os.path.join(strFilePath, "Stigtemplate-XE-Switch-NDM-L2S-v2r6_07_Jun_2023.ckl")
     
     # First, try reading from the CSV file
     function_names = read_function_names_from_csv(stig_csv_file)
@@ -238,7 +243,6 @@ def read_function_names():
         function_names = read_function_names_from_ckl(stig_ckl_file)
     
     return function_names
-
 
 
 def send_command(command, device_name):
@@ -272,13 +276,11 @@ def exec_command(command, device_name):
 
     return output
 
-#this is a STIG CKL file in a XML format
-def load_template(template_name):
-    with open(
-        strFilePath + template_name, "r", encoding="utf-8"
-    ) as objStigTemplateFile:
-        return objStigTemplateFile.read()
 
+def load_template(template_name):
+    full_path = os.path.join(strFilePath, template_name)
+    with open(full_path, "r", encoding="utf-8") as objStigTemplateFile:
+        return objStigTemplateFile.read()
 
 def open_hosts_file():
     # Look for files in the strFilePath directory with "host" in the name and a ".txt" extension
@@ -286,26 +288,26 @@ def open_hosts_file():
 
     # If there is exactly one matching file, use it
     if len(matching_files) == 1:
-        return open(strFilePath + matching_files[0])
-
-    # Otherwise, open the dialog box
-    strStigDevielist = crt.Dialog.FileOpenDialog(
-        title="   ----------Please select a file containing Stig targets----------",
-        filter="Text Files (*.txt)|*.txt||",
-    )
-    return open(strStigDevielist)
+        full_path = os.path.join(strFilePath, matching_files[0])
+        hosts_file = open(full_path)
+    else:
+        # Otherwise, open the dialog box
+        strStigDevielist = crt.Dialog.FileOpenDialog(
+            title="   ----------Please select a file containing Stig targets----------",
+            filter="Text Files (*.txt)|*.txt||",
+        )
+        hosts_file = open(strStigDevielist)
+    
+    stig_template_name = "Stigtemplate-XE-Switch-NDM-L2S-v2r6_07_Jun_2023.ckl"
+    
+    return hosts_file, stig_template_name
 
 
 def create_log_file():
-    log_file = (
-        strFilePath
-        + "scriptoutput-StigCheck-XE-switch-NDM-L2S-v3r4-"
-        + str(today)
-        + ".csv"
-    )
-    return open(log_file, "a")
+    log_file_name = "scriptoutput-StigCheck-XE-switch-NDM-L2S-v3r4-" + str(today) + ".csv"
+    log_file_path = os.path.join(strFilePath, log_file_name)
+    return open(log_file_path, "a")
 
-#look at this function (log_error) need to look into outputing it into a csv and removing any empy spaces
 
 def log_error(message):
     """Utility function to log errors to a file."""
@@ -314,8 +316,7 @@ def log_error(message):
     with open(log_path, "a") as error_log:
         error_log.write(f"{message}\n")
 
-#I would like to add connection string to this function, one that uses username & password and another like that user token, each line needs the accepthostkeys part, this is used
-# to accept the ssh key when connecting to a new device in SecureCRT
+
 def connect_to_host(strHost):
     """Connect to a host and set terminal settings."""
     # Define the connection string and terminal settings
@@ -381,16 +382,8 @@ def handle_errors(result, command, device_name):
 
     return result
 
-'''
-The function "proccess_ host" and :update_ckl_template" in "STIG_12_J.py" work with a ckl file that is in XML format
-Disa is changing from an xml format to a JSON format with STIG viewer 3.0
-I have created a black .cklb (new Json format) file that is replaceing the .ckl file xml file
-its called "New Checklist.cklb"
-To see how the JSON file looks I made a script called "Json_to_Txt.py" that puts the Json tree in a reable format for me to understand
-These files are in the STIG_SCAN folder
-How would I update the "process_host" and "update_ckl_template" functions to work with the new JSON format?
-can you write an updated version of the "process_host" and "update_ckl_template" functions that work with the new JSON format?
-'''
+
+
 def process_host(host, stig_template, log_file):
     host = host.replace("\n", "")
     device_type = "IOS"
@@ -417,30 +410,17 @@ def process_host(host, stig_template, log_file):
             root.find('.//ASSET/HOST_IP').text = str(host)
             ckl = ET.tostring(root, encoding='utf-8').decode('utf-8')
 
-            ckl_file = device_name + "_" + strDateTime + ".ckl"
-            with open(strFilePath + ckl_file, "w", encoding="utf-8") as objCKLFile:
+            ckl_file = os.path.join(strFilePath, device_name + "_" + strDateTime + ".ckl")
+            with open(ckl_file, "w", encoding="utf-8") as objCKLFile:
                 objCKLFile.write(ckl)
 
         crt.Session.Disconnect()
 
 
-#please note we are using a modifed PEB8 format that allows for 120 charaters in each line of this script
-#the following function is not being used, but I would like to use it to write the header to the csv file
-def write_header_to_csv(log_file):
-    log_file.write(
-        "Date,Hostname,CommonName,DeviceName,VulnID,Status,Finding,Comments,,\n"
-    )
-    return None
-#This is the function that writes the output to the csv file, I would like to change it to remove the "host" variable and use the "device_name" variable instead
-#how can this function "log_to_csv" be improved?  I would like to remove the "host" variable and use the "device_name" variable instead
-#I would also like to remove the "common_name" variable
-#I would also like to remove the "log_file" variable
+
 def log_to_csv(obj, host, device_name, common_name, log_file):
-    # Escape the finding and comments to prevent invalid CSV formatting
     finding_details = xml.sax.saxutils.escape(obj.finding)
     comments = xml.sax.saxutils.escape(obj.comments)
-
-    # Write the finding to the log file
     log_file.write(f"{strDateTime},{host},{common_name.strip()},{device_name.strip()},{obj.vulid},{obj.status},\"{finding_details}\",\"{comments}\",,\n")
 
 
@@ -459,12 +439,10 @@ def update_ckl_template(obj, ckl):
 
 
 def Main():
-    # Load the STIG template
-    stig_template_name = "Stigtemplate-XE-Switch-NDM-L2S-v2r6_07_Jun_2023.ckl"
+    # Open the hosts file, log file, and get the stig_template_name
+    hosts_file, stig_template_name = open_hosts_file()
     stig_template = load_template(stig_template_name)
-
-    # Open the hosts file and log file
-    hosts_file = open_hosts_file()
+    
     log_file = create_log_file()
 
     # Write the header to the log file
