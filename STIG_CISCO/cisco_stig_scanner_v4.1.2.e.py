@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.d
+# Version:4.1.2.e
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
 Creator: Johnathan A. Greeley
@@ -125,6 +125,7 @@ import inspect
 import time
 import array
 import traceback
+import uuid
 import xml.etree.ElementTree as ET
 import xml.sax.saxutils
 from collections import OrderedDict, namedtuple
@@ -156,6 +157,7 @@ class Stig:
         self.severity = "default"  # Add mapping that can map the Vul ID to the CAT1, CAT2, CAT3.
         self.comments = ""
 
+    # I think this is the inject point for mapping the Vul ID to CAT type, need to look into this
     def set_vulid(self, func_name=None):
         """
         Sets the formatted vulnerability ID based on the provided or calling function's name.
@@ -5941,38 +5943,43 @@ def V220479(device_type, device_name):
 
 
 def V220480(device_type, device_name):
-    # V-220480 - The Cisco router must be configured to enforce the limit of three consecutive invalid logon attempts, after which time it must lock out the user account from accessing the device for 15 minutes.
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
+    # Initialize the check object and set its default status
     check = Stig()
     check.set_vulid()
     check.status = "OP"
     strModel = "unknown"
     strModelVersion = "unknown"
 
+    # Execute the command to get the device model
     command = "show inventory | i PID"
     result = exec_command(command, device_name)
 
+    # Extract the model from the result
     intStart = result.splitlines()[1].find(" ")
     intEnd = result.splitlines()[1].find(" ", intStart + 1)
     strModel = str(result.splitlines()[1][intStart:intEnd]).strip()
 
-    if strModel.find("N9K") > -1:
+    # Check for N9K model and return early if found
+    if "N9K" in strModel:
         check.status = "NA"
         check.comments = "NA: Nexus 9K series switches do not have this capability"
+        return check
 
-    if strModel.find("N5K") > -1:
+    # Additional logic for other models (e.g., N5K, N3K)
+    if "N5K" in strModel:
         command = "sh run | i login.block"
         result = exec_command(command, device_name)
         check.finding = result
-        check.comments = "V-220480 - OPEN -  Cisco switch not configured to enforce the limit of three consecutive invalid logon attempts"
-        if result.find("block-for", len(device_name) + len(command)) > -1:
+        check.comments = "V-220480 - OPEN - Cisco switch not configured to enforce the limit of three consecutive invalid logon attempts"
+        if "block-for" in result:
             check.status = "NF"
             check.comments = "V-220480 - NAF - Cisco switch configured to enforce the limit of three consecutive invalid logon attempts"
 
-    if strModel.find("N3K") > -1:
+    if "N3K" in strModel:
         check.status = "NA"
         check.comments = "NA: Nexus 3K series switches do not have this capability"
 
+    # Update the finding with the result and return the check object
     check.finding = result
     return check
 
