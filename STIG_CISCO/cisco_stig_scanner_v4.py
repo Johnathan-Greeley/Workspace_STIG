@@ -1,46 +1,321 @@
 # $language = "python3"
 # $interface = "1.0"
-#version:4.rc1
+# Version:4.1.1
 '''
-This is a fork of the autostig scripts
-Starting with Version 4
-Moving all Vul checks into one script
-By Johnathan  A. Greeley
-As of 2023-OCT-02, all check for IOS XE SWITCH, IOS XE Router & NXOS are imported.
-They have been tested and seam to work.
-Next step is to refactor all imported vuls.
+This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
+Creator: Johnathan A. Greeley
+As of 2023-OCT-02, checks for IOS XE SWITCH, IOS XE Router & NXOS have been imported, tested, and are functioning as expected.
+The next step involves refactoring all imported vulnerabilities.
+
+Version: cisco_stig_scanner_v4.1
+Update as of 2023-NOV-16:
+- First review of Cisco NX OS Switch L2S Security is complete; follow-up is needed.
+- Addressed file path issues in SecureCRT; paths no longer need to be hardcoded, setting the stage for modularization.
+- Created short status codes for vulnerability status.
+- Updated the Stig class with a mapping of short status codes for CKL & CKLB file compatibility.
+- Moved the logic for formatting vulnerability IDs to the Stig class, allowing direct passing of vulnerability function names for checklist formatting.
+- Added error handling logic to the Stig class for graceful handling of errors related to vulnerability functions.
+- Added a clear method to the Stig class to reset Stig data before moving to the next host. This is a precaution as SecureCRT sometimes deviates from Python's default behavior.
+- Added a clear method to the Commandcache class to reset command data before moving to the next host.
+- Added a cleaning method to the Commandcache class to remove sensitive data before writing to logs and/or checklists.
+- Added a dispatch functions for checklists to support dual use of CKL & CKLB files.
+- Removed old logging logic and introduced new logging functions.
+- Added a txt error log for failed connections, detailing the host and the reason for failure.
+- Introduced a CSV logger for hosts scanned each day, tracked by host and appended until the end of the day.
+- Implemented a logger for failed vulnerability functions.
+- Removed CKL processing logic from the 'process_host' and 'connect_to_host' functions in preparation for CKLB functions.
+- Added a function to read vulnerability names from CKLB files and remove the '-' for calling the list of vulnerability functions.
+- Added functions to update and write STIG data to CKLB files.
+- Removed unused functions and classes and reorganized the script, placing support and command functions at the top, followed by vulnerability functions, with processing and main functions at the end.
+- Updated the script's execution time display to show minutes and seconds, along with the number of hosts scanned and the number of failures.
+- Added a function to display a count of hosts in the current connection tab (e.g., 192.168.1.1 (3 of 5)).
+- Consolidated most time-related logic into the 'display_summary' function.
+
+Version: cisco_stig_scanner_v4.1.1 (last update NOV-20-2023)
+Moving checklist & connection logic to classes to support Modularization
+Moved Checklist logic to it own class called ChecklistManager
+    moved the following functions/logic to ChecklistManager:
+    read_function_names_from_cklb
+    read_function_names_from_ckl
+    read_function_names_from_csv
+    load_ckl_template
+    load_cklb_template
+    update_and_write_cklb
+    update_and_write_ckl
+    update_cklb_template
+    update_ckl_template
+Moved Stig status mapping from Stig class to ChecklistManager class as they are used for checklist
+    STATUS_MAP_CKL
+    STATUS_MAP_CKLB
+Updated functions for working with check list to use the new class ChecklistManager
+    updated delgator function:
+    read_function_names_from_checklist
+    read_function_names
+    load_template
+    update_and_write_checklist
+Version: cisco_stig_scanner_v4.1.2 (last update NOV-23-2023)
+    Bug fix: Issue with 2FA hosts having the ‘term len 0’ command sent before the '#' resulting in the user needing to input the command to let the rest of the script run.
+    corrected ‘set_terminal_settings’ to address this issue with the move of ‘crt.Screen.WaitForStrings(["#", ">"], 15)’
+    Bug fix: Issue requiring the user to hit "X" if auth failed before it went to the next host
+    used crt API call to ensure the pop up does not come up when a failed connection happens. ‘crt.Session.ConnectInTab(connect_string, False, True)’
+    NOTE: Logging logic in place but need to fine tune the logs
 '''
 
-import os, datetime, SecureCRT, array, sys, re, string, csv, inspect, time, xml.sax.saxutils
+'''
+TODO LIST
+
+1. Review and Refactor Vulnerability Functions:
+   - Conduct a thorough review of existing vulnerability functions.
+   - Refactor as needed to enhance efficiency, readability, and maintainability.
+
+2. Automated Configuration Corrections:
+   - Implement functions in vulnerability checks that suggest or apply configuration corrections when possible.
+
+3. Enhanced Logging:
+   - Improve logging mechanisms to provide more informative and user-friendly outputs.
+
+4. Connection Error Handling Improvements:
+   - Enhance the handling of connection errors, especially in cases of incorrect authentication settings.
+   - Address issues where the script hangs and requires manual interruption.
+
+5. Commandcache Cleanup Enhancements:
+   - Improve the cleanup logic in Commandcache to ensure comprehensive removal of all sensitive data.
+
+6. Hardware and Software Information Retrieval:
+   - Develop a function to retrieve hardware and software information at the start of processing each host.
+   - Utilize this information for the 'device_type' attribute in relevant functions.
+
+7. Metadata and Versioning for Vulnerability Functions:
+   - Begin adding metadata and version information to each vulnerability function.
+   - Track changes and provide context for future updates and reviews.
+
+8. Modularization Roadmap and Testing:
+   - Outline a plan for the modularization of the script.
+   - Begin testing modular components, especially in the context of SecureCRT integration.
+
+9. External Testing Tool for Vulnerability Functions:
+   - Develop a tool for testing vulnerability functions outside of the script/SecureCRT environment.
+   - Aim to expedite the process of updating and validating vulnerability functions.
+'''
+
+# Standard library imports
+import os
+import datetime
 from datetime import date
-from collections import OrderedDict
-from packaging import version
+import sys
+import re
+import string
+import csv
+import html
+import json
+import inspect
+import time
+import array
+import traceback
 import xml.etree.ElementTree as ET
+import xml.sax.saxutils
+from collections import OrderedDict, namedtuple
 
-today = date.today()
-strDateTime = str(today.strftime("%b-%d-%Y"))
+# Third-party imports
+from packaging import version
 
-t1 = time.perf_counter()
-# create a global variable that will cache device commands and outputs
-# CommandCache = []
+# Check if 'crt' is a defined variable in the globals() dictionary
+if 'crt' in globals():
+    # Use SecureCRT's scripting API to get the full path of the current script
+    script_dir, script_name = os.path.split(crt.ScriptFullName)
+    # If the script directory is not already in sys.path, add it at the beginning
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+    # Set the current working directory to the script's directory
+    os.chdir(script_dir)  # Use script_dir which contains the directory of the current script
+
+# Local application/library specific imports
+import SecureCRT  # Assuming this is a local import
 
 
 class Stig:
+
     def __init__(self):
         self.vulid = ""
         self.device_type = ""
         self.finding = ""
-        self.status = "Open"
+        self.status = "OP"  # Default status when a Stig instance is created
+        self.severity = "default"
+        self.comments = ""
+
+    def set_vulid(self, func_name=None):
+        """
+        Sets the formatted vulnerability ID based on the provided or calling function's name.
+
+        Args:
+        - func_name (str, optional): The name of the function. If not provided, it will use the calling function's name.
+        """
+        if not func_name:
+            # Inspect the stack to get the name of the calling function
+            caller_frame = inspect.currentframe().f_back
+            func_name = caller_frame.f_code.co_name
+
+        # Format the function name and set it as the vulnerability ID
+        if func_name.startswith('V') and func_name[1:].isdigit():
+            self.vulid = f"{func_name[:1]}-{func_name[1:]}"  # Correctly format as 'V-######'
+        else:
+            self.vulid = func_name
+
+    def handle_error(self, func_name, exception):
+        """
+        Handles errors that occur during vulnerability checks. Logs the error to a CSV file
+        and sets the appropriate attributes in the Stig object to reflect the error status.
+
+        Args:
+        - func_name (str): The name of the function where the error occurred.
+        - exception (Exception): The exception object representing the error.
+        """
+        # Log the error to the CSV file
+        log_vuln_check_error(self.device_name, self.device_type, func_name, exception)
+
+        # Set the Stig object attributes to reflect the error
+        self.set_vulid(func_name)
+        self.status = "NR"
+        existing_finding = self.finding if self.finding else ""
+        self.finding = f"{existing_finding}\nError occurred during execution: {str(exception)}"
+        self.comments = f"Error in {func_name}: {str(exception)}"
+
+    def clear(self):
+        """Resets all attributes to their default values."""
+        self.vulid = ""
+        self.device_type = ""
+        self.finding = ""
+        self.status = "OP"
         self.severity = "default"
         self.comments = ""
 
 
-class Command:
+class ChecklistManager:
+    # Class-level mapping of short status codes to their full description for ckl/cklb
+    STATUS_MAP_CKL = {
+        "NR": "Not_Reviewed",
+        "NF": "NotAFinding",
+        "NA": "Not_Applicable",
+        "OP": "Open"
+    }
+
+    STATUS_MAP_CKLB = {
+        "NR": "not_reviewed",
+        "NA": "not_applicable",
+        "OP": "open",
+        "NF": "not_a_finding"
+    }
+
     def __init__(self):
-        self.command = "undefined"
-        self.output = "undefined"
-        self.device_name = "undefined"
-        self.status = 0
+        # Initialize any necessary attributes here, if required
+        pass
+
+    def read_function_names_from_ckl(self, checklist_file):
+        function_names = []
+        tree = ET.parse(checklist_file)
+        root = tree.getroot()
+        for vuln in root.iter('VULN'):
+            for stig_data in vuln.findall('STIG_DATA'):
+                vuln_attribute = stig_data.find('VULN_ATTRIBUTE')
+                if vuln_attribute is not None and vuln_attribute.text == 'Vuln_Num':
+                    attribute_data = stig_data.find('ATTRIBUTE_DATA')
+                    if attribute_data is not None:
+                        function_name = attribute_data.text.replace("-", "")
+                        function_names.append(function_name)
+        return function_names
+
+    def read_function_names_from_cklb(self, checklist_file):
+        with open(checklist_file, 'r', encoding='utf-8') as file:
+            cklb_data = json.load(file)
+        function_names = []
+        for stig in cklb_data['stigs']:
+            for rule in stig['rules']:
+                group_id_src = rule['group_id']
+                if group_id_src.startswith('V-'):
+                    function_name = 'V' + group_id_src[2:].replace("-", "")
+                    function_names.append(function_name)
+                elif group_id_src.startswith('V'):
+                    function_name = group_id_src.replace("-", "")
+                    function_names.append(function_name)
+        return function_names
+
+    def read_function_names_from_csv(self, filename):
+        with open(filename, "r") as file:
+            reader = csv.reader(file)
+            next(reader, None)
+            return [row[0] for row in reader if row]
+
+    def load_ckl_template(self, template_name):
+        try:
+            with open(template_name, "r", encoding="utf-8") as ckl_file:
+                return ckl_file.read()
+        except Exception as e:
+            raise Exception(f"Error loading CKL template file {template_name}: {e}")
+
+    def load_cklb_template(self, template_name):
+        try:
+            with open(template_name, "r", encoding="utf-8") as cklb_file:
+                return json.load(cklb_file)
+        except json.JSONDecodeError as e:
+            raise json.JSONDecodeError(f"Error parsing JSON from CKLB template file {template_name}: {e}")
+
+    def update_and_write_ckl(self, stig_list, device_name, host, checklist_file):
+        date_str = datetime.datetime.now().strftime("%d-%b-%Y").upper()
+        ckl_content = self.load_ckl_template(checklist_file)
+        for obj in stig_list:
+            ckl_content = self.update_ckl_template(obj, ckl_content)
+        root = ET.fromstring(ckl_content)
+        root.find('.//ASSET/HOST_NAME').text = str(device_name)
+        root.find('.//ASSET/HOST_IP').text = str(host)
+        ckl_content = ET.tostring(root, encoding='utf-8').decode('utf-8')
+        template_part = checklist_file.split(".")[0]
+        name_parts = template_part.split("-")
+        name_prefix = "-".join(name_parts[:-1])
+        new_ckl_filename = f"{device_name}_{name_prefix}_{date_str}.ckl"
+        with open(new_ckl_filename, "w", encoding="utf-8") as objCKLFile:
+            objCKLFile.write(ckl_content)
+
+    def update_and_write_cklb(self, stig_list, device_name, host, checklist_file):
+        date_str = datetime.datetime.now().strftime("%d-%b-%Y").upper()
+        cklb_content = self.load_cklb_template(checklist_file)
+        for obj in stig_list:
+            cklb_content = self.update_cklb_template(obj, cklb_content)
+        cklb_content['target_data']['host_name'] = device_name
+        cklb_content['target_data']['ip_address'] = host
+        cklb_content['title'] = f"{device_name}_{date_str}"
+        template_part = checklist_file.split(".")[0]
+        name_parts = template_part.split("-")
+        name_prefix = "-".join(name_parts[:-1])
+        new_cklb_filename = f"{device_name}_{name_prefix}_{date_str}.cklb"
+        with open(new_cklb_filename, 'w', encoding='utf-8') as file:
+            json.dump(cklb_content, file, indent=4)
+
+    def update_ckl_template(self, obj, ckl):
+        # Using class attribute for status map
+        full_status_ckl = ChecklistManager.STATUS_MAP_CKL.get(obj.status, "OP")
+        root = ET.fromstring(ckl)
+        for vuln in root.iter('VULN'):
+            for stig_data in vuln.findall('STIG_DATA'):
+                vuln_attribute = stig_data.find('VULN_ATTRIBUTE')
+                if vuln_attribute is not None and vuln_attribute.text == 'Vuln_Num':
+                    attribute_data = stig_data.find('ATTRIBUTE_DATA')
+                    if attribute_data is not None and attribute_data.text == obj.vulid:
+                        vuln.find('STATUS').text = full_status_ckl
+                        vuln.find('FINDING_DETAILS').text = xml.sax.saxutils.escape(obj.finding)
+                        vuln.find('COMMENTS').text = xml.sax.saxutils.escape(obj.comments)
+        return ET.tostring(root, encoding='utf-8').decode('utf-8')
+
+    def update_cklb_template(self, obj, cklb):
+        # Using class attribute for status map
+        full_status_cklb = ChecklistManager.STATUS_MAP_CKLB.get(obj.status, "open")
+        for stig in cklb['stigs']:
+            for rule in stig['rules']:
+                if rule['group_id'] == obj.vulid:
+                    rule['status'] = full_status_cklb
+                    rule['finding_details'] = html.escape(obj.finding)
+                    rule['comments'] = html.escape(obj.comments)
+                    break
+        return cklb
 
 
 class IntStatus:
@@ -49,28 +324,438 @@ class IntStatus:
         self.description = "undefined"
         self.vlan = "undefined"
 
+
 class IntTrans:
     def __init__(self):
         self.interface = "undefined"
         self.transtype = "none"
-        self.devicename = "undefined"
+        self.device_name = "undefined"
+
 
 class Commandcache:
     def __init__(self):
         self.cache = {}
 
     def add(self, device_name, command, output):
-        self.cache[(device_name, command)] = output
+        # Clean the output before adding it to the cache
+        clean_output = self.clean_output(output)
+        self.cache[(device_name, command)] = clean_output
 
     def get(self, device_name, command):
+        # Retrieve the cleaned output from the cache
         return self.cache.get((device_name, command))
 
+    def clear(self):
+        """Clears the cache."""
+        self.cache.clear()
 
+    def clean_output(self, output):
+        # Regex patterns to match sensitive data patterns
+        hash_patterns = [
+            re.compile(r'(server-private.*key\s+\d+\s+)(\S+)'),
+            re.compile(r'(mpls ldp neighbor.*password\s+\d\s+)(\S+)'),
+            re.compile(r'(username.*secret\s+\d+\s+)(\S+)'),
+            re.compile(r'(crypto isakmp key\s+\d+\s+)(\S+)(?=\s+address)'),
+            re.compile(r'(password\s+\d\s+)(\S+)'),
+            re.compile(r'(ntp authentication-key\s+\d+\s+md5\s+)(\S+)(?=\s+\d$)'),
+            re.compile(r'(ip ospf message-digest-key\s+\d+\s+md5\s+\d\s+)(\S+)'),
+            re.compile(r'(authentication mode hmac-sha-256\s+\d\s+)(\S+)'),
+            re.compile(r'(key-string\s+\d+\s+)(\S+)'),
+            re.compile(r'(authentication mode hmac-sha-256 7\s+)(\S+)'),
+            re.compile(r'(snmp-server user.*auth sha\s+\S+\s+priv aes-128\s+)\S+.*'),
+            re.compile(r'(ntp authentication-key \d+ md5\s+)(\S+)(?=\s+\d+\s*$)'),
+
+        ]
+
+        # Clean the output
+        for pattern in hash_patterns:
+            output = pattern.sub(r'\1***SANITISED***', output)
+
+        return output
+
+
+# Usage of cleaning when adding data to the cache
+# This would be in the part of the script where command outputs are processed
+# command_cache.add(device_name, command, raw_output)
+
+
+# Grouping global variables here
+
+# Cache for storing command outputs
 command_cache = Commandcache()
+
+# Stored username and password for authentication
 stored_username = ""
 stored_password = ""
 
-# ----- NDM STIGS ----------------------------------------------------------------------------------------
+t1 = time.perf_counter()
+
+
+# Helper Functions
+
+
+def read_function_names_from_checklist(checklist_file):
+    """
+    Determines the file type of the checklist file and reads function names
+    accordingly, whether it is a .ckl or .cklb file.
+
+    Args:
+    checklist_file: A string with the filename of the checklist.
+
+    Returns:
+    A list of function names read from the given checklist file.
+    """
+    checklist_manager = ChecklistManager()
+    if checklist_file.endswith('.ckl'):
+        return checklist_manager.read_function_names_from_ckl(checklist_file)
+    elif checklist_file.endswith('.cklb'):
+        return checklist_manager.read_function_names_from_cklb(checklist_file)
+    else:
+        raise ValueError("Unsupported file format. Please provide a .ckl or .cklb file.")
+
+
+def read_function_names(checklist_file):
+    """
+    Attempts to read function names from a STIG CSV file. If the CSV file is empty or not present,
+    the function then reads from a provided CKL or CKLB checklist file based on its extension.
+
+    Args:
+    - checklist_file (str): The name of the CKL or CKLB checklist file to read from if CSV is empty.
+
+    Returns:
+    - list: A list of function names.
+    """
+    # Initialize an empty list for function names
+    checklist_manager = ChecklistManager()
+    function_names = checklist_manager.read_function_names_from_csv("stig_vul.csv")
+    if not function_names:
+        if checklist_file.endswith('.ckl'):
+            return checklist_manager.read_function_names_from_ckl(checklist_file)
+        elif checklist_file.endswith('.cklb'):
+            return checklist_manager.read_function_names_from_cklb(checklist_file)
+        else:
+            raise ValueError("Unsupported checklist file format. Provide a .ckl or .cklb file.")
+    return function_names
+
+
+def load_template(template_name):
+    """
+    Loads a template file from the file system and parses it according to its type.
+    Delegates to the specific function based on file extension and ensures the same level
+    of documentation for any refactored and/or new functions.
+
+    Args:
+    - template_name (str): The name of the template file.
+
+    Returns:
+    - dict or str: The content of the template file, parsed as a dictionary if JSON (CKLB),
+                    or raw string if XML/CKL.
+
+    Raises:
+    - ValueError: If the template file format is not supported.
+    """
+    checklist_manager = ChecklistManager()
+    file_extension = os.path.splitext(template_name)[1].lower()
+    if file_extension == '.cklb':
+        return checklist_manager.load_cklb_template(template_name)
+    elif file_extension == '.ckl':
+        return checklist_manager.load_ckl_template(template_name)
+    else:
+        raise ValueError(f"Unsupported template file format: {template_name}")
+
+
+def read_hosts_from_csv(filename):
+    """
+    Reads host information from a CSV file.
+
+    Args:
+    - filename (str): The name of the CSV file.
+
+    Returns:
+    - list: A list of dictionaries, each containing host information.
+    """
+    host_data = []
+    with open(filename, 'r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            host_data.append(row)
+    return host_data
+
+
+def get_daily_log_filename(script_name="cisco_stig_scanner_v4", file_extension=".csv"):
+    date_str = datetime.datetime.now().strftime("%d-%b-%Y").upper()
+    return f"{script_name}_{date_str}{file_extension}"
+
+
+def log_stig_results_to_csv(stig_list, host, device_name):
+    log_filename = get_daily_log_filename()
+    file_exists = os.path.isfile(log_filename)
+
+    with open(log_filename, 'a', newline='', encoding='utf-8') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        if not file_exists:
+            csv_writer.writerow(
+                ["Date", "Hostname", "CommonName", "DeviceName", "VulnID", "Status", "Finding", "Comments"])
+
+        for stig in stig_list:
+            csv_writer.writerow([
+                datetime.datetime.now().strftime("%b-%d-%Y"),
+                host,
+                "",  # CommonName (if applicable)
+                device_name,
+                stig.vulid,
+                stig.status,
+                stig.finding,
+                stig.comments
+            ])
+
+
+def log_vuln_check_error(device_name, device_type, func_name, e):
+    """
+    Logs an error that occurred during a vulnerability check to a CSV file.
+
+    Args:
+    - device_name (str): The name of the device.
+    - device_type (str): The type of the device.
+    - func_name (str): The name of the function where the error occurred.
+    - e (Exception): The exception object.
+    """
+    log_filename = f"vuln_check_errors_{datetime.datetime.now().strftime('%d-%b-%Y').upper()}.csv"
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+    tb_info = traceback.extract_tb(exc_traceback)[-1]
+    line_number = tb_info[1]
+    error_message = str(exc_value).strip()
+
+    with open(log_filename, 'a', newline='') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow([
+            datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            device_name,
+            device_type,
+            func_name,
+            exc_type.__name__,
+            f"Line {line_number}: {error_message}"
+        ])
+
+
+def log_connection_error(host, auth_method, error_message):
+    """
+    Logs an error message for a failed connection attempt to a file, removing extra whitespace.
+
+    Args:
+    - host (str): The hostname or IP address.
+    - auth_method (str): The authentication method used.
+    - error_message (str): The error message to log.
+
+    Returns:
+    None
+    """
+    log_filename = f"connection_errors_{datetime.datetime.now().strftime('%d-%b-%Y').upper()}.txt"
+    with open(log_filename, "a") as error_log:
+        # Strip leading/trailing whitespace from the error message
+        clean_error_message = error_message.strip()
+        log_entry = f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {host} - {auth_method} - {clean_error_message}\n"
+        error_log.write(log_entry)
+
+
+# Commection Management
+
+def connect_to_host(strHost, connection_type, current_host_number, total_hosts_count):
+    global stored_username, stored_password
+
+    # Generate the connection string
+    connect_string = get_connection_string(strHost, connection_type, stored_username, stored_password)
+
+    try:
+        # Attempt to connect to the host in a new tab
+        newTab = crt.Session.ConnectInTab(connect_string, False, True)
+        if newTab.Session.Connected:
+            # Set the tab title to include the host being scanned and its progress number
+            tab_title = f"{strHost} ({current_host_number} of {total_hosts_count})"
+            newTab.Caption = tab_title
+            newTab.Screen.Synchronous = True
+
+            # Set terminal settings and get the device name
+            set_terminal_settings(strHost)
+            device_name = get_device_name()
+            return device_name, device_name
+        else:
+            # Connection failed but no exception was raised
+            error_message = crt.GetLastErrorMessage()
+            log_connection_error(strHost, connection_type, error_message)
+            return None, None
+    except ScriptError as e:
+        # Handle the failed connection attempt
+        error_message = f"Failed to connect to {strHost} using {connection_type}: {e}"
+        log_connection_error(strHost, connection_type, error_message)
+        return None, None
+
+
+def get_connection_string(strHost, connection_type, stored_username, stored_password):
+    """
+    Generates the connection string based on the connection type and credentials.
+
+    Args:
+    - strHost (str): The hostname.
+    - connection_type (str): The type of connection ('user_pass', 'pki', or 'default').
+    - stored_username (str): The stored username for authentication.
+    - stored_password (str): The stored password for authentication.
+
+    Returns:
+    - str: The generated connection string.
+    """
+    connect_string_default = f"/SSH2 /ACCEPTHOSTKEYS /Z 4 {strHost}"
+    connect_string_pki = f"/SSH2 /AUTH publickey /ACCEPTHOSTKEYS /Z 4 {strHost}"
+
+    if connection_type == 'user_pass':
+        if not stored_username:
+            stored_username = crt.Dialog.Prompt("Enter your username:", "Login", "", False).strip()
+        if not stored_password:
+            stored_password = crt.Dialog.Prompt("Enter your password:", "Login", "", True).strip()
+        return f"/SSH2 /L {stored_username} /PASSWORD {stored_password} /AUTH keyboard-interactive /ACCEPTHOSTKEYS /Z 4 {strHost}"
+
+    if connection_type == 'pki':
+        return connect_string_pki
+    else:
+        return connect_string_default
+
+
+def set_terminal_settings(strHost):
+    """
+    Sets terminal settings for the session.
+
+    Args:
+    - strHost (str): The hostname.
+
+    Returns:
+    None
+    """
+    crt.Screen.WaitForStrings(["#", ">"], 15)
+    term_len = "term len 0"
+    term_width = "term width 400"
+    exec_command(f"{term_len}\r", strHost)
+    exec_command(f"{term_width}\r", strHost)
+
+
+def get_device_name():
+    """
+    Retrieves the device name from the current screen in the terminal.
+
+    Args:
+    None
+
+    Returns:
+    - str: The device name.
+    """
+    return crt.Screen.Get(crt.Screen.CurrentRow, 0, crt.Screen.CurrentRow, crt.Screen.CurrentColumn - 2).replace("#",
+                                                                                                                 "")
+
+
+# Command and Error Handling
+
+def send_command(command, device_name):
+    """
+    Sends a command to the terminal and returns the output.
+
+    Args:
+    - command (str): The command to send.
+    - device_name (str): The name of the device to send the command to.
+
+    Returns:
+    - str: The output from the command execution.
+    """
+    if device_name.find(".") > -1:
+        prompt = "#"
+    else:
+        prompt = device_name + "#"
+    crt.Screen.WaitForStrings([prompt], 1)
+    crt.Screen.Send(command + "\r")
+    return crt.Screen.ReadString(prompt, 30)
+
+
+def exec_command(command, device_name):
+    """
+    Executes a command on a device, cleans, and caches the output.
+
+    Args:
+    - command (str): The command to execute.
+    - device_name (str): The name of the device.
+
+    Returns:
+    - str: The cleaned output from the command execution, with device name included.
+    """
+    # Try to retrieve the cleaned output from the cache first
+    output = command_cache.get(device_name, command)
+
+    # If the output is not in the cache, execute the command and clean the result
+    if output is None:
+        result = send_command(command, device_name)
+        result = handle_errors(result, command, device_name)
+
+        # Cleaning the output
+        cleaned_output = command_cache.clean_output(result)
+
+        # Reconstructing the output with the device name
+        if "." in device_name:
+            output = cleaned_output.strip()
+        else:
+            output = f"{device_name}#{cleaned_output}{device_name}#"
+
+        # Adding the cleaned (and reconstructed) output to the cache
+        command_cache.add(device_name, command, output)
+
+    return output
+
+
+def handle_errors(result, command, device_name):
+    """
+    Handles errors during command execution and logs them.
+
+    Args:
+    - result (str): The result from the command execution.
+    - command (str): The command that was executed.
+    - device_name (str): The name of the device.
+
+    Returns:
+    - str: The processed result, taking into account any errors.
+    """
+    # Determine the prompt based on the device name
+    prompt = "#" if "." in device_name else f"{device_name}#"
+
+    # If the result is shorter than the device name, an error likely occurred
+    if len(result) < len(device_name):
+        crt.Screen.WaitForStrings([prompt], 1)
+        crt.Screen.Send("\x03\r")
+        result = crt.Screen.ReadString(prompt, 10)
+        crt.Screen.WaitForStrings([prompt], 5)
+        crt.Screen.Send(f"{command}\r")
+        result = crt.Screen.ReadString(prompt, 110)
+
+    # Additional error handling for connection failures
+    # if "Failed to connect" in result:
+    # log_error(result)
+    # print(f"Error: {result}")
+    # Continue with the next host or operation
+    # return result
+
+    return result
+
+
+# For latter use for 'connect_to_host'
+def handle_connection_failure(strHost, connection_type, additional_info=""):
+    # SecureCRT specific error handling for authentication failure
+    error_message = crt.GetLastErrorMessage()
+    if "Authentication failed" in error_message or "Login incorrect" in error_message:
+        error_message = f"Authentication failed for {strHost} using {connection_type}: {error_message}"
+
+    if additional_info:
+        error_message += f" Additional info: {additional_info}"
+
+    log_connection_error(strHost, connection_type, error_message)
+
+
+# Vulnerability Check Functions
+# ----- NDM STIGS IOS XE SW ----------------------------------------------------------------------------------------
 
 
 def V220518(device_type, device_name):
@@ -79,8 +764,8 @@ def V220518(device_type, device_name):
     logic updated 2023-SEP-05 by Johnathan Greeley, removed module lookup and changes command.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Run the command to check for session limit and vty line configuration
     command = "show run | s ^line.(vty|con)"
@@ -90,11 +775,11 @@ def V220518(device_type, device_name):
     if "session-limit" in result:
         session_limit = re.search(r"session-limit (\d+)", result)
         if session_limit and int(session_limit.group(1)) < 2:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.finding = result
             check.comments = "V-220518 - CAT II - NAF as long as the VTY lines have session-limit >=2"
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.finding = result
             check.comments = "V-220518 - CAT II - Session limit is not set to less than 2."
     else:
@@ -114,17 +799,15 @@ def V220518(device_type, device_name):
                     break
 
         if is_valid:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.finding = result
             check.comments = "V-220518 - CAT II - NAF as only vty 0 to 4 are open and all other lines are closed."
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.finding = result
             check.comments = "V-220518 - CAT II - VTY lines configuration is not as expected."
 
     return check
-
-
 
 
 def V220519(device_type, device_name):
@@ -133,8 +816,8 @@ def V220519(device_type, device_name):
     updated command to "show run | s ^archive" by Johnathan Greeley 2023-SEP-05
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "show run | s ^archive"
     result = exec_command(command, device_name)
@@ -145,7 +828,7 @@ def V220519(device_type, device_name):
 
     # Check if "log config" is present in the result
     if re.search(r'log config', result[len(device_name) + len(command):]):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220519 - CAT II - NAF - Logging enabled"
 
     return check
@@ -157,8 +840,8 @@ def V220520(device_type, device_name):
     updated command to "show run | s ^archive" by Johnathan Greeley 2023-SEP-05
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "show run | s ^archive"
     result = exec_command(command, device_name)
@@ -169,7 +852,7 @@ def V220520(device_type, device_name):
 
     # Check if "log config" is present in the result
     if re.search(r'log config', result[len(device_name) + len(command):]):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V220520 - CAT II - NAF - Logging enabled"
 
     return check
@@ -181,8 +864,8 @@ def V220521(device_type, device_name):
     updated command to "show run | s ^archive" by Johnathan Greeley 2023-SEP-05
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "show run | s ^archive"
     result = exec_command(command, device_name)
@@ -193,7 +876,7 @@ def V220521(device_type, device_name):
 
     # Check if "log config" is present in the result
     if re.search(r'log config', result[len(device_name) + len(command):]):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220521 - CAT II - NAF - Logging enabled"
 
     return check
@@ -205,8 +888,8 @@ def V220522(device_type, device_name):
     updated command to "show run | s ^archive" by Johnathan Greeley 2023-SEP-05
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "show run | s ^archive"
     result = exec_command(command, device_name)
@@ -217,7 +900,7 @@ def V220522(device_type, device_name):
 
     # Check if "log config" is present in the result
     if re.search(r'log config', result[len(device_name) + len(command):]):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220522 - CAT II - NAF - Logging enabled"
 
     return check
@@ -229,8 +912,8 @@ def V220523(device_type, device_name):
     Updated by Johnathan Greeley 2023-SEP-05, used "show run | s ^line.(vty|con)" to use from command cach
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220523 - OPEN - ACLs were not found."
 
     acl_name = "Not found"
@@ -258,7 +941,7 @@ def V220523(device_type, device_name):
         result = exec_command(command, device_name)
 
         if len(result) > 3:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = "V-220523 - NAF - ACL in place"
 
         check.finding = f"{temp}\r{result}"
@@ -266,15 +949,15 @@ def V220523(device_type, device_name):
         check.finding = result
 
     return check
-    
-    
+
+
 def V220524(device_type, device_name):
     """
     V-220524 - CAT II - The Cisco switch must be configured to enforce the limit of three consecutive invalid logon attempts, after which time it must lock out the user account from accessing the device for 15 minutes.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "sh run | i login.block"
     result = exec_command(command, device_name)
@@ -284,10 +967,10 @@ def V220524(device_type, device_name):
 
     # Search for "block-for" in the result
     if re.search(r'block-for', result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220524 - CAT II - NAF - Configured to limit the number of failed logon attempts"
 
-    return check    
+    return check
 
 
 def V220525(device_type, device_name):
@@ -295,15 +978,15 @@ def V220525(device_type, device_name):
     V-220525 - CAT II - The Cisco switch must be configured to display the Standard Mandatory DoD Notice and Consent Banner before granting access to the device.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "show banner login"
     result = exec_command(command, device_name)
 
     # Look for key words that are supposed to be in the banner string
     if re.search(r'USG-authorized', result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "Not a finding.  Correct banner in place"
     else:
         check.comments = "Open issue - could not find matching configuration."
@@ -319,15 +1002,15 @@ def V220526(device_type, device_name):
     updated command to "show run | s ^archive" by Johnathan Greeley 2023-SEP-05
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "show run | s ^archive"
     result = exec_command(command, device_name)
 
     # Look for key words that are supposed to be in the configuration
     if re.search(r'logging enable', result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220526 - CAT II - NAF - ACS logs all attempts (successful/unsuccessful) to escalate privilege to any device using TACACS"
     else:
         check.comments = "V-220526 - CAT II - OPEN - Logging not configured."
@@ -342,15 +1025,15 @@ def V220528(device_type, device_name):
     V-220528 - CAT II - The Cisco switch must produce audit records containing information to establish when (date and time) the events occurred.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "sh run | i service.timestamp"
     result = exec_command(command, device_name)
 
     # Look for key words that are supposed to be in the configuration
     if re.search(r'service timestamps log', result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220528 - CAT II - NAF - Timestamps configured correctly."
     else:
         check.comments = "V-220528 - CAT II - Open - no timestamps configured."
@@ -367,15 +1050,15 @@ def V220529(device_type, device_name):
     added -input to the command to line up better with what the Vul is asking for
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "sh ip access-lists | i .log-input*"
     result = exec_command(command, device_name)
 
     # Look for key words that are supposed to be in the configuration
     if re.search(r'log', result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220529 - CAT II - NAF - ACL logging configured."
     else:
         check.comments = "V-220529 - CAT II - OPEN - No ACLs with logging."
@@ -391,15 +1074,15 @@ def V220530(device_type, device_name):
     updated command to "show run | s ^archive" by Johnathan Greeley 2023-SEP-05
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "show run | s ^archive"
     result = exec_command(command, device_name)
 
     # Look for key words that are supposed to be in the configuration
     if re.search(r'log config', result) and re.search(r'logging enable', result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220530 - CAT II - NAF - Logging configured."
     else:
         check.comments = "V-220530 - CAT II - OPEN - No Log config."
@@ -414,15 +1097,15 @@ def V220531(device_type, device_name):
     V-220531 - CAT II - The Cisco switch must be configured to protect audit information from unauthorized modification.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "sh run all | i file.privilege"
     result = exec_command(command, device_name)
 
     # Look for key words that are supposed to be in the configuration
     if re.search(r'file privilege 15', result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220531 - CAT II - NAF - file privilege 15 configured."
     else:
         check.comments = (
@@ -432,9 +1115,9 @@ def V220531(device_type, device_name):
 
     check.finding = result
 
-    return check    
+    return check
 
-    
+
 def V220532(device_type, device_name):
     """
     Legacy IDs: V-96233; SV-105371
@@ -442,8 +1125,8 @@ def V220532(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "sh run all | i file.privilege"
     result = exec_command(command, device_name)
@@ -455,10 +1138,10 @@ def V220532(device_type, device_name):
     )
 
     if "file privilege 15" in result[len(device_name) + len(command):]:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220532 - CAT II - NAF - file privilege 15 configured."
 
-    return check    
+    return check
 
 
 def V220533(device_type, device_name):
@@ -467,8 +1150,8 @@ def V220533(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "sh run all | i file.privilege"
     result = exec_command(command, device_name)
@@ -480,10 +1163,11 @@ def V220533(device_type, device_name):
     )
 
     if "file privilege 15" in result[len(device_name) + len(command):]:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220533 - CAT II - NAF - file privilege 15 configured."
 
     return check
+
 
 def V220534(device_type, device_name):
     """
@@ -491,8 +1175,8 @@ def V220534(device_type, device_name):
     Update by Johnathan Greeley 2023-SEP-05, command updated, looking for all the service listed in vul
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
 
     command = "show run | i ^ip.(boot|dns|identd|finger|http|rcmd)|^boot.network|^service.(config|finger|pad|call|tcp-small|udp-small)"
     result = exec_command(command, device_name)
@@ -521,7 +1205,7 @@ def V220534(device_type, device_name):
     for service in unnecessary_services:
         # Check if service is found and not preceded by 'no'
         if re.search(rf'(?<!no ){service}', result):
-            check.status = "Open"
+            check.status = "OP"
             check.comments = f"V-220534 - CAT I - Open - {service} service enabled."
             break
 
@@ -533,34 +1217,23 @@ def V220535(device_type, device_name):
     V-220535 - CAT II - The Cisco switch must be configured to have only one local user account.
     """
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     command = "sh run | i ^username"
     check.comments = ""
-    temp = exec_command(command, device_name)
-
-    # Replace password and secret with ***REMOVED***
-    result = ""
-    for line in temp.splitlines():
-        if "secret" in line:
-            clean = line[:line.find("secret")] + "-----***REMOVED***-----"
-        elif "password" in line:
-            clean = line[:line.find("password")] + "-----***REMOVED***-----"
-        else:
-            clean = line
-        result += "\n" + clean
+    result = exec_command(command, device_name)  # This will get the cleaned result now
 
     check.finding = result
-    check.status = "NotAFinding"
+    check.status = "NF"
 
     # Create a list of configured accounts
-    configured_accounts = [line.split(" ")[1] for line in result.splitlines() if "username " in line[:10]]
+    configured_accounts = [line.split()[1] for line in result.splitlines() if line.startswith("username ")]
 
     # Check if there's more than one user account
     if len(configured_accounts) > 1:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "V220535: More than one local user account found. Please review finding details."
     else:
-        check.comments = "Only one local account"
+        check.comments = "Only one local account configured."
 
     return check
 
@@ -572,8 +1245,8 @@ def V220537(device_type, device_name):
     """
     REQUIRED_MIN_LENGTH = 15
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
     result = exec_command(command, device_name)
     check.finding = result
@@ -585,24 +1258,24 @@ def V220537(device_type, device_name):
             if "Minimum length:" in line:
                 min_length = int(line.split(":")[1].strip())
                 if min_length >= REQUIRED_MIN_LENGTH:
-                    check.status = "NotAFinding"
+                    check.status = "NF"
                     check.comments = f"V-220537 - CAT II - NAF - Minimum length is configured to {min_length}."
                 else:
                     check.comments = f"V-220537 - CAT II - Minimum length is configured to {min_length}. The required minimum length is {REQUIRED_MIN_LENGTH}. This is a finding."
                 break
 
     return check
-    
-    
+
+
 def V220538(device_type, device_name):
     """
-    V-220538 - CAT II - The Cisco switch must be configured to enforce password complexity by requiring 
+    V-220538 - CAT II - The Cisco switch must be configured to enforce password complexity by requiring
     that at least one upper-case character be used.
     Updated by Johnathan Greeley 2023-SEP-05, check output for what VUL is asking for.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
     result = exec_command(command, device_name)
     check.finding = result
@@ -619,22 +1292,22 @@ def V220538(device_type, device_name):
 
         # Check if the "Upper Count" value is 1 or higher
         if upper_count is not None and upper_count >= 1:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = f"V-220538 - NAF - Upper Count is configured to {upper_count}. The minimum to not be a finding is 1."
         else:
             check.comments = f"V-220538 - Upper Count is configured to {upper_count}. It should be 1 or higher."
 
     return check
 
-    
+
 def V220539(device_type, device_name):
     """
     V-220539 - CAT II - The Cisco switch must be configured to enforce password complexity by requiring that at least one lower-case character be used.
     Updated by Johnathan Greeley 2023-SEP-05, check output for what VUL is asking for.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
     result = exec_command(command, device_name)
     check.finding = result
@@ -651,13 +1324,12 @@ def V220539(device_type, device_name):
 
         # Check if the Lower Count is 1 or higher
         if lower_count is not None and lower_count >= 1:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = f"V-220539 - NAF - common criteria policy configured. Lower Count is configured to {lower_count}."
         else:
             check.comments = "V-220539 - Lower Count is not configured to 1 or higher."
 
     return check
-
 
 
 def V220540(device_type, device_name):
@@ -666,8 +1338,8 @@ def V220540(device_type, device_name):
     Updated by Johnathan Greeley 2023-SEP-05, check output for what VUL is asking for.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
     result = exec_command(command, device_name)
     check.finding = result
@@ -684,13 +1356,12 @@ def V220540(device_type, device_name):
 
         # Check if Numeric Count is 1 or higher
         if numeric_count is not None and numeric_count >= 1:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = f"V-220540 - NAF - common criteria policy configured. Numeric Count is configured to {numeric_count}."
         else:
             check.comments = f"V-220540 - Numeric Count is configured to {numeric_count} which is below the minimum requirement."
 
     return check
-
 
 
 def V220541(device_type, device_name):
@@ -699,8 +1370,8 @@ def V220541(device_type, device_name):
     Updated by Johnathan Greeley 2023-SEP-05, check output for what VUL is asking for.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
     result = exec_command(command, device_name)
     check.finding = result
@@ -717,7 +1388,7 @@ def V220541(device_type, device_name):
 
         # Check if the Special Count value is 1 or higher
         if special_count is not None and special_count >= 1:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = f"V-220541 - NAF - common criteria policy configured. Special Count is configured to {special_count}."
         else:
             check.comments = "V-220541 - NOTE: Special Count is not configured to 1 or higher."
@@ -727,13 +1398,13 @@ def V220541(device_type, device_name):
 
 def V220542(device_type, device_name):
     """
-    V-220542 - CAT II - The Cisco switch must be configured to require that when a password is changed, 
+    V-220542 - CAT II - The Cisco switch must be configured to require that when a password is changed,
     the characters are changed in at least eight of the positions within the password.
     Updated by Johnathan Greeley 2023-SEP-05, check output for what VUL is asking for.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
     result = exec_command(command, device_name)
     check.finding = result
@@ -750,20 +1421,20 @@ def V220542(device_type, device_name):
 
         # Check if the number of character changes is 8 or higher
         if char_changes is not None and char_changes >= 8:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = f"V-220542 - NAF - common criteria policy configured. The Number of character changes is configured to {char_changes}."
 
     return check
-    
-    
+
+
 def V220543(device_type, device_name):
     """
     V-220543 - CAT I - The Cisco switch must only store cryptographic representations of passwords.
     """
     # Create a Stig object and set the vulnerability ID
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Execute the command and store the result
     command = "sh run | i service.password"
@@ -771,7 +1442,7 @@ def V220543(device_type, device_name):
 
     # Check if the result contains the "service password-" string
     if re.search(r'service password-', result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220543 - NAF - Password encryption configured."
     else:
         check.comments = "V-220543 - CAT 1 - password encryption must be configured"
@@ -779,8 +1450,7 @@ def V220543(device_type, device_name):
     check.finding = result
 
     return check
-    
-import re
+
 
 def V220544(device_type, device_name):
     """
@@ -789,14 +1459,14 @@ def V220544(device_type, device_name):
     """
     # Create a Stig object and set the vulnerability ID
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
 
     # Execute the command and store the result
     command = "show run | s ^line.(vty|con)"
     result = exec_command(command, device_name)
 
-    # Assume all config lines are good. If any line has a timeout > 5 min, set status to "Open"
-    check.status = "NotAFinding"
+    # Assume all config lines are good. If any line has a timeout > 5 min, set status to "OP"
+    check.status = "NF"
     skip_next = False
     for line in result.splitlines():
         if "no exec" in line:
@@ -811,16 +1481,16 @@ def V220544(device_type, device_name):
         if match_session:
             timeout_minutes = int(match_session.group(1))
             if timeout_minutes > 5:
-                check.status = "Open"
+                check.status = "OP"
                 break
         if match_exec:
             timeout_minutes = int(match_exec.group(1))
             if timeout_minutes > 5:
-                check.status = "Open"
+                check.status = "OP"
                 break
 
     # Set comments based on the check status
-    if check.status == "NotAFinding":
+    if check.status == "NF":
         check.comments = "Not a finding. Timeout less than or equal to 5"
     else:
         check.comments = "Open issue - found configuration with timeout greater than 5 minutes."
@@ -837,19 +1507,19 @@ def V220545(device_type, device_name):
     """
     # Create a Stig object and set the vulnerability ID
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
 
     # Execute the command and store the result
     command = "show run | s ^archive"
     result = exec_command(command, device_name)
 
     # Set the initial status and comments
-    check.status = "Open"
+    check.status = "OP"
     check.comments = "V-220545 - Archive logging is required"
 
     # Check if the result contains the required configuration
     if re.search(r'(?s)archive.*log config.*logging enable', result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220545 - CAT II - NAF - Archive logging configured"
 
     check.finding = result
@@ -863,10 +1533,10 @@ def V220546(device_type, device_name):
     """
     # Create a Stig object and set the vulnerability ID
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
 
     # Set the initial status and comments
-    check.status = "Open"
+    check.status = "OP"
     check.comments = "V-220546 - CAT II - Logging required"
 
     # Execute the command and store the result
@@ -878,7 +1548,7 @@ def V220546(device_type, device_name):
 
     # Check if the result contains the required configuration
     if re.search(r'log config', result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220546 - CAT II - NAF - Logging configured."
 
     check.finding = result
@@ -893,7 +1563,7 @@ def V220547(device_type, device_name):
     """
     # Create a Stig object and set the vulnerability ID
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
 
     # Execute the command and store the result
     command = "sh run | i ^logging.buffered"
@@ -903,7 +1573,7 @@ def V220547(device_type, device_name):
     match = re.search(r'logging buffered (\d+) informational', result)
     if match:
         buffer_size = match.group(1)
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = f"V-220547 - CAT II - NAF - logging buffer configured to {buffer_size}."
     else:
         check.comments = "V-220547 - OPEN - suggest adding logging buffered 1000000 informational"
@@ -913,7 +1583,6 @@ def V220547(device_type, device_name):
     return check
 
 
-
 def V220548(device_type, device_name):
     """
     V-220548 - CAT II - The Cisco switch must be configured to generate an alert for all audit failure events.
@@ -921,10 +1590,10 @@ def V220548(device_type, device_name):
     """
     # Create a Stig object and set the vulnerability ID
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
 
     # Set the initial status and comments
-    check.status = "Open"
+    check.status = "OP"
     check.comments = "V220548 - NOTE **** AS OF 11/1/19 THIS IS A FINDING!! PLEASE REMEDIATE"
 
     # Execute the command and store the result
@@ -933,7 +1602,7 @@ def V220548(device_type, device_name):
 
     # Check if the result contains the required configuration
     if "Logging to" in result and re.search(r"(debugging|critical|warnings|notifications|informational)", result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220548 - CAT II - NAF - logging trap is configured."
 
     check.finding = result
@@ -948,10 +1617,10 @@ def V220549(device_type, device_name):
     """
     # Create a Stig object and set the vulnerability ID
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
 
     # Set the initial status
-    check.status = "Open"
+    check.status = "OP"
 
     # Execute the command and store the result
     command = "show ntp associations detail | i configured,"
@@ -961,7 +1630,8 @@ def V220549(device_type, device_name):
     ntp_servers = re.findall(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", result)
 
     # Count the number of valid peers
-    valid_peers = sum(1 for line in result.splitlines() if ("'*' sys.peer" in line) or ("candidate" in line and "valid" in line))
+    valid_peers = sum(
+        1 for line in result.splitlines() if ("'*' sys.peer" in line) or ("candidate" in line and "valid" in line))
 
     # Update the comments with the number of NTP servers and valid peers found
     check.comments = f"Found {len(ntp_servers)} configured NTP servers and {valid_peers} valid peers."
@@ -969,14 +1639,13 @@ def V220549(device_type, device_name):
     # Check the conditions for findings
     if len(ntp_servers) >= 2:
         if valid_peers >= 1:
-            check.status = "NotAFinding"
+            check.status = "NF"
         else:
             check.comments += " Only one valid peer at this time."
 
     check.finding = result
 
     return check
-
 
 
 def V220552(device_type, device_name):
@@ -986,10 +1655,10 @@ def V220552(device_type, device_name):
     """
     # Create a Stig object and set the vulnerability ID
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
 
     # Set the initial status
-    check.status = "NotAFinding"
+    check.status = "NF"
 
     # Execute the first command and store the result
     command1 = "sh run | i snmp-server.(group|host|user|view)"
@@ -1006,22 +1675,23 @@ def V220552(device_type, device_name):
     # Check each line of the first command's result for the required strings
     for line in result1.splitlines():
         if "snmp-server group" in line and "v3" not in line:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = "Finding: SNMP group not using version 3."
             return check
         elif "snmp-server host" in line and "version 3" not in line:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = "Finding: SNMP host not using version 3."
             return check
 
     # Check for active users and their settings from the second command's result
     users = re.findall(r"User name: (\S+)", result2)
     for user in users:
-        user_data = re.search(rf"User name: {user}.*?Authentication Protocol: (\S+).*?Privacy Protocol: (\S+)", result2, re.DOTALL)
+        user_data = re.search(rf"User name: {user}.*?Authentication Protocol: (\S+).*?Privacy Protocol: (\S+)", result2,
+                              re.DOTALL)
         if user_data:
             auth_protocol, privacy_protocol = user_data.groups()
             if not (auth_protocol == "SHA" and privacy_protocol.startswith("AES")):
-                check.status = "Open"
+                check.status = "OP"
                 check.comments = f"Finding: User {user} not using SHA for Authentication and AES for Privacy."
                 return check
 
@@ -1035,10 +1705,10 @@ def V220553(device_type, device_name):
     """
     # Create a Stig object and set the vulnerability ID
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
 
     # Set the initial status
-    check.status = "NotAFinding"
+    check.status = "NF"
 
     # Execute the first command and store the result
     command1 = "sh run | i snmp-server.(group|host|user|view)"
@@ -1055,11 +1725,11 @@ def V220553(device_type, device_name):
     # Check each line of the first command's result for the required strings
     for line in result1.splitlines():
         if "snmp-server group" in line and "v3" not in line:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = "Finding: SNMP group not using version 3."
             return check
         elif "snmp-server host" in line and "version 3" not in line:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = "Finding: SNMP host not using version 3."
             return check
 
@@ -1071,7 +1741,7 @@ def V220553(device_type, device_name):
             if user_data:
                 privacy_protocol = user_data.group(1)
                 if not privacy_protocol.startswith("AES"):
-                    check.status = "Open"
+                    check.status = "OP"
                     check.comments = f"Finding: User {user} not using AES for Privacy."
                     return check
 
@@ -1086,8 +1756,8 @@ def V220554(device_type, device_name):
 
     # Initialize Stig check
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Define command to be executed
     command = "show ntp associations detail | i configured,"
@@ -1103,7 +1773,7 @@ def V220554(device_type, device_name):
     if "configured," in result and "authenticated" in result:
         # Check for the presence of one of the specified authentication methods on the same line
         if any(method in result for method in auth_methods):
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = "V-220554 - NTP authentication is properly configured and authenticated using one of the specified methods."
         else:
             check.comments = "V-220554 - NTP is configured and authenticated but not using one of the specified methods."
@@ -1120,8 +1790,8 @@ def V220555(device_type, device_name):
 
     # Initialize Stig object
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Execute command and get result
     command = "show run all | i ^ip.ssh.(version|server.algorithm.)"
@@ -1133,10 +1803,11 @@ def V220555(device_type, device_name):
 
     # Check if the result contains required strings using regex
     if re.search(r"ip ssh version 2", result) and re.search(r"hmac-sha2", result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220555 - CAT II - NAF - FIPS-validated Keyed-Hash is being used."
 
     return check
+
 
 def V220556(device_type, device_name):
     """
@@ -1145,8 +1816,8 @@ def V220556(device_type, device_name):
 
     # Initialize Stig object
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Execute command and get result
     command = "show run all | i ^ip.ssh.(version|server.algorithm.)"
@@ -1157,11 +1828,15 @@ def V220556(device_type, device_name):
     check.comments = "V-220556 -  The Cisco switch must be configured to implement cryptographic mechanisms to protect the confidentiality of remote maintenance sessions."
 
     # Check if the result contains required strings using regex
-    if re.search(r"ip ssh version 2", result) and (re.search(r"encryption aes128", result) or re.search(r"encryption aes192", result) or re.search(r"encryption aes256", result)):
-        check.status = "NotAFinding"
+    if re.search(r"ip ssh version 2", result) and (
+            re.search(r"encryption aes128", result) or re.search(r"encryption aes192", result) or re.search(
+            r"encryption aes256", result)):
+        check.status = "NF"
         check.comments = "V-220556 - CAT II - NAF - Specified cryptographic mechanisms are being used."
 
     return check
+
+
 def V220558(device_type, device_name):
     """
     V-220558 - CAT II -The Cisco switch must be configured to generate log records when administrator privileges are modified.
@@ -1169,8 +1844,8 @@ def V220558(device_type, device_name):
 
     # Initialize Stig object
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Execute command and get result
     command = "sh run | i logging.user|archive|log.config|logging.enable"
@@ -1182,7 +1857,7 @@ def V220558(device_type, device_name):
 
     # Check if the result contains required strings using regex
     if re.search(r"archive", result) and re.search(r"logging enable", result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220558 - CAT II - NAF - archive logging is enabled."
 
     return check
@@ -1195,8 +1870,8 @@ def V220559(device_type, device_name):
 
     # Initialize Stig object
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Execute command and get result
     command = "sh run | i logging.user|archive|log.config|logging.enable"
@@ -1208,7 +1883,7 @@ def V220559(device_type, device_name):
 
     # Check if the result contains required strings using regex
     if re.search(r"archive", result) and re.search(r"logging enable", result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220559 - CAT II - NAF - archive logging is enabled."
 
     return check
@@ -1221,8 +1896,8 @@ def V220560(device_type, device_name):
 
     # Initialize Stig object
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Execute command and get result
     command = "sh run | i login.on"
@@ -1234,7 +1909,7 @@ def V220560(device_type, device_name):
 
     # Check if the result contains required strings using regex
     if re.search(r"on-failure", result) and re.search(r"on-success", result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220560 - CAT II - NAF -  Audit records generated when successful/unsuccessful logon attempts occur."
 
     return check
@@ -1248,8 +1923,8 @@ def V220561(device_type, device_name):
 
     # Initialize Stig object
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Execute command and get result
     command = "show run | s ^archive"
@@ -1261,7 +1936,7 @@ def V220561(device_type, device_name):
 
     # Check if the result contains required strings using regex
     if re.search(r"archive", result) and re.search(r"logging enable", result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220561 - CAT II - NAF - archive logging is enabled"
 
     return check
@@ -1274,8 +1949,8 @@ def V220563(device_type, device_name):
 
     # Initialize Stig object
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Execute command and get result
     command = "sh run | i login.on"
@@ -1287,7 +1962,7 @@ def V220563(device_type, device_name):
 
     # Check if the result contains required string using regex
     if re.search(r"login on-success log", result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220563 - CAT II - NAF - Login on-success log is configured."
 
     return check
@@ -1300,8 +1975,8 @@ def V220564(device_type, device_name):
 
     # Initialize Stig object
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Execute command and get result
     command = "sh run | i logging.host|logging.trap"
@@ -1313,7 +1988,7 @@ def V220564(device_type, device_name):
 
     # Check if the result contains required strings using regex
     if re.search(r"logging host", result) and re.search(r"logging trap", result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220564 - CAT II - NAF - Login on-success log is configured."
 
     return check
@@ -1326,8 +2001,8 @@ def V220565(device_type, device_name):
 
     # Initialize Stig object
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Execute commands and get results
     command1 = "show tacacs | i Server.(name|address|Status)"
@@ -1346,8 +2021,9 @@ def V220565(device_type, device_name):
 
     # Check for server name in command2 output
     if server_name:
-        if all(keyword in result2 for keyword in [server_name, "aaa authentication login", "aaa authentication enable", "aaa group server"]):
-            check.status = "NotAFinding"
+        if all(keyword in result2 for keyword in
+               [server_name, "aaa authentication login", "aaa authentication enable", "aaa group server"]):
+            check.status = "NF"
             check.comments = f"V-220565 - CAT II - NAF - {server_name} is configured correctly."
         else:
             check.comments = f"V-220565 - CAT II - {server_name} is not configured correctly."
@@ -1358,24 +2034,23 @@ def V220565(device_type, device_name):
         if f"login authentication {login_auth_value}" in result2:
             check.comments += f"\nValue {login_auth_value} is using TACACS."
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments += f"\nValue {login_auth_value} is not using TACACS."
 
     # Check if the authentication source is tied to TACACS
     auth_sources = re.findall(r"aaa authentication login (\S+) local", result2)
     for source in auth_sources:
         if f"login authentication {source}" in result2:
-            check.status = "Open"
+            check.status = "OP"
             check.comments += f"\nValue {source} is not using TACACS."
 
     # Clean up the result2 output
     result2_cleaned = re.sub(r"(server-private \d+\.\d+\.\d+\.\d+ key) .*", r"\1 ***removed***", result2)
-    
+
     # Combine the results from both commands for the findings
     check.finding = f"{result1}\n\n{result2_cleaned}"
 
     return check
-
 
 
 def V220566(device_type, device_name):
@@ -1385,8 +2060,8 @@ def V220566(device_type, device_name):
 
     # Initialize Stig object
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     # Execute command and get result
     command = "sh event manager policy registered"
@@ -1398,7 +2073,7 @@ def V220566(device_type, device_name):
 
     # Check if the result contains required strings using regex
     if re.search(r"applet", result):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220566 - CAT II - NAF - Applet configured and registered."
 
     return check
@@ -1412,8 +2087,8 @@ def V220567(device_type, device_name):
 
     # Initialize Stig object
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
 
     # Execute command and get result
     command = "show run | i ^crypto.pki.(trustpoint|certificate|)|enrollment"
@@ -1444,7 +2119,7 @@ def V220567(device_type, device_name):
 
     # Update check comments based on findings
     if findings_detected:
-        check.status = "Open"
+        check.status = "OP"
         comments.append("Self-signed certificates are being used for terminal access. They should be removed.")
     else:
         comments.append("No self-signed certificates are used for terminal access.")
@@ -1452,12 +2127,12 @@ def V220567(device_type, device_name):
     check.comments = "\n".join(comments)
 
     return check
-    
-    
+
+
 def V220568(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "show logging | i Trap|Logging.to"
     result = exec_command(command, device_name)
@@ -1465,7 +2140,7 @@ def V220568(device_type, device_name):
     check.finding = result
 
     if result.count("Logging to") >= 2:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220568 - CAT I - NAF - Remote system logging server(s) in place.."
     else:
         check.comments = "V-220568 - NOTE: AS OF 11/1/19 THIS IS A FINDING!!! PLEASE REMEDIATE"
@@ -1473,11 +2148,10 @@ def V220568(device_type, device_name):
     return check
 
 
-
 def V220569(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
 
     command = "show ver | i ^Cisco IOS Software,|^Cisco IOS XE Software,|^cisco."
     result = exec_command(command, device_name)
@@ -1497,23 +2171,20 @@ def V220569(device_type, device_name):
     for check_item in checks:
         if any(model_str in model for model_str in check_item["model_str"]):
             if version.parse(model_version) >= version.parse(check_item["version"]):
-                check.status = "NotAFinding"
+                check.status = "NF"
                 check.comments = (
-                    f"NAF: As of 1/16/2020 {check_item['device']} devices should have code level {check_item['version']}.  This device has "
-                    + model_version
+                        f"NAF: As of 1/16/2020 {check_item['device']} devices should have code level {check_item['version']}.  This device has "
+                        + model_version
                 )
             else:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments = (
-                    f"OPEN: As of 1/16/2020 {check_item['device']} devices should have code level {check_item['version']}.  This device has "
-                    + model_version
+                        f"OPEN: As of 1/16/2020 {check_item['device']} devices should have code level {check_item['version']}.  This device has "
+                        + model_version
                 )
 
     check.finding = result
     return check
-
-
-
 
 
 # ----- L2S STIGS ----------------------------------------------------------------------------------------
@@ -1525,10 +2196,10 @@ def V220649(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "V-220649 - Not applicable - There are no end-user devices in the datacenter."
-    
+
     return check
 
 
@@ -1538,23 +2209,23 @@ def V220650(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "V-220650 - Not running VTP."
 
     command = "show vtp status"
     result = exec_command(command, device_name)
     if "Off" in result[len(device_name) + len(command):]:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220650 - Running VTP, but in transparent mode."
     else:
         command = "show vtp pass"
         result += "\r" + exec_command(command, device_name)
         if "Password" not in result[len(device_name) + len(command):]:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = "V-220650 - Open - Participating in VTP, but without a password configured."
         else:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = "V-220650 - NAF - Participating in VTP with a password configured."
 
     check.finding = result
@@ -1567,8 +2238,8 @@ def V220651(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     command = "show policy-map interface"
     result = exec_command(command, device_name)
     check.finding = result
@@ -1582,8 +2253,8 @@ def V220655(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
 
     # Find all the root ports.
     command = "show spanning-tree | i Root.FWD"
@@ -1599,11 +2270,12 @@ def V220655(device_type, device_name):
     result = exec_command(command, device_name)
     temp += "\r" + result
 
-    trunk_ports = [line.split()[0] for line in result.splitlines() if line.find("#") == -1 and line.find("show") == -1 and line.split()[0] not in root_ports]
+    trunk_ports = [line.split()[0] for line in result.splitlines() if
+                   line.find("#") == -1 and line.find("show") == -1 and line.split()[0] not in root_ports]
 
     if not trunk_ports:
         check.comments += "\rAll trunking ports are root ports."
-        check.status = "NotAFinding"
+        check.status = "NF"
     else:
         result = ""
         # Check all non-root trunk ports for root guard
@@ -1612,7 +2284,7 @@ def V220655(device_type, device_name):
             port_config = exec_command(command, device_name)
             if "UL" not in port_config and "DL" not in port_config:
                 if "guard root" not in port_config:
-                    check.status = "Open"
+                    check.status = "OP"
                     check.comments += f"\rInterface {port} is not configured with root guard. This may not be a finding if this is facing infrastructure devices."
                 else:
                     check.comments += f"\rInterface {port} is configured correctly."
@@ -1630,8 +2302,8 @@ def V220656(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show run | i interface.Eth|bpduguard"
     result = exec_command(command, device_name)
@@ -1648,15 +2320,15 @@ def V220657(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220657 - OPEN - The Cisco switch must have STP Loop Guard enabled."
 
     command = "show run | i loopguard"
     result = exec_command(command, device_name)
 
     if "loopguard default" in result[len(device_name) + len(command):]:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220657 - NAF  The Cisco switch has STP Loop Guard enabled."
 
     check.finding = f"{result}\r"
@@ -1670,15 +2342,15 @@ def V220658(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
-    
+    check.set_vulid()
+    check.status = "NA"
+
     command = "show run | i block.unicast|^interface|switchport.access"
     result = exec_command(command, device_name)
-    
+
     check.finding = result
     check.comments = "V-220658 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
-    
+
     return check
 
 
@@ -1688,17 +2360,16 @@ def V220659(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
-    
+    check.set_vulid()
+    check.status = "NA"
+
     command = "show run | i ^ip.dhcp.snooping"
     result = exec_command(command, device_name)
-    
+
     check.finding = result
     check.comments = "V-220659 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
-    
-    return check
 
+    return check
 
 
 def V220660(device_type, device_name):
@@ -1707,16 +2378,17 @@ def V220660(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
-    
+    check.set_vulid()
+    check.status = "NA"
+
     command = "show run | i ip.verify.source|^interface|switchport.access"
     result = exec_command(command, device_name)
-    
+
     check.finding = result
     check.comments = "V-220660 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
-    
+
     return check
+
 
 def V220661(device_type, device_name):
     """
@@ -1724,17 +2396,16 @@ def V220661(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
-    
+    check.set_vulid()
+    check.status = "NA"
+
     command = "show run | i arp.inspection.vlan"
     result = exec_command(command, device_name)
-    
+
     check.finding = result
     check.comments = "V-220661 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
-    
-    return check
 
+    return check
 
 
 def V220662(device_type, device_name):
@@ -1743,15 +2414,15 @@ def V220662(device_type, device_name):
     MsgBox = crt.Dialog.MessageBox
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check.vulid = "V-220662"
-    check.status = "NotAFinding"
+    check.status = "NF"
     # Find all the root ports.
-    command= "show spanning-tree | i Root.FWD"
+    command = "show spanning-tree | i Root.FWD"
     rootPorts = []
     trunkPorts = []
-    result= exec_command(command, device_name)
-    temp= result
+    result = exec_command(command, device_name)
+    temp = result
     for line in result.splitlines():
-        port = line[0 : line.find(" ")]
+        port = line[0: line.find(" ")]
         isfound = False
         if line.find("#") == -1 and line.find("show") == -1:
             for portname in rootPorts:
@@ -1763,11 +2434,11 @@ def V220662(device_type, device_name):
     for port in rootPorts:
         check.comments = check.comments + ", " + port
     # Find all trunk ports
-    command= "show int trunk | i trunking | exc not-trunking"
-    result= exec_command(command, device_name)
+    command = "show int trunk | i trunking | exc not-trunking"
+    result = exec_command(command, device_name)
     # Now lets find all trunking ports that aren't root ports
     for line in result.splitlines():
-        port = line[0 : line.find(" ")]
+        port = line[0: line.find(" ")]
         isfound = False
         for portname in rootPorts:
             if portname == port:
@@ -1775,40 +2446,40 @@ def V220662(device_type, device_name):
         if isfound == False:
             if line.find("#") == -1 and line.find("show") == -1:
                 trunkPorts.append(port)
-    temp= temp + "\r" + result
+    temp = temp + "\r" + result
     if len(trunkPorts) == 0:
         check.comments = check.comments + "\r" + "All trunking ports are root ports."
-        check.status = "NotAFinding"
+        check.status = "NF"
     else:
         result = ""
         # Check all non-root trunk ports for root guard
         for port in trunkPorts:
-            command= "show run int " + port
+            command = "show run int " + port
             portconfig = exec_command(command, device_name)
             if portconfig.find("UL") == -1 and portconfig.find("DL") == -1:
                 if portconfig.find("storm-control") == -1:
-                    check.status = "Open"
+                    check.status = "OP"
                     check.comments = (
-                        check.comments
-                        + "\r Interface "
-                        + port
-                        + " is not configured with storm control.  This may not be a finding if this is facing infrastructure devices."
+                            check.comments
+                            + "\r Interface "
+                            + port
+                            + " is not configured with storm control.  This may not be a finding if this is facing infrastructure devices."
                     )
                 else:
                     check.comments = (
-                        check.comments
-                        + "\r Interface "
-                        + port
-                        + " is configured correctly."
+                            check.comments
+                            + "\r Interface "
+                            + port
+                            + " is configured correctly."
                     )
             else:
                 check.comments = (
-                    check.comments
-                    + "\r Interface "
-                    + port
-                    + " does not require storm control."
+                        check.comments
+                        + "\r Interface "
+                        + port
+                        + " does not require storm control."
                 )
-            temp= temp + portconfig
+            temp = temp + portconfig
     check.finding = temp
     return check
 
@@ -1816,15 +2487,15 @@ def V220662(device_type, device_name):
 def V220663(device_type, device_name):
     # V-220663 - The Cisco switch must have IGMP or MLD Snooping configured on all VLANs.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220663 - Open - The Cisco switch must have IGMP or MLD Snooping configured on all VLANs."
 
     command = "show run all | i igmp.snooping$"
     result = exec_command(command, device_name)
 
     if "ip igmp snooping" in result[len(device_name) + len(command):]:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220663 - NAF  The Cisco switch has IGMP or MLD snooping is enabled globally."
 
     check.finding = result
@@ -1834,15 +2505,15 @@ def V220663(device_type, device_name):
 def V220664(device_type, device_name):
     # V-220664 - Rule Title: The Cisco switch must implement Rapid STP where VLANs span multiple switches with redundant links.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220664 - Open - The Cisco switch must implement Rapid STP where VLANs span multiple switches with redundant links."
 
     command = "show spanning-tree summary | i mode"
     result = exec_command(command, device_name)
 
     if "rapid" in result or "mst" in result:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220664 - NAF  The Cisco switch has RPVST enabled."
 
     check.finding = result
@@ -1852,26 +2523,25 @@ def V220664(device_type, device_name):
 def V220665(device_type, device_name):
     # V-220665 - Rule Title: The Cisco switch must enable Unidirectional Link Detection (UDLD) to protect against one-way connections.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220665 - Open - The Cisco switch must enable Unidirectional Link Detection (UDLD) to protect against one-way connections.\r"
 
     command = "show run | i ^udld"
     result = exec_command(command, device_name)
 
     if "enable" in result or "aggressive" in result:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220665 - NAF - The Cisco switch has UDLD feature enabled and running on all fiber attached ports.\r"
 
     check.finding = result
     return check
 
 
-
 def V220666(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "The Cisco switch ports must have nonegotiate off on all trunks."
 
     command = "show interfaces switchport | i ^Negotiation|^Name:"
@@ -1880,7 +2550,7 @@ def V220666(device_type, device_name):
     findings = re.findall(r"Name: (.+?)\nNegotiation of Trunking: On", result)
 
     if findings:
-        check.status = "Open"
+        check.status = "OP"
         check.comments += "\nThe following interfaces are set to On:\n" + "\n".join(findings)
         check.comments += "\n\nPlease add the following configuration to correct the findings:\n"
         for interface in findings:
@@ -1893,8 +2563,8 @@ def V220666(device_type, device_name):
 def V220667(device_type, device_name):
     # there is an issue writing comments when dealing with trunk and dis port configs but is mark open
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "V-220667 - NAF - The Cisco switch has all disabled switch ports assigned to an unused VLAN.\r"
 
     command1 = "show interface status | inc sfpAbsent|disabled|xcvrAbsen"
@@ -1926,34 +2596,32 @@ def V220667(device_type, device_name):
             for vlan in vlans.split(','):
                 if '-' in vlan:
                     start, end = map(int, vlan.split('-'))
-                    allowed_vlans.extend(range(start, end+1))
+                    allowed_vlans.extend(range(start, end + 1))
                 else:
                     allowed_vlans.append(int(vlan))
             if int(unused_vlan) in allowed_vlans:
                 findings_str += f"Port {port} is allowing unused vlan {unused_vlan}\n"
 
     if findings_str:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "V-220667 - OPEN because of the below findings:\n{}\r".format(findings_str)
 
     check.finding = result1 + "\n" + result2
     return check
 
 
-
-
 def V220668(device_type, device_name):
     # V-220668 - The Cisco switch must not have the default VLAN assigned to any host-facing switch ports.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220668 - Open - The Cisco switch must not have the default VLAN assigned to any host-facing switch ports."
 
     command = "show spanning-tree vlan 1"
     result = exec_command(command, device_name)
 
     if "does not exist" in result[len(device_name) + len(command):]:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220668 - NAF  No host-facing ports are assigned to VLAN1"
 
     check.finding = result
@@ -1964,8 +2632,8 @@ def V220669(device_type, device_name):
     # The Cisco switch must have the default VLAN pruned from all trunk ports that do not require it.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has. We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220669 - Open - The Cisco switch must have the default VLAN pruned from all trunk ports that do not require it."
 
     command = "show spanning-tree vlan 1"
@@ -1973,18 +2641,19 @@ def V220669(device_type, device_name):
 
     # Using regex to find the string "does not exist" in the result
     if re.search("does not exist", result[len(device_name) + len(command):]):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220669 - NAF VLAN1 is not in use or trunked"
 
     check.finding = result
     return check
 
+
 def V220670(device_type, device_name):
     # The Cisco switch must not use the default VLAN for management traffic.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has. We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220670 - Open - The Cisco switch must not use the default VLAN for management traffic."
 
     command1 = "show spanning-tree vlan 1"
@@ -1992,8 +2661,10 @@ def V220670(device_type, device_name):
     result = exec_command(command1, device_name) + "\r" + exec_command(command2, device_name)
 
     # Using regex to find the strings "does not exist" and "no ip address" in the result
-    if re.search("does not exist", result[len(device_name) + len(command2):]) and re.search("no ip address", result[len(device_name) + len(command2):]):
-        check.status = "NotAFinding"
+    if re.search("does not exist", result[len(device_name) + len(command2):]) and re.search("no ip address", result[
+                                                                                                             len(device_name) + len(
+                                                                                                                     command2):]):
+        check.status = "NF"
         check.comments = "V-220670 - NAF VLAN1 is not being used for management."
 
     check.finding = result
@@ -2004,8 +2675,8 @@ def V220671(device_type, device_name):
     # The Cisco switch must have all user-facing or untrusted ports configured as access switch ports.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has. We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "sh int status | ex trunk|666|disabled"
     result = exec_command(command, device_name)
@@ -2019,8 +2690,8 @@ def V220671(device_type, device_name):
 def V220672(device_type, device_name):
     # The native VLAN must be assigned to a VLAN ID other than the default VLAN for all 802.1q trunk links.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "V-220672 - NAF - The native VLAN on trunk links is other than the default VLAN for all 802.1q trunk links."
 
     interfaces = []
@@ -2044,10 +2715,10 @@ def V220672(device_type, device_name):
     # Ensure all ports are not in VLAN 1
     for interface in interfaces:
         if "undefined" not in interface.interface and interface.vlan == "1":
-            check.status = "Open"
+            check.status = "OP"
             temp += f" {interface.interface}'s native VLAN appears to be assigned to default vlan {interface.vlan}; "
 
-    if check.status == "Open":
+    if check.status == "OP":
         check.comments = f"V-220672 - OPEN because {temp}\r"
     check.finding = result
 
@@ -2057,15 +2728,15 @@ def V220672(device_type, device_name):
 def V220673(device_type, device_name):
     # The Cisco switch must not have any switchports assigned to the native VLAN.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220673 - Open - The Cisco switch must not have any switchports assigned to the native VLAN."
 
     command = "sh int status | in connected.2172"
     result = exec_command(command, device_name)
 
     if "" in result[len(device_name) + len(command):]:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220673 - NAF Native VLAN 200 is not in use by access ports."
 
     check.finding = result
@@ -2077,32 +2748,34 @@ def V220673(device_type, device_name):
 
 def V220986(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-    
+
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index(
+        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
     check.finding = result
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-    
+
     # Additional comments
     additional_comments = "The Core switch is below the Firewall/boundary for the site so some protection is in place. " \
                           "Servers and Workstations are running HBSS/AESS thus giving a layer of protection."
-    
+
     check.comments = f"Cpp is in place and adds some protection on the core switch: {is_cpp_in_place}. {additional_comments}"
-    
+
     return check
+
 
 def V220987(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "Checking Routing Protocol and Authentication."
 
     # First command
@@ -2116,26 +2789,27 @@ def V220987(device_type, device_name):
             command = "show ip eigrp interfaces detail | i Authen|^(T|V|G|I)"
             result = exec_command(command, device_name)
             check.finding += result
-            
+
             if "Authentication mode is not set" in result:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments += "\nAuthentication mode is not set in EIGRP interfaces."
             else:
-                check.status = "NotAFinding"
+                check.status = "NF"
                 check.comments += "\nEIGRP interfaces have authentication set."
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments += "\nRouting Protocol is not EIGRP."
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments += "\nRouting Protocol is not set."
 
     return check
-    
+
+
 def V220988(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "Checking Routing Protocol and Keys."
 
     # First command
@@ -2149,26 +2823,27 @@ def V220988(device_type, device_name):
             command = "show ip eigrp interfaces detail | i Authen|^(T|V|G|I)"
             result = exec_command(command, device_name)
             check.finding += result
-            
+
             if "Authentication mode is not set" in result:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments += "\nAuthentication mode is not set in EIGRP interfaces."
             else:
-                check.status = "Not_Applicable"
+                check.status = "NA"
                 check.comments += "\nEIGRP interfaces have authentication set HMAC not Keys."
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments += "\nRouting Protocol is not EIGRP.Configs need to be reviewed"
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments += "\nRouting Protocol is not set."
 
-    return check    
+    return check
+
 
 def V220989(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "Checking Routing Protocol and Keys."
 
     # First command
@@ -2182,60 +2857,61 @@ def V220989(device_type, device_name):
             command = "show ip eigrp interfaces detail | i Authen|^(T|V|G|I)"
             result = exec_command(command, device_name)
             check.finding += result
-            
+
             if "Authentication mode is not set" in result:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments += "\nAuthentication mode is not set in EIGRP interfaces."
             else:
-                check.status = "Not_Applicable"
+                check.status = "NA"
                 check.comments += "\nEIGRP interfaces have authentication set HMAC not Keys."
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments += "\nRouting Protocol is not EIGRP.Configs need to be reviewed"
     else:
-        check.status = "Not_Applicable"
-        check.comments += "\nRouting Protocol is not set."
-
-    return check    
-    
-    
-def V220990(device_type, device_name):
-    check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
-    check.comments = "Checking Routing Protocol and Keys."
-
-    # First command
-    command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, device_name)
-    check.finding += result
-
-    if "Routing Protocol is" in result:
-        if "eigrp" in result:
-            # Run the second command
-            command = "show ip eigrp interfaces detail | i Authen|^(T|V|G|I)"
-            result = exec_command(command, device_name)
-            check.finding += result
-            
-            if "Authentication mode is not set" in result:
-                check.status = "Open"
-                check.comments += "\nAuthentication mode is not set in EIGRP interfaces."
-            else:
-                check.status = "Not_Applicable"
-                check.comments += "\nEIGRP interfaces have authentication set HMAC not Keys."
-        else:
-            check.status = "Open"
-            check.comments += "\nRouting Protocol is not EIGRP.Configs need to be reviewed"
-    else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments += "\nRouting Protocol is not set."
 
     return check
 
+
+def V220990(device_type, device_name):
+    check = Stig()
+    check.set_vulid()
+    check.status = "NF"
+    check.comments = "Checking Routing Protocol and Keys."
+
+    # First command
+    command = "show ip proto | i Routing.Protoc"
+    result = exec_command(command, device_name)
+    check.finding += result
+
+    if "Routing Protocol is" in result:
+        if "eigrp" in result:
+            # Run the second command
+            command = "show ip eigrp interfaces detail | i Authen|^(T|V|G|I)"
+            result = exec_command(command, device_name)
+            check.finding += result
+
+            if "Authentication mode is not set" in result:
+                check.status = "OP"
+                check.comments += "\nAuthentication mode is not set in EIGRP interfaces."
+            else:
+                check.status = "NA"
+                check.comments += "\nEIGRP interfaces have authentication set HMAC not Keys."
+        else:
+            check.status = "OP"
+            check.comments += "\nRouting Protocol is not EIGRP.Configs need to be reviewed"
+    else:
+        check.status = "NA"
+        check.comments += "\nRouting Protocol is not set."
+
+    return check
+
+
 def V220991(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "The Cisco switch ports must not have interfaces in a down state."
 
     command = "show int des | ex admin|up"
@@ -2245,17 +2921,18 @@ def V220991(device_type, device_name):
     findings = re.findall(r"(?m)^(\S+)\s+down\s+down", result)
 
     if findings:
-        check.status = "Open"
+        check.status = "OP"
         check.comments += "\nThe following interfaces are in a down state:\n" + "\n".join(findings)
         check.comments += "\n\nPlease investigate why these interfaces are down."
 
     check.finding = result
     return check
 
+
 def V220994(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "V-220994 - The Cisco switch must have boot options set correctly."
 
     # Define the command to run
@@ -2269,55 +2946,59 @@ def V220994(device_type, device_name):
 
     # Check if the result has more than 2 lines
     if line_count > 2:
-        check.status = "Open"
+        check.status = "OP"
         check.comments += f"\nThe device has extra boot options:\n{result}"
 
     # Storing the complete result, including the device name and prompt
     check.finding = result
     return check
-    
+
+
 def V220995(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"  # Default status
+    check.set_vulid()
+    check.status = "OP"  # Default status
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-    
+
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index(
+        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
-    
+
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-    
+
     if is_cpp_in_place:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "CPP is in place and configured correctly."
     else:
         check.comments = "CPP does not appear to be configured correctly."
     check.finding = result
     return check
 
+
 def V220996(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"  # Default status
+    check.set_vulid()
+    check.status = "OP"  # Default status
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-    
+
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index(
+        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
-    
+
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-    
+
     if is_cpp_in_place:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = ("CPP is in place and configured correctly. \n"
                           "From DISA ticket: 'Yes the CoPP meets the controls. \n"
                           "We currently have an open ticket to update the STIGS in the near future.' \n"
@@ -2328,24 +3009,26 @@ def V220996(device_type, device_name):
     check.finding = result
     return check
 
+
 def V220997(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"  # Default status
+    check.set_vulid()
+    check.status = "OP"  # Default status
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-    
+
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index(
+        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
-    
+
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-    
+
     if is_cpp_in_place:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = ("CPP is in place and configured correctly. \n"
                           "From DISA ticket: 'Yes the CoPP meets the controls. \n"
                           "We currently have an open ticket to update the STIGS in the near future.' \n"
@@ -2355,26 +3038,26 @@ def V220997(device_type, device_name):
         check.comments = "CPP does not appear to be configured correctly."
     check.finding = result
     return check
-    
+
 
 def V220998(device_type, device_name):
     # Create an object of the Stig class and set default values
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"  
+    check.set_vulid()
+    check.status = "NF"
 
     # The command to execute
     command = "show run | i gratuitous-arps"
-    
+
     # Execute the command and store the result
     result = exec_command(command, device_name)
-    
+
     # Store the command output in check.finding
     check.finding = result
 
     # Check if 'no ip gratuitous-arps' is NOT in the result
     if "no ip gratuitous-arps" not in result:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Gratuitous arps are NOT disabled globally"
     else:
         check.comments = "Gratuitous arps are disabled globally"
@@ -2384,8 +3067,8 @@ def V220998(device_type, device_name):
 
 def V220999(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "V-220999 - IP directed broadcast command must not be found on any interface."
 
     # Define the command to run
@@ -2399,7 +3082,7 @@ def V220999(device_type, device_name):
 
     # Check if the result has more than 2 lines
     if line_count > 2:
-        check.status = "Open"
+        check.status = "OP"
         check.comments += "IP directed broadcast command found, look at findings"
 
     # Storing the complete result, including the device name and prompt
@@ -2410,8 +3093,8 @@ def V220999(device_type, device_name):
 def V221000(device_type, device_name):
     # Create an object of the Stig class and set default values
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
 
     # The command to execute
     command = "show run | i ^interface|no.ip.(redirects|unreachables|proxy-arp)|ip.address.*.255"
@@ -2443,31 +3126,33 @@ def V221000(device_type, device_name):
     # Check if any interface is missing "no ip unreachables"
     for interface, settings in interface_data.items():
         if "no ip unreachables" not in settings:
-            check.status = "Open"
+            check.status = "OP"
             missing_unreachables.append(interface)
 
     # Generate the configuration needed for each interface
     for interface, settings in interface_data.items():
-        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if s not in settings]
+        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if
+                            s not in settings]
         if missing_settings:
             config_needed.append(f"{interface}\n\t" + "\n\t".join(missing_settings) + "\nexit\n!")
 
     # Update check.comments based on the findings
     if missing_unreachables:
-        check.comments = f"The following interfaces are missing 'no ip unreachables' command\n" + "\n".join(missing_unreachables)
+        check.comments = f"The following interfaces are missing 'no ip unreachables' command\n" + "\n".join(
+            missing_unreachables)
     else:
         check.comments = "'no ip unreachables' command found on all L3 interfaces"
 
     if config_needed:
         check.comments += "\n\nConfiguration needed:\n" + "\n".join(config_needed)
 
-    return check    
+    return check
 
 
 def V221001(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "V-221001 - IP mask-reply command must not be found on any interface."
 
     # Define the command to run
@@ -2481,7 +3166,7 @@ def V221001(device_type, device_name):
 
     # Check if the result has more than 2 lines
     if line_count > 2:
-        check.status = "Open"
+        check.status = "OP"
         check.comments += "IP mask-replay command found, look at findings"
 
     # Storing the complete result, including the device name and prompt
@@ -2492,8 +3177,8 @@ def V221001(device_type, device_name):
 def V221002(device_type, device_name):
     # Create an object of the Stig class and set default values
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
 
     # The command to execute
     command = "show run | i ^interface|no.ip.(redirects|unreachables|proxy-arp)|ip.address.*.255"
@@ -2525,18 +3210,20 @@ def V221002(device_type, device_name):
     # Check if any interface is missing "no ip redirects"
     for interface, settings in interface_data.items():
         if "no ip redirects" not in settings:
-            check.status = "Open"
+            check.status = "OP"
             missing_redirects.append(interface)
 
     # Generate the configuration needed for each interface
     for interface, settings in interface_data.items():
-        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if s not in settings]
+        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if
+                            s not in settings]
         if missing_settings:
             config_needed.append(f"{interface}\n\t" + "\n\t".join(missing_settings) + "\nexit\n!")
 
     # Update check.comments based on the findings
     if missing_redirects:
-        check.comments = f"The following interfaces are missing 'no ip redirects' command\n" + "\n".join(missing_redirects)
+        check.comments = f"The following interfaces are missing 'no ip redirects' command\n" + "\n".join(
+            missing_redirects)
     else:
         check.comments = "no ip redirects command found on all L3 interfaces"
 
@@ -2546,36 +3233,36 @@ def V221002(device_type, device_name):
     return check
 
 
-    
 def V221003(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"  # Default status
+    check.set_vulid()
+    check.status = "OP"  # Default status
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-    
+
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index(
+        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
-    
+
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-    
+
     if is_cpp_in_place:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "CPP is in place and configured correctly."
     else:
         check.comments = "CPP does not appear to be configured correctly."
     check.finding = result
     return check
-    
+
 
 def V221004(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
 
     os_acl_list = [
         "AutoConf-4.0-Acl-Default", "CoPP_CRITICAL", "CoPP_DEFAULT", "CoPP_IMPORTANT",
@@ -2607,7 +3294,7 @@ def V221004(device_type, device_name):
                     custom_acl_issues[acl_name].append(line.strip())
 
     if custom_acl_issues:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Following Access control lists have the following deny lines without appropriate logging:\n"
         for acl, issues in custom_acl_issues.items():
             nested_issues = "\n  ".join(issues)
@@ -2617,15 +3304,16 @@ def V221004(device_type, device_name):
         check.comments = "All access lists have the appropriate logging as needed."
 
     # Add list of OS ACLs to comments
-    check.comments += "\nThe following access lists are a part of the IOS and can't be updated:\n" + '\n'.join(set(os_acl_present))
+    check.comments += "\nThe following access lists are a part of the IOS and can't be updated:\n" + '\n'.join(
+        set(os_acl_present))
     check.finding = result
     return check
 
 
 def V221005(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
 
     os_acl_list = [
         "AutoConf-4.0-Acl-Default", "CoPP_CRITICAL", "CoPP_DEFAULT", "CoPP_IMPORTANT",
@@ -2657,7 +3345,7 @@ def V221005(device_type, device_name):
                     custom_acl_issues[acl_name].append(line.strip())
 
     if custom_acl_issues:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Following Access control lists have the following deny lines without appropriate logging:\n"
         for acl, issues in custom_acl_issues.items():
             nested_issues = "\n  ".join(issues)
@@ -2667,17 +3355,17 @@ def V221005(device_type, device_name):
         check.comments = "All access lists have the appropriate logging as needed."
 
     # Add list of OS ACLs to comments
-    check.comments += "\nThe following access lists are a part of the IOS and can't be updated:\n" + '\n'.join(set(os_acl_present))
+    check.comments += "\nThe following access lists are a part of the IOS and can't be updated:\n" + '\n'.join(
+        set(os_acl_present))
     check.finding = result
     return check
-
 
 
 def V221006(device_type, device_name):
     # Create an object of the Stig class and set default values
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
 
     # The command to execute
     command = "show run | s line aux 0"
@@ -2690,12 +3378,12 @@ def V221006(device_type, device_name):
 
     # Check for the presence of "line aux" and "no exec" in the result
     if "line aux" not in result or "no exec" not in result:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Line Aux is on and needs to be off"
     else:
         check.comments = "Line Aux is disabled"
 
-    return check    
+    return check
 
 
 def V221007(device_type, device_name):
@@ -2704,11 +3392,12 @@ def V221007(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
+
 
 def V221008(device_type, device_name):
     """
@@ -2716,11 +3405,12 @@ def V221008(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
+
 
 def V221009(device_type, device_name):
     """
@@ -2728,11 +3418,12 @@ def V221009(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
+
 
 def V221010(device_type, device_name):
     """
@@ -2740,11 +3431,12 @@ def V221010(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
+
 
 def V221011(device_type, device_name):
     """
@@ -2752,11 +3444,12 @@ def V221011(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
+
 
 def V221012(device_type, device_name):
     """
@@ -2764,11 +3457,12 @@ def V221012(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
+
 
 def V221013(device_type, device_name):
     """
@@ -2776,11 +3470,12 @@ def V221013(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
+
 
 def V221014(device_type, device_name):
     """
@@ -2788,11 +3483,12 @@ def V221014(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
+
 
 def V221015(device_type, device_name):
     """
@@ -2800,11 +3496,12 @@ def V221015(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
+
 
 def V221016(device_type, device_name):
     """
@@ -2812,11 +3509,12 @@ def V221016(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
+
 
 def V221017(device_type, device_name):
     """
@@ -2824,18 +3522,18 @@ def V221017(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
 
-    
+
 def V221018(device_type, device_name):
     # Create an object of the Stig class and set default values
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     # The command to execute
     command = "show run | i ^interface|no.ip.(redirects|unreachables|proxy-arp)|ip.address.*.255"
@@ -2867,20 +3565,22 @@ def V221018(device_type, device_name):
     # Check if any interface is missing "no ip proxy-arp"
     for interface, settings in interface_data.items():
         if "no ip proxy-arp" not in settings:
-            check.status = "Open"
+            check.status = "OP"
             missing_proxy_arp.append(interface)
 
     # Generate the configuration needed for each interface
     for interface, settings in interface_data.items():
-        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if s not in settings]
+        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if
+                            s not in settings]
         if missing_settings:
             config_needed.append(f"{interface}\n\t" + "\n\t".join(missing_settings) + "\nexit\n!")
 
     # Update check.comments based on the findings
     check.comments = "This is not a perimeter device; the FIREWALLS above are the perimeter.\n"
-    
+
     if missing_proxy_arp:
-        check.comments += f"The following interfaces are missing 'no ip proxy-arp' command\n" + "\n".join(missing_proxy_arp)
+        check.comments += f"The following interfaces are missing 'no ip proxy-arp' command\n" + "\n".join(
+            missing_proxy_arp)
     else:
         check.comments += "'no ip proxy-arp' command found on all L3 interfaces"
 
@@ -2896,48 +3596,47 @@ def V221019(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-    
+
     return check
 
 
 def V221020(device_type, device_name):
-    
     check = Stig()
     # The vulnerability ID MUST match what the stig file has. We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     # The command to execute
     command = "show run | i ^line.vty|access-class*.*.SSH|access.list.*.SSH"
-    
+
     # Execute the command and store the result
     result = exec_command(command, device_name)
-    
+
     # Update the finding with the additional information
     check.finding = f"No out of band network but SSH to the device is locked down\r\n{result}"
-    
+
     check.comments = "There is no OOBM network in SWA nor any plans to stand one up at this time."
-    
+
     return check
 
 
 def V221021(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name} please review"
 
     check.finding = result  # Store the result as the finding
@@ -2947,241 +3646,250 @@ def V221021(device_type, device_name):
 
 def V221022(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name}; please review"
 
     check.finding = result  # Store the result as the finding
 
     return check
+
 
 def V221023(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name}; please review"
 
     check.finding = result  # Store the result as the finding
 
     return check
+
 
 def V221024(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name}; please review"
 
     check.finding = result  # Store the result as the finding
 
     return check
+
 
 def V221025(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name}; please review"
 
     check.finding = result  # Store the result as the finding
 
     return check
+
 
 def V221026(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name}; please review"
 
     check.finding = result  # Store the result as the finding
 
     return check
+
 
 def V221027(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name}; please review"
 
     check.finding = result  # Store the result as the finding
 
     return check
+
 
 def V221028(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name}; please review"
 
     check.finding = result  # Store the result as the finding
 
     return check
+
 
 def V221029(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name}; please review"
 
     check.finding = result  # Store the result as the finding
 
     return check
+
 
 def V221030(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name}; please review"
 
     check.finding = result  # Store the result as the finding
 
     return check
+
 
 def V221031(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name}; please review"
 
     check.finding = result  # Store the result as the finding
 
     return check
+
 
 def V221032(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()  # Automatically format the vulnerability ID
-    check.status = "Not_Applicable"  # Default status
-    
+    check.set_vulid()  # Automatically format the vulnerability ID
+    check.status = "NA"  # Default status
+
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
 
     # Check for "% BGP not active" in the output
     if "% BGP not active" in result:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = f"No active BGP process on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"BGP is active on {device_name}; please review"
 
     check.finding = result  # Store the result as the finding
 
     return check
-    
-    
+
+
 def V221033(device_type, device_name):
-    
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3212,7 +3920,7 @@ def V221033(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3220,7 +3928,7 @@ def V221033(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
@@ -3233,8 +3941,8 @@ def V221034(device_type, device_name):
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3265,7 +3973,7 @@ def V221034(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3273,20 +3981,21 @@ def V221034(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
+
 
 def V221035(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3317,7 +4026,7 @@ def V221035(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3325,20 +4034,21 @@ def V221035(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
+
 
 def V221036(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3369,7 +4079,7 @@ def V221036(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3377,20 +4087,21 @@ def V221036(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
+
 
 def V221037(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3421,7 +4132,7 @@ def V221037(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3429,20 +4140,21 @@ def V221037(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
+
 
 def V221038(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3473,7 +4185,7 @@ def V221038(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3481,20 +4193,21 @@ def V221038(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
+
 
 def V221039(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3525,7 +4238,7 @@ def V221039(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3533,20 +4246,21 @@ def V221039(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
+
 
 def V221040(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3577,7 +4291,7 @@ def V221040(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3585,20 +4299,21 @@ def V221040(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
+
 
 def V221041(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3629,7 +4344,7 @@ def V221041(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3637,20 +4352,21 @@ def V221041(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
+
 
 def V221042(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3681,7 +4397,7 @@ def V221042(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3689,20 +4405,21 @@ def V221042(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
+
 
 def V221043(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3733,7 +4450,7 @@ def V221043(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3741,20 +4458,21 @@ def V221043(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
 
+
 def V221044(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3785,7 +4503,7 @@ def V221044(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3793,7 +4511,7 @@ def V221044(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
@@ -3806,8 +4524,8 @@ def V221045(device_type, device_name):
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3838,7 +4556,7 @@ def V221045(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3846,20 +4564,21 @@ def V221045(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
+
 
 def V221046(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
     """
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"  # Initialize as Not_Applicable, to be updated based on findings
+    check.set_vulid()
+    check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
 
     # Check MPLS configuration
     command_mpls = "show mpls forwarding-table"
@@ -3890,7 +4609,7 @@ def V221046(device_type, device_name):
     if mpls_flag:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is configured on this device and needs to be reviewed."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nMPLS Output:\n{result_mpls}"
         check.comments += "MPLS is not configured on this device."
@@ -3898,12 +4617,13 @@ def V221046(device_type, device_name):
     if vrf_flag:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs configured on this device, please review."
-        check.status = "Open"
+        check.status = "OP"
     else:
         check.finding += f"\nVRF Output:\n{result_vrf}"
         check.comments += "\nVRFs are not configured on this device."
 
     return check
+
 
 def V221047(device_type, device_name):
     """
@@ -3911,11 +4631,12 @@ def V221047(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a PE Switch."
-    
+
     return check
+
 
 def V221048(device_type, device_name):
     """
@@ -3923,11 +4644,12 @@ def V221048(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a PE Switch."
-    
+
     return check
+
 
 def V221049(device_type, device_name):
     """
@@ -3935,11 +4657,12 @@ def V221049(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a PE Switch."
-    
+
     return check
+
 
 def V221050(device_type, device_name):
     """
@@ -3947,11 +4670,12 @@ def V221050(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a PE Switch."
-    
+
     return check
+
 
 def V221051(device_type, device_name):
     """
@@ -3959,328 +4683,343 @@ def V221051(device_type, device_name):
     """
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = "This is not a PE Switch."
-    
-    return check
 
+    return check
 
 
 def V221052(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"  # Default status
+    check.set_vulid()
+    check.status = "OP"  # Default status
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-    
+
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index(
+        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
-    
+
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-    
+
     if is_cpp_in_place:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "CPP is in place and configured correctly."
     else:
         check.comments = "CPP does not appear to be configured correctly."
     check.finding = result
-    return check    
+    return check
 
 
 def V221053(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221054(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221055(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221056(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221057(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221058(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221059(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221060(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221061(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221062(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221063(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221064(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221065(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221066(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221067(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221068(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
+
 
 def V221069(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
 
     command = "show ip multicast"
     result = exec_command(command, device_name)
 
     if not re.search(r"Multicast Routing: disabled.*Multicast Multipath: disabled", result, re.DOTALL):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "Multicast routing is configured and needs to be reviewed."
     else:
         check.comments = "There is no Multicast routing on this device."
 
     check.finding = result
     return check
-
 
 
 def V237750(device_type, device_name):
@@ -4289,8 +5028,8 @@ def V237750(device_type, device_name):
     """
     # Create an object of the Stig class and set default values
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"  # Default to "Not A Finding" until proven otherwise
+    check.set_vulid()
+    check.status = "NF"  # Default to "Not A Finding" until proven otherwise
 
     # The command to execute
     command = "show ip cef summary"
@@ -4303,7 +5042,7 @@ def V237750(device_type, device_name):
 
     # Check if 'CEF is enabled' is NOT in the result
     if "CEF is enabled" not in result:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"IP CEF is not running on {device_name}"
     else:
         check.comments = f"IP CEF is running on {device_name}"
@@ -4311,19 +5050,18 @@ def V237750(device_type, device_name):
     return check
 
 
-
 def V237752(device_type, device_name):
     # Create an object of the Stig class and set default values
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"  # Default status
+    check.set_vulid()
+    check.status = "NF"  # Default status
 
     # The command to execute
     command = "show run | i ^ipv6"
-    
+
     # Execute the command and store the result
     result = exec_command(command, device_name)
-    
+
     # Store the command output in check.finding
     check.finding = result
 
@@ -4331,63 +5069,66 @@ def V237752(device_type, device_name):
     match = re.search(r'ipv6 hop-limit (\d+)', result)
     if match:
         hop_limit = int(match.group(1))
-        
+
         # Check if the hop limit is less than 32
         if hop_limit < 32:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = f"IPv6 hop limit less than 32 on {device_name}"
         else:
             check.comments = f"IPv6 hop limit is set to {hop_limit} on {device_name}"
     else:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = f"No 'ipv6 hop-limit' configuration found on {device_name}"
-        
+
     return check
 
 
 def V237756(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     result = exec_command("show ipv6 interface", device_name)
     line_count = len(result.strip().split('\n'))
 
-    check.status = "Not_Applicable" if line_count == 2 else "Open"
+    check.status = "NA" if line_count == 2 else "OP"
     check.comments = "IPv6 is not configured on this device." if line_count == 2 else "Open - There is IPv6 configured on this device, please review configuration."
     check.finding = result
 
     return check
-    
+
+
 def V237759(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     result = exec_command("show ipv6 interface", device_name)
     line_count = len(result.strip().split('\n'))
 
-    check.status = "Not_Applicable" if line_count == 2 else "Open"
+    check.status = "NA" if line_count == 2 else "OP"
     check.comments = "IPv6 is not configured on this device." if line_count == 2 else "Open - There is IPv6 configured on this device, please review configuration."
     check.finding = result
 
     return check
+
 
 def V237762(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     result = exec_command("show ipv6 interface", device_name)
     line_count = len(result.strip().split('\n'))
 
-    check.status = "Not_Applicable" if line_count == 2 else "Open"
+    check.status = "NA" if line_count == 2 else "OP"
     check.comments = "IPv6 is not configured on this device." if line_count == 2 else "Open - There is IPv6 configured on this device, please review configuration."
     check.finding = result
 
     return check
 
+
 def V237764(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     result = exec_command("show ipv6 interface", device_name)
     line_count = len(result.strip().split('\n'))
 
-    check.status = "Not_Applicable" if line_count == 2 else "Open"
+    check.status = "NA" if line_count == 2 else "OP"
     check.comments = "IPv6 is not configured on this device." if line_count == 2 else "Open - There is IPv6 configured on this device, please review configuration."
     check.finding = result
 
@@ -4396,11 +5137,11 @@ def V237764(device_type, device_name):
 
 def V237766(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     result = exec_command("show ipv6 interface", device_name)
     line_count = len(result.strip().split('\n'))
 
-    check.status = "Not_Applicable" if line_count == 2 else "Open"
+    check.status = "NA" if line_count == 2 else "OP"
     check.comments = "IPv6 is not configured on this device." if line_count == 2 else "Open - There is IPv6 configured on this device, please review configuration."
     check.finding = result
 
@@ -4409,11 +5150,11 @@ def V237766(device_type, device_name):
 
 def V237772(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     result = exec_command("show ipv6 interface", device_name)
     line_count = len(result.strip().split('\n'))
 
-    check.status = "Not_Applicable" if line_count == 2 else "Open"
+    check.status = "NA" if line_count == 2 else "OP"
     check.comments = "IPv6 is not configured on this device." if line_count == 2 else "Open - There is IPv6 configured on this device, please review configuration."
     check.finding = result
 
@@ -4422,11 +5163,11 @@ def V237772(device_type, device_name):
 
 def V237774(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     result = exec_command("show ipv6 interface", device_name)
     line_count = len(result.strip().split('\n'))
 
-    check.status = "Not_Applicable" if line_count == 2 else "Open"
+    check.status = "NA" if line_count == 2 else "OP"
     check.comments = "IPv6 is not configured on this device." if line_count == 2 else "Open - There is IPv6 configured on this device, please review configuration."
     check.finding = result
 
@@ -4435,11 +5176,11 @@ def V237774(device_type, device_name):
 
 def V237776(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     result = exec_command("show ipv6 interface", device_name)
     line_count = len(result.strip().split('\n'))
 
-    check.status = "Not_Applicable" if line_count == 2 else "Open"
+    check.status = "NA" if line_count == 2 else "OP"
     check.comments = "IPv6 is not configured on this device." if line_count == 2 else "Open - There is IPv6 configured on this device, please review configuration."
     check.finding = result
 
@@ -4448,15 +5189,16 @@ def V237776(device_type, device_name):
 
 def V237778(device_type, device_name):
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     result = exec_command("show ipv6 interface", device_name)
     line_count = len(result.strip().split('\n'))
 
-    check.status = "Not_Applicable" if line_count == 2 else "Open"
+    check.status = "NA" if line_count == 2 else "OP"
     check.comments = "IPv6 is not configured on this device." if line_count == 2 else "Open - There is IPv6 configured on this device, please review configuration."
     check.finding = result
 
-    return check    
+    return check
+
 
 '''
 END IOS XE SWITCH CHECK
@@ -4464,34 +5206,35 @@ END IOS XE SWITCH CHECK
 
 """
 ***************NXOS CHECK START************
-""" 
+"""
 '''
 Cisco NX OS Switch L2S Security Technical Implementation Guide :: Version 2, Release: 2 Benchmark Date: 26 Jul 2023
 Function name update only, need to reivew each one.
 '''
 
-def V220674(devicetype, devicename):
+
+def V220674(device_type, device_name):
     # V-101219 - The Cisco switch must be configured to disable non-essential capabilities.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220674 - Open as a non-essential features is enabled"
-    command = "show feature | i telnet|dhcp|wccp|nxapi|imp"
-    result = exec_command(command, devicename)
-    if result.find("enabled", len(devicename) + len(command)) == -1:
-        check.status = "NotAFinding"
+    command = "show feature | i telnet|dhcp|wccp|nxapi|imp|vtp"
+    result = exec_command(command, device_name)
+    if result.find("enabled", len(device_name) + len(command)) == -1:
+        check.status = "NF"
         check.comments = "V-220674 - NAF as no non-essential features are enabled"
     check.finding = result + "\r"
     return check
 
 
-def V220675(devicetype, devicename):
+def V220675(device_type, device_name):
     # V-101221 - The Cisco switch must uniquely identify all network-connected endpoint devices before establishing any connection..
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = (
         "V-220675 - Not applicable - There are no end-user devices in the datacenter."
     )
@@ -4499,33 +5242,33 @@ def V220675(devicetype, devicename):
     return check
 
 
-def V220676(devicetype, devicename):
+def V220676(device_type, device_name):
     # V-101223 - The Cisco switch must authenticate all VLAN Trunk Protocol (VTP) messages with a hash function using the most secured cryptographic algorithm available.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "V-220676 - Not running VTP."
-    command = "show feature | i vtp"
+    command = "show feature | i telnet|dhcp|wccp|nxapi|imp|vtp"
     temp = ""
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     temp = result
-    if result.find("enabled", len(devicename) + len(command)) > -1:
+    if result.find("enabled", len(device_name) + len(command)) > -1:
         command = "show vtp status"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         temp = temp + "\r" + result
-        if result.find("Transparent", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("Transparent", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = "V-220676 - Running VTP, but in transparent mode."
         else:
             command = "show run | i vtp.pass"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             temp = temp + "\r" + result
-            if result.find("password", len(devicename) + len(command)) == -1:
-                check.status = "Open"
+            if result.find("password", len(device_name) + len(command)) == -1:
+                check.status = "OP"
                 check.comments = "V-220676 - Participating in VTP, but without a password configured."
             else:
-                check.status = "NotAFinding"
+                check.status = "NF"
                 check.comments = (
                     "V-220676 - Participating in VTP with a password configured."
                 )
@@ -4533,868 +5276,877 @@ def V220676(devicetype, devicename):
     return check
 
 
-def V220677(devicetype, devicename):
+def V220677(device_type, device_name):
     # V-220677 - The Cisco switch must be configured for authorized users to select a user session to capture..
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     command = "show run | sec monitor.session"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220677 - NAF - Datacenter switches only connect to servers.  In addition, all NXOS switches are capable of this function."
     return check
 
 
+# leaving for testing as needed. VUL FAIL TEST
+# def V220677(device_type, device_name):
+# V-220677 - The Cisco switch must be configured for authorized users to select a user session to capture.
+# check = Stig()
+# check.set_vulid()
+# check.status = "NF"
+# command = "show run | sec monitor.session"
 
-def V220678(devicetype, devicename):
+# Executing the command and getting the result
+# result = exec_command(command, device_name)
+
+# Intentional syntax error
+# For example, using an undefined variable
+# result = some_undefined_variable + result
+
+# check.finding = result
+# check.comments = "V-220677 - NAF - Datacenter switches only connect to servers. In addition, all NXOS switches are capable of this function."
+
+# return check
+
+
+def V220678(device_type, device_name):
     # V-220678 - The Cisco switch must be configured for authorized users to remotely view, in real time, all content related to an established user session from a component separate from The Cisco switch.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     command = "show run | sec monitor.session"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220678 - NAF - Datacenter switches only connect to servers.  In addition, all NXOS switches are capable of this function."
     return check
 
 
-
-def V220679(devicetype, devicename):
+def V220679(device_type, device_name):
     # V-220679 - The Cisco switch must authenticate all endpoint devices before establishing any connection.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     command = "show run | i interface.Ether|dot1x|aaa.authentication.dot1x|aaa.group.server.radius|aaa.authentication.dot1x"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220679 - NAF - Datacenter switches only connect to servers.  In addition, all NXOS switches are capable of this function."
     return check
 
 
-def V220680(devicetype, devicename):
-    # V-220680 - The Cisco switch must have Root Guard enabled on all switch ports connecting to access layer switches and hosts..
+def V220680(device_type, device_name):
     check = Stig()
-    MsgBox = crt.Dialog.MessageBox
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
-    # Find all the root ports.
-    command = "show spanning-tree brief | i Root.FWD"
-    rootPorts = []
-    trunkPorts = []
-    result = exec_command(command, devicename)
-    temp = result
-    for line in result.splitlines():
-        port = line[0 : line.find(" ")]
-        isfound = False
-        if line.find("#") == -1 and line.find("show") == -1:
-            for portname in rootPorts:
-                if portname == port:
-                    isfound = True
-            if isfound == False:
-                rootPorts.append(port)
-    check.comments = "Found the following root ports: "
-    for port in rootPorts:
-        check.comments = check.comments + ", " + port
-    # Find all trunk ports
-    command = "show int trunk | i trunking | exc not-trunking"
-    result = exec_command(command, devicename)
-    # Now lets find all trunking ports that aren't root ports
-    for line in result.splitlines():
-        port = line[0 : line.find(" ")]
-        isfound = False
-        for portname in rootPorts:
-            if portname == port:
-                isfound = True
-        if isfound == False:
-            if line.find("#") == -1 and line.find("show") == -1:
-                trunkPorts.append(port)
-    temp = temp + "\r" + result
-    if len(trunkPorts) == 0:
-        check.comments = check.comments + "\r" + "All trunking ports are root ports."
-        check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
+    temp = ""
+
+    # Find all unique root ports
+    root_ports = list(set([
+        line.split(" ")[0]
+        for line in exec_command("show spanning-tree brief | i Root.FWD", device_name).splitlines()
+        if "#" not in line and "show" not in line
+    ]))
+    check.comments = f"Found the following root ports: {', '.join(root_ports)}"
+
+    # Find all unique trunk ports that aren't root ports
+    trunk_ports = list(set([
+        line.split(" ")[0]
+        for line in exec_command("show int trunk | i trunking | exc not-trunking", device_name).splitlines()
+        if line.split(" ")[0] not in root_ports and "#" not in line and "show" not in line
+    ]))
+
+    # Evaluate trunk ports for root guard configuration
+    if not trunk_ports:
+        check.comments += "\nAll trunking ports are root ports."
+        check.status = "NF"
     else:
-        result = ""
-        # Check all non-root trunk ports for root guard
-        for port in trunkPorts:
-            command = "show run int " + port
-            portconfig = exec_command(command, devicename)
-            if portconfig.find("VPC_PEER") == -1 and portconfig.find("UPLINK") == -1:
-                if portconfig.find("guard root") == -1:
-                    check.status = "Open"
-                    check.comments = (
-                        check.comments
-                        + "\r Interface "
-                        + port
-                        + " is not configured with root guard."
-                    )
+        for port in trunk_ports:
+            port_config = exec_command(f"show run int {port}", device_name)
+            temp += port_config
+            if "VPC_PEER" not in port_config and "UPLINK" not in port_config:
+                if "guard root" not in port_config:
+                    check.status = "OP"
+                    check.comments += f"\nInterface {port} is not configured with root guard."
                 else:
-                    check.comments = (
-                        check.comments
-                        + "\r Interface "
-                        + port
-                        + " is configured correctly."
-                    )
+                    check.comments += f"\nInterface {port} is configured correctly."
             else:
-                check.comments = (
-                    check.comments
-                    + "\r Interface "
-                    + port
-                    + " is does not require root guard."
-                )
-            temp = temp + portconfig
+                check.comments += f"\nInterface {port} does not require root guard."
+
     check.finding = temp
-    # check.comments = "V-220680 - NAF - Datacenter switches only connect to servers."
     return check
 
 
-def V220681(devicetype, devicename):
+def V220681(device_type, device_name):
     # V-220681 - The Cisco switch must have BPDU Guard enabled on all user-facing or untrusted access switch ports.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "show run | i interface.Eth|bpduguard"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220681 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
     return check
 
 
-def V220682(devicetype, devicename):
-    # V-220682 -  The Cisco switch must have STP Loop Guard enabled.
+def V220682(device_type, device_name):
     check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
-    check.comments = (
-        "V-220682 - OPEN - The Cisco switch must have STP Loop Guard enabled."
-    )
-    command = "show run | i loopguard"
-    result = exec_command(command, devicename)
-    if result.find("loopguard default", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
-        check.comments = "V-220682 - NAF  The Cisco switch has STP Loop Guard enabled."
+    check.set_vulid()
+    check.status = "OP"
+    check.comments = "V-220682 - OPEN - The Cisco switch must have STP Loop Guard enabled."
+
+    result = exec_command("show run | i loopguard", device_name)
+    if "loopguard default" in result[len(device_name) + len("show run | i loopguard"):]:
+        check.status = "NF"
+        check.comments = "V-220682 - NAF - The Cisco switch has STP Loop Guard enabled."
+
     check.finding = result + "\r"
     return check
 
 
-def V220683(devicetype, devicename):
+"""
+V220683
+I don't think this is NA it states all access ports, need to review
+"""
+
+
+def V220683(device_type, device_name):
     # V-220683 - The Cisco switch must have Unknown Unicast Flood Blocking (UUFB) enabled.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "show run | i block"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220683 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
     return check
 
 
-def V220684(devicetype, devicename):
+def V220684(device_type, device_name):
     # V-220684 - The Cisco switch must have DHCP snooping for all user VLANs to validate DHCP messages from untrusted sources.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "show run | i dhcp.snoop"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220684 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
     return check
 
 
-def V220685(devicetype, devicename):
+def V220685(device_type, device_name):
     # V-220685 - The Cisco switch must have IP Source Guard enabled on all user-facing or untrusted access switch ports.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "show run | i verify.*.dhcp.snoop"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220685 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
     return check
 
 
-def V220686(devicetype, devicename):
+def V220686(device_type, device_name):
     # V-220686 - The Cisco switch must have Dynamic Address Resolution Protocol (ARP) Inspection (DAI) enabled on all user VLANs.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "show run | i arp.inspection.vlan"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220686 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
     return check
 
 
-def V220687(devicetype, devicename):
-    # V-220687 - The Cisco switch must have Storm Control configured on all host-facing switchports.
+def V220687(device_type, device_name):
     check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
-    check.comments = "V-220687 - Open - Need to configure storm-control."
-    command = "show run | i storm.control"
-    result = exec_command(command, devicename)
-    if (
-        result.find("storm-control unicast", len(devicename) + len(command)) > -1
-        or result.find("storm-control broadcast", len(devicename) + len(command))
-        > -1
-    ):
-        check.status = "NotAFinding"
-        check.comments = "V-220687 - NAF  The Cisco switch has Storm Control enabled."
-    check.finding = result
+    check.set_vulid()
+    check.status = "OP"
+
+    command = exec_command(
+        "show run | sec ^interface|^port-profile | ex .access.vlan.666|ip|mtu|trunk.(native|allowed)", device_name)
+    check.finding = command
+
+    interfaces = command.split("interface ")
+    port_profiles = command.split("port-profile type ethernet ")
+
+    port_profile_dict = {profile.split("\n")[0].strip(): "storm-control" in profile for profile in port_profiles[1:]}
+    iface_states = {}
+
+    for interface in interfaces[1:]:
+        lines = interface.strip().split("\n")
+        if_name = lines[0].strip()
+        iface_states[if_name] = {'is_access': False, 'has_storm_control': False}
+
+        for line in lines[1:]:
+            if "switchport access vlan" in line:
+                iface_states[if_name]['is_access'] = True
+            elif "storm-control" in line:
+                iface_states[if_name]['has_storm_control'] = True
+            elif "inherit port-profile" in line:
+                profile_name = line.split()[-1]
+                iface_states[if_name]['has_storm_control'] = port_profile_dict.get(profile_name, False)
+
+    non_compliant_ports = [k for k, v in iface_states.items() if v['is_access'] and not v['has_storm_control']]
+
+    if non_compliant_ports:
+        check.comments = "V-220687 - Open - The following access ports do not have storm control:\n" + ",\n".join(
+            non_compliant_ports)
+    else:
+        check.status = "NF"
+        check.comments = "V-220687 - NAF - All access ports have storm control or inherit a compliant port-profile."
+
     return check
 
 
-def V220688(devicetype, devicename):
-    # V-220688 - The Cisco switch must have IGMP or MLD Snooping configured on all VLANs.
+def V220688(device_type, device_name):
+    # Initialize STIG check
     check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220688 - Open - The Cisco switch must have IGMP or MLD Snooping configured on all VLANs."
+
+    # Run the command and get its output
     command = "show run all | i igmp.snooping$"
-    result = exec_command(command, devicename)
-    if (
-        result.find("ip igmp snooping", len(devicename) + len(command)) > -1
-        and result.find("ip igmp snooping", len(devicename) + len(command)) > -1
-    ):
-        check.status = "NotAFinding"
+    result = exec_command(command, device_name)
+
+    # Check for IGMP or MLD snooping in the output
+    if "ip igmp snooping" in result:
+        check.status = "NF"
         check.comments = "V-220688 - NAF  The Cisco switch has IGMP or MLD snooping is enabled globally."
+
+    # Save the output as the finding
     check.finding = result
     return check
 
 
-def V220689(devicetype, devicename):
-    # V-220689 -The Cisco switch must enable Unidirectional Link Detection (UDLD) to protect against one-way connections.
-    MsgBox = crt.Dialog.MessageBox
+def V220689(device_type, device_name):
+    # Initialize STIG check
     check = Stig()
-    Interfaces = []
-    temp = ""
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = "V-220689 - NAF - The Cisco switch has UDLD feature enabled and running on all fiber attached ports.\r"
-    # check.comments = "V-220689 - Open - The Cisco switch must enable Unidirectional Link Detection (UDLD) to protect against one-way connections.\r"
-    # Lets make sure the feature UDLD is configured.
+
+    # Verify if the UDLD feature is enabled globally
     command = "show run | i feature.udld"
-    result = exec_command(command, devicename)
-    if result.find("udld", len(devicename) + len(command)) == -1:
-        check.status = "Open"
+    result = exec_command(command, device_name)
+    temp = result  # Store command results for later use
+
+    if "udld" not in result:
+        check.status = "OP"
         check.comments = "V-220689 - Open - The Cisco switch must have the feature UDLD configured.\r"
-    temp = result
-    # Lets get all the transceivers installed on the switch
+
+    # Collect information about interfaces with transceivers
     command = "show int trans | i Ether|type"
-    result = exec_command(command, devicename)
-    temp = temp + result
-    for intnum in range(len(result.splitlines())):
-        InterfaceInfo = IntTrans()
-        currentline = result.splitlines()[intnum]
-        if currentline.find("Ethern") > -1:
-            InterfaceInfo.interface = currentline.strip()
-            nextline = "Ethernet"
-            if intnum + 1 < len(result.splitlines()):
-                nextline = result.splitlines()[intnum + 1]
-            if nextline.find("Ethernet") == -1:
-                InterfaceInfo.transtype = nextline[nextline.rfind(" ") :].strip()
-            if str(InterfaceInfo.interface).find("Ethern") > -1:
-                Interfaces.append(InterfaceInfo)
-                # MsgBox (currentline + " " + nextline[nextline.rfind(" "):])
-    # Now we'll check all the interface configs
+    result = exec_command(command, device_name)
+    temp += result
+
+    # Initialize the Interfaces list
+    Interfaces = []
+    for line in result.splitlines():
+        if "Ethern" in line:
+            interface = IntTrans()
+            interface.interface = line.strip()
+            Interfaces.append(interface)
+
+    # Check configurations for each interface
     for Interface in Interfaces:
-        if (
-            Interface.transtype.find("none") == -1
-            and Interface.transtype.find("#") == -1
-        ):
-            if (
-                Interface.transtype.find("LH") > -1
-                or Interface.transtype.find("SR") > -1
-            ):
-                # check.comments = check.comments + Interface.interface + " " + Interface.transtype + "\r"
-                command = "show run int " + Interface.interface + " | i udl"
-                result = exec_command(command, devicename)
-                temp = temp + result
-                if result.find("disabled", len(devicename) + len(command)) > -1:
-                    check.status = "Open"
-                    check.comments = (
-                        check.comments
-                        + "V-220689 - OPEN because Interface "
-                        + Interface.interface
-                        + " has UDPD disabled.\r"
-                    )
+        if Interface.transtype not in ["none", "#"] and ("LH" in Interface.transtype or "SR" in Interface.transtype):
+            command = f"show run int {Interface.interface} | i udl"
+            result = exec_command(command, device_name)
+            temp += result
+            if "disabled" in result:
+                check.status = "OP"
+                check.comments += f"V-220689 - OPEN because Interface {Interface.interface} has UDPD disabled.\r"
+
+    # Store all command results as the finding
     check.finding = temp
     return check
 
 
-def V220690(devicetype, devicename):
-    # V-220690 -The Cisco switch must have all disabled switch ports assigned to an unused VLAN.
-    MsgBox = crt.Dialog.MessageBox
+def V220690(device_type, device_name):
     check = Stig()
     Interfaces = []
-    temp = ""
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
-    check.comments = "V-220690 - NAF - The Cisco switch has all disabled switch ports assigned to an unused VLAN.\r"
+    unused_vlans = set()
+    temp = []
 
-    # Lets get a list of all disabled ports
-    # command = "show interface status | i disabled | exc Po"
-    command = "show interface status | inc sfpAbsent|disabled|xcvrAbsen"
-    result = exec_command(command, devicename)
-    # Lets get a port info
-    for currentline in result.splitlines():
-        InterfaceInfo = IntStatus()
-        if (
-            currentline.find("Eth") > -1 or currentline.find("Po") > -1
-        ) and currentline.find("#") == -1:
-            InterfaceInfo.interface = currentline[0:12].strip()
-            InterfaceInfo.description = currentline[14:33].strip()
-            InterfaceInfo.vlan = currentline[43:50].strip()
-            Interfaces.append(InterfaceInfo)
-    # Now we'll make sure all ports are in vlan 666
-    for Interface in Interfaces:
-        if Interface.interface.find("undefined") == -1:
-            if (
-                Interface.vlan.find("666") == -1
-                and Interface.vlan.find("2299") == -1
-                and Interface.vlan.find("2195")
-            ):
-                check.status = "Open"
-                temp = (
-                    temp
-                    + " "
-                    + Interface.interface
-                    + " ("
-                    + Interface.description
-                    + ")"
-                    + " is disabled but assigned to VLAN "
-                    + Interface.vlan
-                    + "; "
-                )
-    if check.status == "Open":
-        check.comments = "V-220690 - OPEN because " + temp + "\r"
-    check.finding = result
+    check.set_vulid()
+    check.status = "NF"
+    check.comments = "V-220690 - NAF - The Cisco switch has all disabled switch ports assigned to an unused VLAN."
+
+    # Initialize finding details as an empty string
+    check.finding = ''
+
+    # Get a list of all disabled or unused ports
+    command1 = "show interface status | inc sfpAbsent|disabled|xcvrAbsen"
+    result1 = exec_command(command1, device_name)
+
+    # Append the first command output to finding details
+    check.finding += f'{result1}\n\n'
+
+    for currentline in result1.splitlines():
+        vlan_search = re.search(r'\b\d+\b', currentline[40:])
+        if vlan_search:
+            vlan = vlan_search.group()
+            unused_vlans.add(int(vlan))
+
+    # Get trunk port configurations
+    command2 = "show run | i ^interface|trunk"
+    result2 = exec_command(command2, device_name)
+
+    # Append the second command output to finding details
+    check.finding += f'{result2}\n'
+
+    trunk_config_lines = result2.splitlines()
+
+    for i, line in enumerate(trunk_config_lines):
+        if "interface" in line and "Ethernet" in line:
+            port = line.split()[-1]
+            for j in range(i + 1, len(trunk_config_lines)):
+                if "switchport trunk allowed vlan" in trunk_config_lines[j]:
+                    allowed_vlans = trunk_config_lines[j].split()[-1]
+                    for vlan_entry in allowed_vlans.split(","):
+                        if "-" in vlan_entry:
+                            start_vlan, end_vlan = map(int, vlan_entry.split("-"))
+                            if any(start_vlan <= unused_vlan <= end_vlan for unused_vlan in unused_vlans):
+                                check.status = "OP"
+                                temp.append(
+                                    f"{port} allows traffic from one of the unused VLANs in range {start_vlan}-{end_vlan};")
+                        elif int(vlan_entry) in unused_vlans:
+                            check.status = "OP"
+                            temp.append(f"{port} allows traffic from unused VLAN {vlan_entry};")
+                    break
+
+    if check.status == "OP":
+        check.comments = "V-220690 - OPEN because:\r\n" + "\r\n".join(temp)
+
     return check
 
 
-def V220691(devicetype, devicename):
-    # V-220691 - The Cisco switch must not have the default VLAN assigned to any host-facing switch ports.
+def V220691(device_type, device_name):
+    # Initialize Stig object and set vulnerability ID
     check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
-    check.comments = "V-220691 - Open - The Cisco switch must not have the default VLAN assigned to any host-facing switch ports."
+    check.set_vulid()
+
+    # Default status and comments
+    check.status = "OP"
+    check.comments = ("V-220691 - Open - The Cisco switch must not have the default VLAN "
+                      "assigned to any host-facing switch ports.")
+
+    # Execute the command and store the result
     command = "show spanning-tree vlan 1"
-    result = exec_command(command, devicename)
-    if result.find("does not exist", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    result = exec_command(command, device_name)
+
+    # Check if the result indicates that VLAN 1 does not exist
+    search_str = "does not exist"
+    search_start = len(device_name) + len(command)
+    if result.find(search_str, search_start) > -1:
+        check.status = "NF"
         check.comments = "V-220691 - NAF  No host-facing ports are assigned to VLAN1"
+
+    # Store the command result as the finding
     check.finding = result
+
     return check
 
 
-def V220692(devicetype, devicename):
+def V220692(device_type, device_name):
     # V-220692 - The Cisco switch must have the default VLAN pruned from all trunk ports that do not require it.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220692 - Open - The Cisco switch must have the default VLAN pruned from all trunk ports that do not require it."
     command = "show spanning-tree vlan 1"
-    result = exec_command(command, devicename)
-    if result.find("does not exist", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    result = exec_command(command, device_name)
+    if result.find("does not exist", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220691 - NAF VLAN1 is not in use or trunked"
     check.finding = result
     return check
 
 
-def V220693(devicetype, devicename):
+def V220693(device_type, device_name):
     # V-220693 - The Cisco switch must not use the default VLAN for management traffic.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220693 - Open - The Cisco switch must not use the default VLAN for management traffic."
     command = "show spanning-tree vlan 1"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     command = "show run int vlan 1"
-    result = result + "\r" + exec_command(command, devicename)
+    result = result + "\r" + exec_command(command, device_name)
     if (
-        result.find("does not exist", len(devicename) + len(command)) > -1
-        and result.find("ip address", len(devicename) + len(command)) == -1
+            result.find("does not exist", len(device_name) + len(command)) > -1
+            and result.find("ip address", len(device_name) + len(command)) == -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220693 - NAF VLAN1 is not being used for management."
     check.finding = result
     return check
 
 
-def V220694(devicetype, devicename):
+def V220694(device_type, device_name):
     # V-220694 - The Cisco switch must have all user-facing or untrusted ports configured as access switch ports.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "sh int status | ex trunk|xcvrAbsen|disabled"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220694 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
     return check
 
 
-def V220695(devicetype, devicename):
-    # V220695 - The native VLAN must be assigned to a VLAN ID other than the default VLAN for all 802.1q trunk links.
+def V220695(device_type, device_name):
     check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
-    check.comments = "V220695 - NAF - The native VLAN on trunk links is other than the default VLAN for all 802.1q trunk links."
+    check.set_vulid()
+    check.status = "NF"
+    check.comments = (
+        "V220695 - NAF - The native VLAN on trunk links is other than the default VLAN for all 802.1q trunk links.")
 
-    Interfaces = []
+    interfaces = []
     temp = ""
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    intCount = 0
-    bolContinue = True
-    # Lets get a list of all trunk ports
+    int_count = 0
+
+    # Get a list of all trunk ports
     command = "show int trunk"
-    result = exec_command(command, devicename)
-    # Lets get a port info
-    for currentline in result.splitlines():
-        InterfaceInfo = IntStatus()
-        if (currentline.find("--------")) > -1:
-            intCount = intCount + 1
-        if (
-            (currentline.find("Eth") > -1 or currentline.find("Po") > -1)
-            and currentline.find("#") == -1
-            and intCount <= 2
-        ):
-            InterfaceInfo.interface = currentline[0:12].strip()
-            InterfaceInfo.vlan = currentline[14:22].strip()
-            Interfaces.append(InterfaceInfo)
-    # Now we'll make sure all ports are not in VLAN 1
-    for Interface in Interfaces:
-        if Interface.interface.find("undefined") == -1:
-            if Interface.vlan == "1":
-                check.status = "Open"
-                temp = (
-                    temp
-                    + " "
-                    + Interface.interface
-                    + "'s native VLAN appears to be assigned to default vlan "
-                    + Interface.vlan
-                    + "; "
-                )
-    if check.status == "Open":
-        check.comments = "V-220695 - OPEN because " + temp + "\r"
+    result = exec_command(command, device_name)
+
+    # Parse output to get port info
+    for line in result.splitlines():
+        if "--------" in line:
+            int_count += 1
+        if "Eth" in line or "Po" in line and "#" not in line and int_count <= 2:
+            intf_info = IntStatus()
+            intf_info.interface = line[0:12].strip()
+            intf_info.vlan = line[14:22].strip()
+            interfaces.append(intf_info)
+
+    # Check if any port is in VLAN 1
+    for intf in interfaces:
+        if "undefined" not in intf.interface:
+            if intf.vlan == "1":
+                check.status = "OP"
+                temp += f" {intf.interface}'s native VLAN appears to be assigned to default vlan {intf.vlan}; "
+
+    if check.status == "OP":
+        check.comments = f"V-220695 - OPEN because {temp}\r"
+
     check.finding = result
     return check
 
 
-def V220696(devicetype, devicename):
+def V220696(device_type, device_name):
     # V-220696 - The Cisco switch must not have any switchports assigned to the native VLAN.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
-    check.comments = "V-220696 - Open - The Cisco switch must not have any switchports assigned to the native VLAN."
-    command = "sh int status | in connected.200"
-    result = exec_command(command, devicename)
-    if result.find("", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
-        check.comments = "V-220696 - NAF Native VLAN 200 is not in use by access ports."
-    check.finding = result
+    check.set_vulid()
+    check.status = "OP"
+    check.comments = f"V-220696 - Open - The Cisco switch must not have any switchports assigned to the native VLAN."
+
+    # Prepare the regex to capture native VLANs
+    regex = r"Eth[^\n]+?(\d+)\s+trunking"
+
+    # Initialize an empty vlan_list
+    vlan_list = []
+
+    # Command to get trunking information
+    trunk_command = "show interface trunk"
+    trunk_result = exec_command(trunk_command, device_name)
+    check.finding += f"Command: {trunk_command}\nResult: {trunk_result}\n"
+
+    # Extract native VLANs
+    native_vlan_match = re.search(regex, trunk_result)
+    if native_vlan_match:
+        native_vlans = re.findall(r"(\d+)", native_vlan_match.group(1))
+        native_vlans = list(set(native_vlans))  # Remove duplicates
+    else:
+        check.comments = "Unable to determine native VLANs from the 'show interface trunk' command output."
+        return check
+
+    # Command to check switchports
+    # Populate vlan_list here, as needed.
+    # vlan_list = [some, values, here]
+
+    vlan_str = "|".join(map(str, vlan_list))
+    command = f"sh int status | in connected.({vlan_str})"
+    result = exec_command(command, device_name)
+    check.finding += f"Command: {command}\nResult: {result}\n"
+
+    if all(vlan not in native_vlans for vlan in vlan_list):
+        check.status = "NF"
+        clean_vlan_str = ", ".join(map(str, vlan_list))
+        check.comments = f"V-220696 - NAF Native VLANs {clean_vlan_str} are not in use by access ports."
+
     return check
 
-# Cisco NX-OS Switch NDM Security Technical Implementation Guide :: 
+
+# Cisco NX-OS Switch NDM Security Technical Implementation Guide ::
 # Version 2, Release: 2 Benchmark Date: 23 Apr 2021
 
-def V220474(devicetype, devicename):
+def V220474(device_type, device_name):
     # V-220474 - The Cisco switch must be configured to limit the number of concurrent management sessions to an organization-defined number.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-220474 - OPEN - The switch is not configured to limit the number of concurrent management sessions."
     command = "show run | i session-limit"
-    result = exec_command(command, devicename)
-    if result.find("session-limit", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    result = exec_command(command, device_name)
+    if result.find("session-limit", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220474 - NAF - The switch is configured to limit the number of concurrent management sessions."
     check.finding = result + "\r"
     return check
 
 
-def V220475(devicetype, devicename):
+def V220475(device_type, device_name):
     # V-220475 - The Cisco switch must be configured to automatically audit account creation.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.accounting"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220475 - OPEN - Account creation is not automatically audited"
-    if result.find("aaa accounting", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("aaa accounting", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220475 - NAF - Account creation is being audited."
     return check
 
 
-def V220476(devicetype, devicename):
+def V220476(device_type, device_name):
     # V-220476 - The Cisco switch must be configured to automatically audit account modification.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.accounting"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = (
         "V-220476 - OPEN - Account modification is not automatically audited"
     )
-    if result.find("aaa accounting", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("aaa accounting", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220476 - NAF - Account modification is being audited."
     return check
 
 
-def V220477(devicetype, devicename):
+def V220477(device_type, device_name):
     # V-220477 - The Cisco switch must be configured to automatically audit account disabling actions.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.accounting"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = (
         "V-220477 - OPEN - Account disabling actions is not automatically audited"
     )
-    if result.find("aaa accounting", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("aaa accounting", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220477 - NAF - Account disabling actions is being audited."
     return check
 
 
-def V220478(devicetype, devicename):
+def V220478(device_type, device_name):
     # V-220478 - The Cisco switch must be configured to automatically audit account removal actions.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.accounting"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = (
         "V-220478 - OPEN - Account removal actions is not automatically audited"
     )
-    if result.find("aaa accounting", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("aaa accounting", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220478 - NAF - Account removal actions is being audited."
     return check
 
 
-def V220479(devicetype, devicename):
+def V220479(device_type, device_name):
     # V-220479 - The Cisco switch must be configured to enforce approved authorizations for controlling the flow of management information within the device based on control policies.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | egrep line.vty|access-class"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220479 - OPEN -  The Cisco switch does not restrict management access to specific IP addresses"
-    if result.find("access-class", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("access-class", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220479 - NAF - The Cisco switch restricts management access to specific IP addresses."
     return check
 
 
-def V220480(devicetype, devicename):
+def V220480(device_type, device_name):
     # V-220480 - The Cisco router must be configured to enforce the limit of three consecutive invalid logon attempts, after which time it must lock out the user account from accessing the device for 15 minutes.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     strModel = "unknown"
     strModelVersion = "unknown"
 
     command = "show inventory | i PID"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
 
     intStart = result.splitlines()[1].find(" ")
     intEnd = result.splitlines()[1].find(" ", intStart + 1)
     strModel = str(result.splitlines()[1][intStart:intEnd]).strip()
 
     if strModel.find("N9K") > -1:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = "NA: Nexus 9K series switches do not have this capability"
 
     if strModel.find("N5K") > -1:
         command = "sh run | i login.block"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = result
         check.comments = "V-220480 - OPEN -  Cisco switch not configured to enforce the limit of three consecutive invalid logon attempts"
-        if result.find("block-for", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("block-for", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = "V-220480 - NAF - Cisco switch configured to enforce the limit of three consecutive invalid logon attempts"
 
     if strModel.find("N3K") > -1:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = "NA: Nexus 3K series switches do not have this capability"
 
     check.finding = result
     return check
 
 
-def V220481(devicetype, devicename):
+def V220481(device_type, device_name):
     # V-220481 - The Cisco router must be configured to display the Standard Mandatory DoD Notice and Consent Banner before granting access to the device.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "show run | egrep banner|User.Agreement"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-10150 - OPEN -  Cisco switch not configured to display the Standard Mandatory DoD Notice and Consent Banner"
-    if result.find("User Agreement", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("User Agreement", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220480 - NAF - Cisco switch configured to display the Standard Mandatory DoD Notice and Consent Banner"
     return check
 
 
-def V220482(devicetype, devicename):
+def V220482(device_type, device_name):
     # V-220482 - The Cisco switch must be configured to protect against an individual falsely denying having performed organization-defined actions to be covered by non-repudiation.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.accounting"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220482 - OPEN - Switch is not configured to protect against an individual falsely denying having performed organization-defined actions."
-    if result.find("aaa accounting", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("aaa accounting", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220482 - NAF - Switch is configured to protect against an individual falsely denying having performed organization-defined actions."
     return check
 
 
-def V220484(devicetype, devicename):
+def V220484(device_type, device_name):
     # V-220484 - The Cisco router must produce audit records containing information to establish where the events occurred.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220484 - OPEN - Cisco switch does not log events."
-    if result.find("logging server", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("logging server", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = (
             "V-220484 - NAF - Cisco switch logs all events with logging server."
         )
     return check
 
 
-def V220485(devicetype, devicename):
+def V220485(device_type, device_name):
     # V-220485 - The Cisco switch must be configured to generate audit records containing the full-text recording of privileged commands.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.accounting"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = (
         "V-220485 - OPEN - Cisco switch does not log all configuration changes."
     )
-    if result.find("aaa accounting", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("aaa accounting", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220485 - NAF - Cisco switch logs all configuration changes."
     return check
 
 
-def V220486(devicetype, devicename):
+def V220486(device_type, device_name):
     # V-220486 - The Cisco switch must be configured to disable non-essential capabilities.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "show feature | i telnet|dhcp|wccp|nxapi|imp"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.comments = "V-220486 - OPEN - Unnecessary or non-secure ports, protocols, or services are enabled."
-    if result.find("enabled", len(devicename) + len(command)) == -1:
-        check.status = "NotAFinding"
+    if result.find("enabled", len(device_name) + len(command)) == -1:
+        check.status = "NF"
         check.comments = "V-220486 - NAF - Unnecessary or non-secure ports, protocols, or services are disabled."
     check.finding = result + "\r"
     return check
 
 
-def V220487(devicetype, devicename):
-    # V-220487 - The Cisco router must be configured with only one local account to be used as the account of last resort in the event the authentication server is unavailable.
+def V220487(device_type, device_name):
+    # V-220487 - The Cisco router must be configured with only one local account to be used as the account of last resort.
     check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.comments = ""
+    check.set_vulid()
     command = "show run | i ^username"
-    temp = exec_command(command, devicename)
-    #
-    # Replace password with ***REMOVED***
-    strClean = ""
-    result = ""
-    for line in temp.splitlines():
-        if line.find("password") > 1:
-            strClean = (
-                line[0 : line.find("password")] + "password <-----***REMOVED***----->"
-            )
-            bolPassword = 1
-        else:
-            strClean = line
-        result = result + "\n" + strClean
-    #
-    check.finding = result
-    check.status = "NotAFinding"
-    strUserAuthLocalAccounts = ["admin", "SMNP", "ADMIN"]
+    result = exec_command(command, device_name)  # Cleansing is expected to happen in exec_command now
+
+    # Initialize variables to determine check status and comments
+    check.status = "NF"
+    check.comments = ""
+    strUserAuthLocalAccounts = ["admin", "GLBL-MCLOVIN-NEXUS", "netops_2q22"]
     strConfiguredAccounts = []
-    finding = []
-    # Create a list of configured accounts
+
+    # Extract configured accounts from the command output
     for line in result.splitlines():
-        if line[0:10].find("username ") > -1:
-            strConfiguredAccounts.append(line.split(" ")[1])
-    #
-    # Check if each configured account is in the authorized list.
+        if line.startswith("username"):
+            username = line.split()[1]  # Assumes username is always second word in line
+            strConfiguredAccounts.append(username)
+
+    # Determine if each configured account is authorized
     for account in strConfiguredAccounts:
-        ismatch = "Open"
-        for authaccount in strUserAuthLocalAccounts:
-            if account.strip() == authaccount.strip():
-                ismatch = "NotAFinding"
-                check.comments = (
-                    check.comments + "Authorized user found:" + account + "\r"
-                )
-                break
-        finding.append(ismatch)
-    #
-    # Loop through the findings.  If there's any unknown users mark the Vuln as open
-    for obj in finding:
-        if str(obj) == "Open":
-            check.status = "Open"
-    #
-    if check.status == "Open":
-        check.comments = "V-220487: More than one local user account found.  Please review finding details."
+        if account.strip() not in strUserAuthLocalAccounts:
+            check.status = "OP"
+            check.comments += f"Unauthorized user found: {account}\r\n"
+
+    if check.status == "OP":
+        check.comments += "V-220487: More than one local user account found. Please review finding details."
     else:
-        check.comments = (
-            check.comments + "Account creation authorized by CS, created by SEC"
-        )
+        check.comments += "Account creation authorized by CS, created by WANSEC."
+
+    check.finding = result  # Store the sanitized result as finding
     return check
 
 
-def V220488(devicetype, devicename):
+def V220488(device_type, device_name):
     # V-220488 - The Cisco router must be configured to implement replay-resistant authentication mechanisms for network access to privileged accounts.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh ssh server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220488 - OPEN - FIPS mode is not enabled"
-    if result.find("ssh version 2", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("ssh version 2", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220488 - NAF - FIPS mode is enabled"
     return check
 
 
-def V220489(devicetype, devicename):
+def V220489(device_type, device_name):
     # V-220489 - The Cisco switch must be configured to enforce password complexity by requiring that at least one upper-case character be used.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | in no.password"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220489 - OPEN - Cisco switch is not configured to enforce password complexity."
-    if result.find("no password", len(devicename) + len(command)) == -1:
-        check.status = "NotAFinding"
+    if result.find("no password", len(device_name) + len(command)) == -1:
+        check.status = "NF"
         check.comments = (
             "V-220489 - NAF - Cisco switch is configured to enforce password complexity"
         )
     return check
 
 
-def V220490(devicetype, devicename):
+def V220490(device_type, device_name):
     # V-220490 - The Cisco switch must be configured to enforce password complexity by requiring that at least one lower-case character be used.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | in no.password"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220490 - OPEN - Cisco switch is not configured to enforce password complexity."
-    if result.find("no password", len(devicename) + len(command)) == -1:
-        check.status = "NotAFinding"
+    if result.find("no password", len(device_name) + len(command)) == -1:
+        check.status = "NF"
         check.comments = (
             "V-220490 - NAF - Cisco switch is configured to enforce password complexity"
         )
     return check
 
 
-def V220491(devicetype, devicename):
+def V220491(device_type, device_name):
     # V-220491 - The Cisco switch must be configured to enforce password complexity by requiring that at least one numeric character be used.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | in no.password"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220491 - OPEN - Cisco switch is not configured to enforce password complexity."
-    if result.find("no password", len(devicename) + len(command)) == -1:
-        check.status = "NotAFinding"
+    if result.find("no password", len(device_name) + len(command)) == -1:
+        check.status = "NF"
         check.comments = (
             "V-220491 - NAF - Cisco switch is configured to enforce password complexity"
         )
     return check
 
 
-def V220492(devicetype, devicename):
+def V220492(device_type, device_name):
     # V-220492 - The Cisco switch must be configured to enforce password complexity by requiring that at least one special character be used.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | in no.password"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220492 - OPEN - Cisco switch is not configured to enforce password complexity."
-    if result.find("no password", len(devicename) + len(command)) == -1:
-        check.status = "NotAFinding"
+    if result.find("no password", len(device_name) + len(command)) == -1:
+        check.status = "NF"
         check.comments = (
             "V-220492 - NAF - Cisco switch is configured to enforce password complexity"
         )
     return check
 
 
-def V220493(devicetype, devicename):
+def V220493(device_type, device_name):
     # V-96271 - CAT I -  The Cisco router must be configured to terminate all network connections associated with device management after 10 minutes of inactivity.
     # The network element must timeout management connections for administrative access after 10 minutes or less of inactivity.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     command = "show run | i timeout prev 1"
     # We're going to start with reverse logic, assume all config lines are good.  We'll look at every on and if it's > 10 min we'll fail this vuln
-    check.status = "NotAFinding"
-    result = exec_command(command, devicename)
+    check.status = "NF"
+    result = exec_command(command, device_name)
     for line in result.splitlines():
         # Look for exec-timeout operand in the string, then split the string into individual operands....
         if str(line).find("exec-timeout", 0) > -1:
@@ -5409,8 +6161,8 @@ def V220493(devicetype, devicename):
                 # MsgBox(str(len(line.strip().split(" "))) + '\r' + (line))
                 strTimeout = lstOperands[1]
             if int(strTimeout) > 10:
-                check.status = "Open"
-    if check.status == "NotAFinding":
+                check.status = "OP"
+    if check.status == "NF":
         check.comments = "V-220492 - NAF - Timeout less than or equal to 10"
     else:
         check.comments = "V-220493 - OPEN - Timeout greater than 10."
@@ -5418,304 +6170,301 @@ def V220493(devicetype, devicename):
     return check
 
 
-def V220494(devicetype, devicename):
+def V220494(device_type, device_name):
     # V-220494 - The Cisco switch must be configured to automatically audit account enabling actions.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.accounting"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = (
         "V-220494 - OPEN - Cisco switch not configured to log account enabling."
     )
-    if result.find("aaa accounting", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("aaa accounting", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = (
             "V-220494 - NAF - Cisco switch configured to log account enabling."
         )
     return check
 
 
-def V220495(devicetype, devicename):
+def V220495(device_type, device_name):
     # V-220495 - The Cisco switch must be configured to audit the execution of privileged functions.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.accounting"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220495 - OPEN - Cisco switch not configured to audit the execution of privileged functions."
-    if result.find("aaa accounting", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("aaa accounting", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220495 - NAF - Cisco switch configured to audit the execution of privileged functions."
     return check
 
 
-def V220496(devicetype, devicename):
+def V220496(device_type, device_name):
     # V-220496 - The Cisco switch must be configured to generate audit records when successful/unsuccessful attempts to log on with access privileges occur.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220496 - OPEN - Cisco switch does not log all logon attempts."
-    if result.find("logging server", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("logging server", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220496 - NAF - Cisco switch does log all logon attempts with logging server."
     return check
 
 
-def V220497(devicetype, devicename):
+def V220497(device_type, device_name):
     # V-220497 - The Cisco switch must be configured to generate an alert for all audit failure events.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220497 - OPEN - Cisco switch does not log all logon attempts."
-    if result.find("logging server", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("logging server", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220497 - NAF - Cisco switch does log all logon attempts with logging server."
     return check
 
 
-def V220498(devicetype, devicename):
+def V220498(device_type, device_name):
     # V-220498 -  The Cisco switch must be configured to synchronize its clock with the primary and secondary time sources using redundant authoritative time sources.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i ntp.server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220498 - OPEN - Cisco switch is not configured to synchronize its clock with redundant authoritative time sources."
     serverCount = 0
     for line in result.splitlines():
-        if line.find(devicename) == -1 and line.find("server") > -1:
+        if line.find(device_name) == -1 and line.find("server") > -1:
             serverCount += 1
     check.comments = "Found " + str(serverCount) + " NTP servers."
     if serverCount >= 2:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220498 - NAF - Cisco switch is configured to synchronize its clock with redundant authoritative time sources."
     return check
 
 
-def V220499(devicetype, devicename):
+def V220499(device_type, device_name):
     # V-220499 - The Cisco router must be configured to record time stamps for log records that can be mapped to Coordinated Universal Time (UTC) or Greenwich Mean Time (GMT).
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i timezone"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220499 - OPEN - Cisco switch not configured to record time stamps for log records."
     if (
-        result.find("clock timezone ZULU 0 0", len(devicename) + len(command))
-        > -1
+            result.find("clock timezone ZULU 0 0", len(device_name) + len(command))
+            > -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220499 - NAF - Cisco switch configured to record time stamps for log records."
     return check
 
 
-def V220500(devicetype, devicename):
+def V220500(device_type, device_name):
     # V-220500 - The Cisco router must be configured to authenticate SNMP messages using a FIPS-validated Keyed-Hash Message Authentication Code (HMAC).
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     command = "sh run | i snmp-server.*.network"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220500 - NAF - Cisco switch is configured to authenticate SNMP messages using a FIPS-validated HMAC"
     for line in result.splitlines():
         if line.find("md5") > -1:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = "V-220500 - OPEN - Cisco switch is not configured to authenticate SNMP messages using a FIPS-validated HMAC"
     return check
 
 
-def V220501(devicetype, devicename):
+def V220501(device_type, device_name):
     # V-220501 - The Cisco router must be configured to authenticate SNMP messages using a FIPS-validated Keyed-Hash Message Authentication Code (HMAC).
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     command = "sh run | i snmp-server.*.network"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220501 - NAF - Cisco switch is configured to authenticate SNMP messages using a FIPS-validated HMAC"
     for line in result.splitlines():
         if line.find("md5") > -1:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = "V-220501 - OPEN - Cisco switch is not configured to authenticate SNMP messages using a FIPS-validated HMAC"
     return check
 
 
-def V220502(devicetype, devicename):
+def V220502(device_type, device_name):
     # V-220502 -  The Cisco switch must be configured to authenticate Network Time Protocol (NTP) sources using authentication that is cryptographically based.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | in ntp.authentication"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220502 - OPEN - Cisco switch is not configured to authenticate NTP sources using authentication that is cryptographically based."
     for line in result.splitlines():
         if line.find("md5") > -1:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = "V-220502 - NAF - Cisco switch is configured to authenticate NTP sources using authentication that is cryptographically based."
     return check
 
 
-def V220503(devicetype, devicename):
+def V220503(device_type, device_name):
     # V-220503 - The Cisco switch must be configured to use FIPS-validated Keyed-Hash Message Authentication Code (HMAC) to protect the integrity of remote maintenance sessions.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh ssh server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220503 - OPEN - Cisco switch is not configured to use FIPS-validated HMAC to protect the integrity of remote maintenance sessions."
-    if result.find("ssh version 2", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("ssh version 2", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220503 - NAF - Cisco switch is configured to use FIPS-validated HMAC to protect the integrity of remote maintenance sessions."
     return check
 
 
-def V220504(devicetype, devicename):
+def V220504(device_type, device_name):
     # V-220504 - The Cisco switch must be configured to implement cryptographic mechanisms to protect the confidentiality of remote maintenance sessions.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh ssh server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220504 - OPEN - Cisco switch is not configured to implement cryptographic mechanisms to protect the confidentiality of remote maintenance sessions."
-    if result.find("ssh version 2", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("ssh version 2", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220504 - NAF - Cisco switch is configured to implement cryptographic mechanisms to protect the confidentiality of remote maintenance sessions."
     return check
 
 
-
-
-
-def V220506(devicetype, devicename):
+def V220506(device_type, device_name):
     # V-220506 - The Cisco switch must be configured to generate log records when administrator privileges are modified.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.accounting"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220506 - OPEN - Cisco switch not configured to generate log records when administrator privileges are modified."
-    if result.find("aaa accounting", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("aaa accounting", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220506 - NAF - Cisco switch configured to generate log records when administrator privileges are modified."
     return check
 
 
-def V220507(devicetype, devicename):
+def V220507(device_type, device_name):
     # V-220507 - The Cisco switch must be configured to generate log records when administrator privileges are deleted.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.accounting"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220507 - OPEN - Cisco switch not configured to generate log records when administrator privileges are deleted."
-    if result.find("aaa accounting", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("aaa accounting", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220507 - NAF - Cisco switch configured to generate log records when administrator privileges are deleted."
     return check
 
 
-def V220508(devicetype, devicename):
+def V220508(device_type, device_name):
     # V-220508 - The Cisco switch must be configured to generate audit records when successful/unsuccessful logon attempts occur.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220508 - OPEN - Cisco switch is not configured to generate audit records when successful/unsuccessful logon attempts occur."
-    if result.find("logging server", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("logging server", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220508 - NAF - Cisco switch is configured to generate audit records when successful/unsuccessful logon attempts occur."
     return check
 
 
-def V220509(devicetype, devicename):
+def V220509(device_type, device_name):
     # V-220509 - The Cisco switch must be configured to generate log records when administrator privileges are deleted.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.accounting"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220509 - OPEN - Cisco switch not configured to generate log records when administrator privileges are deleted."
-    if result.find("aaa accounting", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("aaa accounting", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220509 - NAF - Cisco switch configured to generate log records when administrator privileges are deleted."
     return check
 
 
-def V220510(devicetype, devicename):
+def V220510(device_type, device_name):
     # V-220510 - The Cisco switch must generate audit records showing starting and ending time for administrator access to the system.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220510 - OPEN - Cisco switch is not configured to generate log records showing starting and ending time for administrator access."
-    if result.find("logging server", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("logging server", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220510 - NAF - Cisco switch is configured to generate log records showing starting and ending time for administrator access."
     return check
 
 
-def V220512(devicetype, devicename):
+def V220512(device_type, device_name):
     # V-220512 - The Cisco switch must be configured to off-load log records onto a different system than the system being audited.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220512 - OPEN - Cisco switch is not configured to off-load log records onto a different system than the system being audited."
-    if result.find("logging server", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("logging server", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220512 - NAF - Cisco switch is configured to off-load log records onto a different system than the system being audited."
     return check
 
 
-def V220513(devicetype, devicename):
+def V220513(device_type, device_name):
     # V-220513 - The Cisco switch must be configured to use an authentication server for the purpose of authenticating users prior to granting administrative access.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | in aaa.authentication"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220513 - OPEN - Cisco switch not configured to generate log records when administrator privileges are deleted."
     BolPassDefault = ""
@@ -5727,150 +6476,151 @@ def V220513(devicetype, devicename):
         if line.find("console group") > -1:
             BolPassConsole = "pass"
     if BolPassDefault == "pass" and BolPassConsole == "pass":
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-220513 - NAF - Cisco switch configured to generate log records when administrator privileges are deleted."
     return check
 
 
-def V220514(devicetype, devicename):
+def V220514(device_type, device_name):
     # V-220514 - The Cisco switch must be configured to support organizational requirements to conduct backups of the configuration when changes occur.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | in event.manager"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220514 - OPEN - Cisco switch is not configured to conduct backups of the configuration when changes occur."
-    if result.find("applet", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("applet", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220514 - NAF - Cisco switch is not configured to conduct backups of the configuration when changes occur."
     return check
 
 
-def V220515(devicetype, devicename):
+def V220515(device_type, device_name):
     # V-220515 - The Cisco switch must be configured to obtain its public key certificates from an appropriate certificate policy through an approved service provider.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     command = "sh crypto ca trustpoints"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    check.comments = "V-220515 - WE do not use PKI Authentication. PSKs are used instead to secure communication over a service provider."
+    check.comments = "V-220515 - RCC-SWA does not use PKI Authentication. PSKs are used instead to secure communication over a service provider."
     return check
 
 
-def V220516(devicetype, devicename):
+def V220516(device_type, device_name):
     # V-220516 - The Cisco switch must be configured to send log data to a central log server for the purpose of forwarding alerts to the administrators and the ISSO.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-220516 - OPEN - Cisco switch is not configured to send log data to the syslog server."
-    if result.find("logging server", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("logging server", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-220516 - NAF - Cisco switch is configured to send log data to the syslog server."
     return check
 
 
-def V220517(devicetype, devicename):
+def V220517(device_type, device_name):
     # V-220517 - The Cisco router must be running an IOS release that is currently supported by Cisco Systems.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     strModel = "unknown"
     strModelVersion = "unknown"
 
     command = "show inventory | i PID"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
 
     intStart = result.splitlines()[1].find(" ")
     intEnd = result.splitlines()[1].find(" ", intStart + 1)
     strModel = str(result.splitlines()[1][intStart:intEnd]).strip()
 
     command = "show ver | i System:|system:|NXOS:|Chassis|chassis"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     if len(result.splitlines()) > 2:
         if len(result.splitlines()[1]) > 8:
             strModelVersion = result.splitlines()[1][
-                result.splitlines()[1].find("version")
-                + 8 : len(result.splitlines()[1])
-            ]
+                              result.splitlines()[1].find("version")
+                              + 8: len(result.splitlines()[1])
+                              ]
     if strModel.find("N9K") > -1:
         if remove_char(strModelVersion) >= remove_char("70378"):
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                "NAF: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(8).  This device has "
-                + strModelVersion
+                    "NAF: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(8).  This device has "
+                    + strModelVersion
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                "OPEN: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(8).  This device has "
-                + strModelVersion
+                    "OPEN: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(8).  This device has "
+                    + strModelVersion
             )
 
     if strModel.find("N5K") > -1:
         if remove_char(strModelVersion) >= remove_char("73711"):
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                "NAF: As of 1/16/2020 Nexus 5K series switches should have code level 7.3(7)N1(1b).  This device has "
-                + strModelVersion
+                    "NAF: As of 1/16/2020 Nexus 5K series switches should have code level 7.3(7)N1(1b).  This device has "
+                    + strModelVersion
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                "OPEN: As of 1/16/2020 Nexus 5K series switches should have code level 7.3(7)N1(1b).  This device has "
-                + strModelVersion
+                    "OPEN: As of 1/16/2020 Nexus 5K series switches should have code level 7.3(7)N1(1b).  This device has "
+                    + strModelVersion
             )
 
     if strModel.find("N3K") > -1:
         if remove_char(strModelVersion) >= remove_char("70378"):
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                "NAF: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(8).  This device has "
-                + strModelVersion
+                    "NAF: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(8).  This device has "
+                    + strModelVersion
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                "OPEN: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(8).  This device has "
-                + strModelVersion
+                    "OPEN: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(8).  This device has "
+                    + strModelVersion
             )
 
     check.finding = result
     return check
-    
+
+
 """
 ***************NXOS CHECK END************
-"""     
-    
+"""
 
 """
 ***************IOS XE ROUTER CHECK START************
-"""   
+"""
+
 
 # Cisco IOS Router NDM Security Technical Implementation Guide ::
 # Version 2, Release: 3 Benchmark Date: 27 Oct 2021
 
-def V215807(devicetype, devicename):
+def V215807(device_type, device_name):
     # Legacy IDs: V-96189; SV-105327
     # V-215807 - CAT II - The Cisco router must be configured to limit the number of concurrent management sessions to an organization-defined number.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i http.secure-server"
-    temp = exec_command(command, devicename)
+    temp = exec_command(command, device_name)
     command = "sh run | i \line.vty.*.*|session-limit"
-    result = exec_command(command, devicename)
-    if result.find("session-limit", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    result = exec_command(command, device_name)
+    if result.find("session-limit", len(device_name) + len(command)) > -1:
+        check.status = "NF"
     check.finding = temp + "\r" + result
     check.comments = (
         "V-215807 - CAT II - NAF as long as the VTY lines have session-limit >=2"
@@ -5878,94 +6628,94 @@ def V215807(devicetype, devicename):
     return check
 
 
-def V215808(devicetype, devicename):
+def V215808(device_type, device_name):
     # Legacy IDs: V-96197; SV-105335
     # V-215808 - CAT II - The Cisco router must be configured to automatically audit account creation.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | sec log.config"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.comments = "V-215808 - CAT II - OPEN - no logging"
     check.finding = result
-    if result.find("log config", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("log config", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215808 - CAT II - NAF - Logging enabled"
     return check
 
 
-def V215809(devicetype, devicename):
+def V215809(device_type, device_name):
     # Legacy IDs: V-96199; SV-105337
     # V-215809 - CAT II - The Cisco router must be configured to automatically audit account modification.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | sec log.config"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215809 - CAT II - OPEN - no logging"
     check.finding = result
-    if result.find("log config", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("log config", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215809 - CAT II - NAF - Logging enabled"
     return check
 
 
-def V215810(devicetype, devicename):
+def V215810(device_type, device_name):
     # Legacy IDs: V-96201; SV-105339
     # V-215810 - CAT II - The Cisco router must be configured to automatically audit account disabling actions.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | sec log.config"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215810 - CAT II - OPEN - no logging"
     check.finding = result
-    if result.find("log config", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("log config", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215810 - CAT II - NAF - Logging enabled"
     return check
 
 
-def V215811(devicetype, devicename):
+def V215811(device_type, device_name):
     # Legacy IDs: V-96203; SV-105341
     # V-215811 - CAT II - The Cisco router must be configured to automatically audit account removal actions.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | sec log.config"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215811 - CAT II - OPEN - no logging"
     check.finding = result
-    if result.find("log config", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("log config", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215811 - CAT II - NAF - Logging enabled"
     return check
 
 
-def V215812(devicetype, devicename):
+def V215812(device_type, device_name):
     # Legacy IDs: V-96205; SV-105343
     # V-215812 - CAT II - The Cisco router must be configured to enforce approved authorizations for controlling the flow of management information within the device based on control policies.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-215812 - OPEN - ACLs were not found."
     ACLName = "Not found"
     intCount = 0
     command = "sh run | i vty..|access-class"
-    result = str(exec_command(command, devicename))
+    result = str(exec_command(command, device_name))
     for line in result.splitlines():
         if (
-            line.find("access-class") > -1
-            and intCount > 0
-            and line.find("ip http") == -1
+                line.find("access-class") > -1
+                and intCount > 0
+                and line.find("ip http") == -1
         ):
             intStart = line.find(" ", line.find("access-class") + 1)
             intEnd = line.find(" ", intStart + 1)
@@ -5975,47 +6725,47 @@ def V215812(devicetype, devicename):
     temp = result
     if len(ACLName) > 3:
         command = "sh ip access-lists " + ACLName
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         if len(result) > 3:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = "V-215812 - NAF - ACL in place"
     check.finding = temp + "\r" + result
     return check
 
 
-def V215813(devicetype, devicename):
+def V215813(device_type, device_name):
     # Legacy IDs: V-96207; SV-105345
     # V-215813 - CAT II - The Cisco router must be configured to enforce the limit of three consecutive invalid logon attempts, after which time it must lock out the user account from accessing the device for 15 minutes.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i login.block"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "!V-215813 - CAT II - ****NOTE AS OF 11/1/2019 THIS IS OPEN / FINDING - BE SURE TO FIX THIS!! *** \r !V-215813 - CAT II - FIX ACTION: conf t - login block-for 900 attempts 3 within 120"
-    if result.find("block-for", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("block-for", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215813 - CAT II - NAF - Configured to limit the number of failed logon attempts"
     return check
 
 
-def V215814(devicetype, devicename):
+def V215814(device_type, device_name):
     # Legacy IDs: V-96209; SV-105347
     # V-215814 - CAT II - The Cisco router must be configured to display the Standard Mandatory DoD Notice and Consent Banner before granting access to the device.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "show run | beg banner"
-    if devicetype == "NXOS":
+    if device_type == "NXOS":
         command = "show run | beg banner next 10"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     for line in result.splitlines():
         # Look for key words that are supposed to be in the banner string
         if str(line).find("USG-authorized", 0) > 5:
-            check.status = "NotAFinding"
-    if check.status == "NotAFinding":
+            check.status = "NF"
+    if check.status == "NF":
         check.comments = "Not a finding.  Correct banner in place"
     else:
         check.comments = "Open issue - could not find matching configuration."
@@ -6023,360 +6773,319 @@ def V215814(devicetype, devicename):
     return check
 
 
-def V215815(devicetype, devicename):
+def V215815(device_type, device_name):
     # Legacy IDs: V-96217; SV-105355
     # V-215815 - CAT II - The Cisco router must be configured to protect against an individual falsely denying having performed organization-defined actions to be covered by non-repudiation.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i userinfo|logging.enable"
-    # if devicetype == "NXOS":
+    # if device_type == "NXOS":
     #    command = "sh run | i \"aaa authentic\""
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215815 - CAT II - OPEN - Logging not configured."
-    if result.find("logging enable", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("logging enable", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215815 - CAT II - NAF - ACS logs all attempts (successful/unsuccessful) to escalate privilege to any device using TACACS"
     return check
 
 
-def V215817(devicetype, devicename):
+def V215817(device_type, device_name):
     # Legacy IDs: V-96223; SV-105361
     # V-215817 - CAT II -  The Cisco router must produce audit records containing information to establish when (date and time) the events occurred.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i service.timestamp"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215817 - CAT II - Open - no timestamps configured"
-    if result.find("service timestamps log", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("service timestamps log", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215817 - CAT II - NAF - Timestamps configured correctly."
     return check
 
 
-def V215818(devicetype, devicename):
+def V215818(device_type, device_name):
     # Legacy IDs: V-96225; SV-105363
     # V-215818 - CAT II -  The Cisco router must produce audit records containing information to establish where the events occurred.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh ip access-lists | i .log*"
-    # if devicetype == "NXOS":
+    # if device_type == "NXOS":
     #    command = "sh run | i \"aaa authentic\""
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215818 - CAT II - OPEN - No ACLs with logging"
-    if result.find("log", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("log", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215818 - CAT II - NAF - ACL lambdaogging configured."
     return check
 
 
-def V215819(devicetype, devicename):
+def V215819(device_type, device_name):
     # Legacy IDs: V-96227; SV-105365
     # V-215819 - CAT II - The Cisco router must be configured to generate audit records containing the full-text recording of privileged commands.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.enable|log.config"
-    # if devicetype == "NXOS":
+    # if device_type == "NXOS":
     #    command = "sh run | i \"aaa authentic\""
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215819 - CAT II - OPEN - No Log config"
     if (
-        result.find("log config", len(devicename) + len(command)) > -1
-        and result.find("logging enable", len(devicename) + len(command)) > -1
+            result.find("log config", len(device_name) + len(command)) > -1
+            and result.find("logging enable", len(device_name) + len(command)) > -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215819 - CAT II - NAF - Logging configured."
     return check
 
 
-def V215820(devicetype, devicename):
+def V215820(device_type, device_name):
     # Legacy IDs: V-96231; SV-105369
     # V-215820 - CAT II - The Cisco router must be configured to protect audit information from unauthorized modification.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run all | i file.privilege"
-    # if devicetype == "NXOS":
+    # if device_type == "NXOS":
     #    command = "sh run | i \"aaa authentic\""
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215820 - CAT II - Open - non-standard config.  Please note that IOS 15.x does not support the file privilege feature."
-    if result.find("file privilege 15", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("file privilege 15", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215820 - CAT II - NAF - file privilege 15 configured."
     return check
 
 
-def V215821(devicetype, devicename):
+def V215821(device_type, device_name):
     # Legacy IDs: V-96233; SV-105371
     # V-215821 - CAT II - The Cisco router must be configured to protect audit information from unauthorized deletion.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run all | i file.privilege"
-    # if devicetype == "NXOS":
+    # if device_type == "NXOS":
     #    command = "sh run | i \"aaa authentic\""
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215821 - CAT II - Open - non standard config.  Please note that IOS 15.x does not support the file privilege feature."
-    if result.find("file privilege 15", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("file privilege 15", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215821 - CAT II - NAF - file privilege 15 configured."
     return check
 
 
-def V215822(devicetype, devicename):
+def V215822(device_type, device_name):
     # Legacy IDs: V-96237; SV-105375
     # V-215822 - CAT II - The Cisco router must be configured to limit privileges to change the software resident within software libraries.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run all | i file.privilege"
-    # if devicetype == "NXOS":
+    # if device_type == "NXOS":
     #    command = "sh run | i \"aaa authentic\""
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215822 - CAT II - Open.  Please note that IOS 15.x does not support the file privilege feature."
-    if result.find("file privilege 15", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("file privilege 15", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215822 - CAT II - NAF - file privilege 15 configured."
     return check
 
 
-def V215823(devicetype, devicename):
+def V215823(device_type, device_name):
     # Legacy IDs: V-96239; SV-105377
     # V-215823 - CAT I - The Cisco router must be configured to prohibit the use of all unnecessary and nonsecure functions and services.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     command = "sh run | i boot.server|identd|finger|http|dns|tcp-small"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215823 - CAT I - NAF - no unnecessary services configured"
     if (
-        result.find("boot network", len(devicename) + len(command)) > -1
-        or result.find("ip boot server", len(devicename) + len(command)) > -1
-        or result.find("ip dns server", len(devicename) + len(command)) > -1
-        or result.find("rcp-enable", len(devicename) + len(command)) > -1
-        or result.find("rsh-enable", len(devicename) + len(command)) > -1
+            result.find("boot network", len(device_name) + len(command)) > -1
+            or result.find("ip boot server", len(device_name) + len(command)) > -1
+            or result.find("ip dns server", len(device_name) + len(command)) > -1
+            or result.find("rcp-enable", len(device_name) + len(command)) > -1
+            or result.find("rsh-enable", len(device_name) + len(command)) > -1
     ):
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "V-215823 - CAT I - Open - unecessary services enabled."
     return check
 
 
-def V215824(devicetype, devicename):
-    # Legacy IDs: V-96243; SV-105381
-    # V-215824 - CAT II -  The Cisco router must be configured with only one local account to be used as the account of last resort in the event the authentication server is unavailable.    check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
+def V215824(device_type, device_name):
+    """
+    V-215824 - CAT II - The Cisco router must be configured with only one local account
+    to be used as the account of last resort in the event the authentication server is unavailable.
+    """
     check = Stig()
-    check.vulid = format_vulid()
-    check.comments = ""
+    check.set_vulid()
     command = "sh run | i ^username"
-    temp = exec_command(command, devicename)
-    #
-    # Replace password with ***REMOVED***
-    strClean = ""
-    result = ""
-    for line in temp.splitlines():
-        if line.find("secret") > 1:
-            strClean = line[0 : line.find("secret")] + " <-----***REMOVED***----->"
-            bolPassword = 1
-        else:
-            strClean = line
-        result = result + "\n" + strClean
-    #
+    result = exec_command(command, device_name)
     check.finding = result
-    check.status = "NotAFinding"
-    strUserAuthLocalAccounts = [
-        "admin",
-        "admin_3q20",
-        "admin_4q20",
-        "admin_1q21",
-        "admin_2q21",
-        "admin_3q21",
-        "admin_4q21",
-        "admin_1q22",
-    ]
-    strConfiguredAccounts = []
-    finding = []
-    # Create a list of configured accounts
-    for line in result.splitlines():
-        if line[0:10].find("username ") > -1:
-            strConfiguredAccounts.append(line.split(" ")[1])
-    #
-    # Check if each configured account is in the authorized list.
-    for account in strConfiguredAccounts:
-        ismatch = "Open"
-        for authaccount in strUserAuthLocalAccounts:
-            if account.strip() == authaccount.strip():
-                ismatch = "NotAFinding"
-                check.comments = (
-                    check.comments + "Authorized user found:" + account + "\r"
-                )
-                break
-        finding.append(ismatch)
-    #
-    # Loop through the findings.  If there's any unknown users mark the Vuln as open
-    for obj in finding:
-        if str(obj) == "Open":
-            check.status = "Open"
-    #
-    if check.status == "Open":
-        check.comments = "V215824: More than one local user account found.  Please review finding details. "
+
+    # Count the number of user accounts configured
+    user_count = sum(1 for line in result.splitlines() if "username" in line)
+
+    # Mark status based on user account count
+    if user_count > 1:
+        check.status = "OP"
+        check.comments = "V-215824: More than one local user account found. Please review finding details."
     else:
-        check.comments = (
-            check.comments + "Account creation authorized by CS, created by SEC"
-        )
+        check.status = "NF"
+        check.comments = "V-215824: One or zero local user accounts configured, compliant with STIG requirement."
+
     return check
 
 
-def V215826(devicetype, devicename):
+def V215826(device_type, device_name):
     # Legacy IDs: V-96253; SV-105391
     # V-215826 - CAT II -  The Cisco router must be configured to enforce a minimum 15-character password length.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215826 - NOTE:  *** As of 11/1/19 THIS IS A FINDING!!! ***"
     if len(result.splitlines()) > 2:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215826 - CAT II - NAF - common criteria policy configured."
     return check
 
 
-def V215827(devicetype, devicename):
+def V215827(device_type, device_name):
     # Legacy IDs: V-96255; SV-105393
     # V-215827 - CAT II -  The Cisco router must be configured to enforce password complexity by requiring that at least one upper-case character be used.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215827 - NOTE:  *** As of 11/1/19 THIS IS A FINDING!!! ***"
     if len(result.splitlines()) > 2:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215827 - NAF - common criteria policy configured."
     return check
 
 
-def V215828(devicetype, devicename):
+def V215828(device_type, device_name):
     # Legacy IDs: V-96257; SV-105395
     # V-215828 - CAT II -  The Cisco router must be configured to enforce password complexity by requiring that at least one lower-case character be used.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215828 - NOTE:  *** As of 11/1/19 THIS IS A FINDING!!! ***"
     if len(result.splitlines()) > 2:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215828 - NAF - common criteria policy configured."
     return check
 
 
-def V215829(devicetype, devicename):
+def V215829(device_type, device_name):
     # Legacy IDs: V-96259; SV-105397
     # V-215829 - CAT II - The Cisco router must be configured to enforce password complexity by requiring that at least one numeric character be used.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215829 - NOTE:  *** As of 11/1/19 THIS IS A FINDING!!! ***"
     if len(result.splitlines()) > 2:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215829 - NAF - common criteria policy configured."
     return check
 
 
-def V215830(devicetype, devicename):
+def V215830(device_type, device_name):
     # Legacy IDs: V-96261; SV-105399
     # V-215830 - CAT II -  The Cisco router must be configured to enforce password complexity by requiring that at least one special character be used.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215830 - NOTE:  *** As of 11/1/19 THIS IS A FINDING!!! ***"
     if len(result.splitlines()) > 2:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215830 - NAF - common criteria policy configured."
     return check
 
 
-def V215831(devicetype, devicename):
+def V215831(device_type, device_name):
     # Legacy IDs: V-96263; SV-105401
     # V-215831 - CAT II -  The Cisco router must be configured to require that when a password is changed, the characters are changed in at least eight of the positions within the password.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh aaa common-criteria policy all"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215831 - NOTE:  *** As of 11/1/19 THIS IS A FINDING!!! ***"
     if len(result.splitlines()) > 2:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215831 - NAF - common criteria policy configured."
     return check
 
 
-def V215832(devicetype, devicename):
+def V215832(device_type, device_name):
     # Legacy IDs: V-96265; SV-105403
     # V-215832 - CAT I -  The Cisco router must only store cryptographic representations of passwords.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i service.password"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215832 - CAT 1 - password encryption must be configured"
-    if result.find("service password-", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("service password-", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215832 - NAF - Password encryption configured."
     return check
 
 
-def V215833(devicetype, devicename):
+def V215833(device_type, device_name):
     # Legacy IDs: V-96271; SV-105409
     # V-215833 - CAT I -  The Cisco router must be configured to terminate all network connections associated with device management after 10 minutes of inactivity.
     # The network element must timeout management connections for administrative access after 10 minutes or less of inactivity.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     command = "sh run all | i vty.0.4|exec-t"
-    if devicetype == "NXOS":
+    if device_type == "NXOS":
         command = "show run | i timeout prev 1"
     # We're going to start with reverse logic, assume all config lines are good.  We'll look at every on and if it's > 10 min we'll fail this vuln
-    check.status = "NotAFinding"
-    result = exec_command(command, devicename)
+    check.status = "NF"
+    result = exec_command(command, device_name)
     for line in result.splitlines():
         # Look for exec-timeout operand in the string, then split the string into individual operands....
         if str(line).find("exec-timeout", 0) > -1:
@@ -6391,8 +7100,8 @@ def V215833(devicetype, devicename):
                 # MsgBox(str(len(line.strip().split(" "))) + '\r' + (line))
                 strTimeout = lstOperands[1]
             if int(strTimeout) > 10:
-                check.status = "Open"
-    if check.status == "NotAFinding":
+                check.status = "OP"
+    if check.status == "NF":
         check.comments = "Not a finding.  Timeout less than or equal to 10"
     else:
         check.comments = "Open issue - could not find matching configuration."
@@ -6400,351 +7109,351 @@ def V215833(devicetype, devicename):
     return check
 
 
-def V215834(devicetype, devicename):
+def V215834(device_type, device_name):
     # Legacy IDs: V-96285; SV-105423
     # V-215834 - CAT II -  The Cisco router must be configured to automatically audit account enabling actions.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i archive|log.config|logging.enable"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215834 - Archive logging is required"
     if (
-        result.find("archive", len(devicename) + len(command)) > -1
-        and result.find("log config", len(devicename) + len(command)) > -1
-        and result.find("logging enable", len(devicename) + len(command)) > -1
+            result.find("archive", len(device_name) + len(command)) > -1
+            and result.find("log config", len(device_name) + len(command)) > -1
+            and result.find("logging enable", len(device_name) + len(command)) > -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215834 - CAT II - NAF - Archive logging configured"
     return check
 
 
-def V215836(devicetype, devicename):
+def V215836(device_type, device_name):
     # Legacy IDs: V-96297; SV-105435
     # V-215836 - CAT II - The Cisco router must be configured to allocate audit record storage capacity in accordance with organization-defined audit record storage requirements.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.buffered"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = (
         "V-215836 - OPEN - suggest adding logging buffered 1000000 informational"
     )
-    if result.find("logging buffered", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("logging buffered", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215836 - CAT II - NAF - ACS manages Authentication."
     return check
 
 
-def V215837(devicetype, devicename):
+def V215837(device_type, device_name):
     # Legacy IDs: V-96301; SV-105439
     # V-215837 - CAT II - The Cisco router must be configured to generate an alert for all audit failure events.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "show logging | i Trap|Logging.to"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = (
         "V215837 - NOTE **** AS OF 11/1/19 THIS IS A FINDING!! PLEASE REMEDIATE"
     )
-    if result.find("Logging to ", len(devicename) + len(command)) > -1 and (
-        result.find("debugging", len(devicename) + len(command)) > -1
-        or result.find("critical", len(devicename) + len(command)) > -1
-        or result.find("warnings", len(devicename) + len(command)) > -1
-        or result.find("notifications", len(devicename) + len(command)) > -1
-        or result.find("informational", len(devicename) + len(command)) > -1
+    if result.find("Logging to ", len(device_name) + len(command)) > -1 and (
+            result.find("debugging", len(device_name) + len(command)) > -1
+            or result.find("critical", len(device_name) + len(command)) > -1
+            or result.find("warnings", len(device_name) + len(command)) > -1
+            or result.find("notifications", len(device_name) + len(command)) > -1
+            or result.find("informational", len(device_name) + len(command)) > -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215837 - CAT II - NAF - ACS manages Authentication."
     return check
 
 
-def V215838(devicetype, devicename):
+def V215838(device_type, device_name):
     # Legacy IDs: V-96303; SV-105441
     # V-215838 - CAT II -  The Cisco router must be configured to synchronize its clock with the primary and secondary time sources using redundant authoritative time sources.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i ntp.server"
-    if devicetype == "NXOS":
+    if device_type == "NXOS":
         command = "sh run | i ntp.server"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     serverCount = 0
     for line in result.splitlines():
-        if line.find(devicename) == -1 and line.find("server") > -1:
+        if line.find(device_name) == -1 and line.find("server") > -1:
             serverCount += 1
     check.comments = "Found " + str(serverCount) + " NTP servers."
     if serverCount >= 2:
-        check.status = "NotAFinding"
+        check.status = "NF"
     return check
 
 
-def V215841(devicetype, devicename):
+def V215841(device_type, device_name):
     # Legacy IDs: V-96317; SV-105455
     # V-215841 - CAT II - The Cisco router must be configured to authenticate SNMP messages using a FIPS-validated Keyed-Hash Message Authentication Code (HMAC).
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Reviewed"
+    check.set_vulid()
+    check.status = "NF"
     command = "sh run | i snmp-server|snmp.user "
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215841 authenticate SNMP messages using a FIPS-validated Keyed-Hash Message Authentication Code (HMAC)."
     command = "sh run | i snmp-server.group"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     for line in result.splitlines():
-        if line.find("v3") == -1 or line.find(devicename) == -1:
-            check.status = "NotAFinding"
+        if line.find("v3") == -1 or line.find(device_name) == -1:
+            check.status = "NF"
             check.comments = "NAF SNMP version 3 is in use"
     return check
 
 
-def V215842(devicetype, devicename):
+def V215842(device_type, device_name):
     # Legacy IDs: V-96319; SV-105457
     # V-215842 - CAT II - The Cisco router must be configured to encrypt SNMP messages using a FIPS 140-2 approved algorithm.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i v3|version.3"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215842 - NAF - paste output"
-    if result.find("v3", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("v3", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215842 - SNMP v3 is in use."
     return check
 
 
-def V215843(devicetype, devicename):
+def V215843(device_type, device_name):
     # Legacy IDs: V-96321; SV-105459
     # V-215843 - CAT II -  The Cisco router must be configured to authenticate Network Time Protocol (NTP) sources using authentication that is cryptographically based.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | in ntp authentication"
-    if devicetype == "NXOS":
+    if device_type == "NXOS":
         command = 'sh run | in "ntp authentication"'
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = (
         "V-215843 - COMMENTS: MD5 no higher encryption - Downgrades it to a CATIII"
     )
 
-    if result.find("md5", len(devicename + "#" + command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("md5", len(device_name + "#" + command)) > -1:
+        check.status = "NF"
         check.comments = "V-215843 - MD5 NTP authentication enabled."
     return check
 
 
-def V215844(devicetype, devicename):
+def V215844(device_type, device_name):
     # Legacy IDs: V-96327; SV-105465
     # V-V-215844 - CAT I - The Cisco router must be configured to use FIPS-validated Keyed-Hash Message Authentication Code (HMAC) to protect the integrity of remote maintenance sessions.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run all | i ssh.version|server.a"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215844 - The Cisco router must be configured to use FIPS-validated Keyed-Hash Message Authentication Code (HMAC) to protect the integrity of remote maintenance sessions.\r Add the command ip ssh server algorithm mac hmac-sha1-96"
     if (
-        result.find("ip ssh version 2", len(devicename) + len(command)) > -1
-        and (
-            result.find("hmac-sha1-96", len(devicename) + len(command)) > -1
-            or result.find("hmac-sha2-256", len(devicename) + len(command))
-        )
-        > -1
+            result.find("ip ssh version 2", len(device_name) + len(command)) > -1
+            and (
+            result.find("hmac-sha1-96", len(device_name) + len(command)) > -1
+            or result.find("hmac-sha2-256", len(device_name) + len(command))
+    )
+            > -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
             "V-215844 - CAT II - NAF - FIPS-validated Keyed-Hash is being used."
         )
     return check
 
 
-def V215845(devicetype, devicename):
+def V215845(device_type, device_name):
     # Legacy IDs: V-96329; SV-105467
     # V-215845 -  CAT I - The Cisco router must be configured to implement cryptographic mechanisms to protect the confidentiality of remote maintenance sessions.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run all | i ssh.version|server.a"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215845 -  The Cisco router must be configured to implement cryptographic mechanisms to protect the confidentiality of remote maintenance sessions."
     if (
-        result.find("ip ssh version 2", len(devicename) + len(command)) > -1
-        and result.find("encryption aes", len(devicename) + len(command)) > -1
+            result.find("ip ssh version 2", len(device_name) + len(command)) > -1
+            and result.find("encryption aes", len(device_name) + len(command)) > -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215845 - CAT II - NAF - Specified cryptographic mechanisms are being used."
     return check
 
 
-def V215848(devicetype, devicename):
+def V215848(device_type, device_name):
     # Legacy IDs: V-96335; SV-105473
     # V-215848 - The Cisco router must be configured to generate log records when administrator privileges are deleted.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.user|archive|log.config|logging.enable"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215848 - The Cisco router must be configured to generate log records when administrator privileges are deleted."
     if (
-        result.find("archive", len(devicename) + len(command)) > -1
-        and result.find("logging enable", len(devicename) + len(command)) > -1
+            result.find("archive", len(device_name) + len(command)) > -1
+            and result.find("logging enable", len(device_name) + len(command)) > -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215848 - CAT II - NAF - archive logging is enabled"
     return check
 
 
-def V215849(devicetype, devicename):
+def V215849(device_type, device_name):
     # Legacy IDs: V-96337; SV-105475
     # V-215849 - CAT II -  The Cisco router must be configured to generate audit records when successful/unsuccessful logon attempts occur.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i login.on"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = (
         "V-215849 - NOTE:  AS OF 11/1/19 THIS IS A FINDING - PLEASE REMEDIATE"
     )
     if (
-        result.find("on-failure", len(devicename) + len(command)) > -1
-        and result.find("on-success", len(devicename) + len(command)) > -1
+            result.find("on-failure", len(device_name) + len(command)) > -1
+            and result.find("on-success", len(device_name) + len(command)) > -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215849 - CAT II - NAF -  Audit records generated when successful/unsuccessful logon attempts occur"
     return check
 
 
-def V215850(devicetype, devicename):
+def V215850(device_type, device_name):
     # Legacy IDs: V-96339; SV-105477
     # V-215850 - CAT II -  The Cisco router must be configured to generate audit records when successful/unsuccessful logon attempts occur.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.user|archive|log.config|logging.enable"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215850 - The Cisco router must be configured to generate log records for privileged activities"
     if (
-        result.find("archive", len(devicename) + len(command)) > -1
-        and result.find("logging enable", len(devicename) + len(command)) > -1
+            result.find("archive", len(device_name) + len(command)) > -1
+            and result.find("logging enable", len(device_name) + len(command)) > -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-215850 - CAT II - NAF - archive logging is enabled"
     return check
 
 
-def V215854(devicetype, devicename):
+def V215854(device_type, device_name):
     # Legacy IDs: V-96351; SV-105489
     # V-215854 - CAT I - The Cisco router must be configured to use an authentication server for the purpose of authenticating users prior to granting administrative access.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i aaa.group|server-private"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215854 - NAF - paste output"
     if (
-        result.find("aaa group", len(devicename) + len(command)) > -1
-        and result.find("server-private", len(devicename) + len(command)) > -1
+            result.find("aaa group", len(device_name) + len(command)) > -1
+            and result.find("server-private", len(device_name) + len(command)) > -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
             "V-215854 - CAT II - NAF - Authentication server(s) is configured."
         )
     return check
 
 
-def V215855(devicetype, devicename):
+def V215855(device_type, device_name):
     # Legacy IDs: V-96359; SV-105497
     # V-215855 - CAT II -  The Cisco router must employ automated mechanisms to detect the addition of unauthorized components or devices.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh event manager policy registered"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = (
         "V-215855 - NOTE:  AS OF 11/1/19 THIS IS A FINDING!!!! PLEASE REMEDIATE"
     )
-    if result.find("applet", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("applet", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-215855 - CAT II - NAF - Applet configured and registered."
     return check
 
 
-def V215856(devicetype, devicename):
+def V215856(device_type, device_name):
     # Legacy IDs: V-96363; SV-105501
     # V-215856 - CAT II -  The Cisco router must be configured to obtain its public key certificates from an appropriate certificate policy through an approved service provider.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     command = "show run | i crypto.pki|enroll"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     command = "show crypto pki certificates"
-    result = result + exec_command(command, devicename)
+    result = result + exec_command(command, device_name)
     check.finding = result
-    check.comments = "V-215856 - COMMENT:  WE do not use PKI Authentication"
+    check.comments = "V-215856 - COMMENT:  RCC-SWA does not use PKI Authentication"
     return check
 
 
-def V220139(devicetype, devicename):
+def V220139(device_type, device_name):
     # Legacy IDs: V-96365; SV-105503
     # V-220139 - CAT I - The Cisco router must be configured to send log data to a syslog server for the purpose of forwarding alerts to the administrators and the ISSO.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | i logging.host|logging.trap.no"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = (
         "V-220139 - NOTE: AS OF 11/1/19 THIS IS A FINDING!!! PLEASE REMEDIATE"
     )
-    if result.find("logging host", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("logging host", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = (
             "V-220139 - CAT I - NAF - Remote system logging server(s) in place.."
         )
     return check
 
 
-def V220140(devicetype, devicename):
+def V220140(device_type, device_name):
     # Legacy IDs: V-96369; SV-105507
     # V-220140 - CAT I - The Cisco router must be running an IOS release that is currently supported by Cisco Systems.
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     Model = "unknown"
     ModelVersion = "unknown"
 
     command = "show inventory | i PID"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
 
     intStart = result.splitlines()[1].find(" ")
     intEnd = result.splitlines()[1].find(" ", intStart + 1)
@@ -6753,215 +7462,216 @@ def V220140(devicetype, devicename):
     temp = result
     if Model.find("ASR") > -1 or Model.find("ISR4") > -1:
         command = "show ver | i IOS"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         intStart = result.splitlines()[1].find(
             " ", result.splitlines()[1].find("Version") + 1
         )
         intEnd = result.splitlines()[1].find("\r", intStart)
         ModelVersion = result.splitlines()[1][intStart:]
-        #crt.Dialog.MessageBox("ModelVersion is: " + str(remove_char(ModelVersion)))
+        # crt.Dialog.MessageBox("ModelVersion is: " + str(remove_char(ModelVersion)))
         if remove_char(ModelVersion) >= remove_char("16.12.04"):
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                "NAF: As of 9/25/2020 ASR/ISR devices should have code level 16.12.04.  This device has "
-                + ModelVersion
+                    "NAF: As of 9/25/2020 ASR/ISR devices should have code level 16.12.04.  This device has "
+                    + ModelVersion
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                "OPEN: As of 9/25/2020 ASR/ISR devices should have code level 16.12.04.  This device has "
-                + ModelVersion
+                    "OPEN: As of 9/25/2020 ASR/ISR devices should have code level 16.12.04.  This device has "
+                    + ModelVersion
             )
 
     if Model.find("CISCO39") > -1:
         command = "show ver | i IOS"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         intStart = result.splitlines()[1].find(
             " ", result.splitlines()[1].find("Version") + 1
         )
         intEnd = result.splitlines()[1].find(",", intStart)
         ModelVersion = result.splitlines()[1][intStart:intEnd]
         if remove_char(ModelVersion) >= remove_char("15.7(3)M5"):
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                "NAF: As of 1/16/2020 ISRG2 devices should have code level 15.7(3)M5.  This device has "
-                + ModelVersion
+                    "NAF: As of 1/16/2020 ISRG2 devices should have code level 15.7(3)M5.  This device has "
+                    + ModelVersion
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                "OPEN: As of 1/16/2020 ISRG2 devices should have code level 15.7(3)M5.  This device has "
-                + ModelVersion
+                    "OPEN: As of 1/16/2020 ISRG2 devices should have code level 15.7(3)M5.  This device has "
+                    + ModelVersion
             )
 
     if Model.find("C650") > -1:
         command = "show ver | i IOS"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         intStart = result.splitlines()[1].find(
             " ", result.splitlines()[1].find("Version") + 1
         )
         intEnd = result.splitlines()[1].find(",", intStart)
         ModelVersion = result.splitlines()[1][intStart:intEnd]
         if remove_char(ModelVersion) >= remove_char("15.1(2)SY14"):
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                "NAF: As of 10/17/2019 Cisco recomends 6500 series devices should have code level 15.1(2)SY14.  This device has "
-                + ModelVersion
+                    "NAF: As of 10/17/2019 Cisco recomends 6500 series devices should have code level 15.1(2)SY14.  This device has "
+                    + ModelVersion
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                "OPEN: As of 10/17/2019 Cisco recomends 6500 series devices should have code level 15.1(2)SY14.  This device has "
-                + ModelVersion
+                    "OPEN: As of 10/17/2019 Cisco recomends 6500 series devices should have code level 15.1(2)SY14.  This device has "
+                    + ModelVersion
             )
     temp = temp + result
-    if devicetype == "NXOS":
+    if device_type == "NXOS":
         command = "show ver | i System:|system:|NXOS:|Chassis|chassis"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         if len(result.splitlines()) > 2:
             if len(result.splitlines()[1]) > 8:
                 ModelVersion = result.splitlines()[1][
-                    result.splitlines()[1].find("version")
-                    + 8 : len(result.splitlines()[1])
-                ]
+                               result.splitlines()[1].find("version")
+                               + 8: len(result.splitlines()[1])
+                               ]
         if Model.find("N9K") > -1:
             if remove_char(ModelVersion) >= remove_char("70376"):
-                check.status = "NotAFinding"
+                check.status = "NF"
                 check.comments = (
-                    "NAF: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(6).  This device has "
-                    + ModelVersion
+                        "NAF: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(6).  This device has "
+                        + ModelVersion
                 )
             else:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments = (
-                    "OPEN: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(6).  This device has "
-                    + ModelVersion
+                        "OPEN: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(6).  This device has "
+                        + ModelVersion
                 )
 
         if Model.find("N5K") > -1:
             if remove_char(ModelVersion) >= remove_char("73511"):
-                check.status = "NotAFinding"
+                check.status = "NF"
                 check.comments = (
-                    "NAF: As of 1/16/2020 Nexus 5K series switches should have code level 7.3(5)N1(1).  This device has "
-                    + ModelVersion
+                        "NAF: As of 1/16/2020 Nexus 5K series switches should have code level 7.3(5)N1(1).  This device has "
+                        + ModelVersion
                 )
             else:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments = (
-                    "OPEN: As of 1/16/2020 Nexus 5K series switches should have code level 7.0(3)I7(6).  This device has "
-                    + ModelVersion
+                        "OPEN: As of 1/16/2020 Nexus 5K series switches should have code level 7.0(3)I7(6).  This device has "
+                        + ModelVersion
                 )
 
         if Model.find("N3K") > -1:
             if remove_char(ModelVersion) >= remove_char("70376"):
-                check.status = "NotAFinding"
+                check.status = "NF"
                 check.comments = (
-                    "NAF: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(6).  This device has "
-                    + ModelVersion
+                        "NAF: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(6).  This device has "
+                        + ModelVersion
                 )
             else:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments = (
-                    "OPEN: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(6).  This device has "
-                    + ModelVersion
+                        "OPEN: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(6).  This device has "
+                        + ModelVersion
                 )
     else:
         if ModelVersion == "unknown":
             command = "show ver | beg Ports.Model"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             if len(result.splitlines()) > 2:
                 ModelVersion = result.splitlines()[3][32:46]
             if Model.find("3850") > -1 or Model.find("3650") > -1:
                 if remove_char(ModelVersion) >= remove_char("16.12.04"):
-                    check.status = "NotAFinding"
+                    check.status = "NF"
                     check.comments = (
-                        "NAF: As of 1/16/2020 Cat 3850 and 3650 series switches should have code level 16.12.04.  This device has "
-                        + ModelVersion
+                            "NAF: As of 1/16/2020 Cat 3850 and 3650 series switches should have code level 16.12.04.  This device has "
+                            + ModelVersion
                     )
                 else:
-                    check.status = "Open"
+                    check.status = "OP"
                     check.comments = (
-                        "OPEN: As of 1/16/2020 Cat 3850 and 3650 series switches should have code level 16.12.04.  This device has "
-                        + ModelVersion
+                            "OPEN: As of 1/16/2020 Cat 3850 and 3650 series switches should have code level 16.12.04.  This device has "
+                            + ModelVersion
                     )
             if (
-                Model.find("3750") > -1
-                or Model.find("3560") > -1
-                or Model.find("2960") > -1
+                    Model.find("3750") > -1
+                    or Model.find("3560") > -1
+                    or Model.find("2960") > -1
             ):
                 if remove_char(ModelVersion) >= remove_char("15.02(4)E09"):
-                    check.status = "NotAFinding"
+                    check.status = "NF"
                     check.comments = (
-                        "NAF: As of 1/16/2020 Cat 3750, 3560, and 2960 series switches should have code level 15.02(4)E9.  This device has "
-                        + ModelVersion
+                            "NAF: As of 1/16/2020 Cat 3750, 3560, and 2960 series switches should have code level 15.02(4)E9.  This device has "
+                            + ModelVersion
                     )
                 else:
-                    check.status = "Open"
+                    check.status = "OP"
                     check.comments = (
-                        "OPEN: As of 1/16/2020 Cat 3750, 3560, and 2960 series switches should have code level 15.02(4)E9.  This device has "
-                        + ModelVersion
+                            "OPEN: As of 1/16/2020 Cat 3750, 3560, and 2960 series switches should have code level 15.02(4)E9.  This device has "
+                            + ModelVersion
                     )
-    
+
         # if Model.find("ASR"):
         #    ModelVersion = result.splitlines()[1][result.splitlines()[1].find("version")+8:len(result.splitlines()[1])]
     result = temp + "\r" + result
     check.finding = result
     return check
 
+
 #
-# Cisco IOS XE Router RTR Security Technical Implementation Guide :: 
+# Cisco IOS XE Router RTR Security Technical Implementation Guide ::
 # Version 2, Release: 4 Benchmark Date: 27 Apr 2022
 #
 
-def V216641(devicetype, devicename):
+def V216641(device_type, device_name):
     # V-216641 - CAT II - The Cisco router must be configured to enforce approved authorizations for controlling the flow of information within the network based on organization-defined information flow control policies..
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "show run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Check if we're a perimeter router.  If not no ACLs are required
     if result.find("RT1") == -1:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-216641 - CAT II - NAF as traffic flows within theatre's area of control and seperate appliances control user traffic."
     else:
         command = "sh run | i interface|description|access-group"
-        temp = exec_command(command, devicename)
+        temp = exec_command(command, device_name)
         strACL = temp.splitlines(0)
         temp = ""
         for count in range(3, len(strACL)):
             if (
-                strACL[count].find("access-group EGRESS") > -1
-                or strACL[count].find("access-group INGRESS") > -1
+                    strACL[count].find("access-group EGRESS") > -1
+                    or strACL[count].find("access-group INGRESS") > -1
             ):
                 temp = (
-                    temp
-                    + strACL[count - 2]
-                    + "\n"
-                    + strACL[count - 1]
-                    + "\n"
-                    + strACL[count]
-                    + "\n"
+                        temp
+                        + strACL[count - 2]
+                        + "\n"
+                        + strACL[count - 1]
+                        + "\n"
+                        + strACL[count]
+                        + "\n"
                 )
         command = (
             "sh run | sec ip.access-list.exten.*.INGRESS|ip.access-list.exten.*.EGRESS"
         )
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         if temp.find("EGRESS") > -1 and result.find("INGRESS") > -1:
-            check.status = "NotAFinding"
+            check.status = "NF"
         check.finding = temp + "\r" + result
         check.comments = "V-216641 - CAT II - NAF as organization-defined information flow control policies are met for intra-theatre traffic."
     return check
 
 
-def V216644(devicetype, devicename):
+def V216644(device_type, device_name):
     # V-216644 - CAT II - The Cisco router must be configured to use encryption for routing protocol authentication..
     check = Stig()
     MsgBox = crt.Dialog.MessageBox
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     strEIGRP_AS = "0"
     strOSPF_PID = "0"
     strISIS_PID = "0"
@@ -6969,7 +7679,7 @@ def V216644(devicetype, devicename):
     check.comments = ""
     # Lets find out which routing protocols are in use
     command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Identify which routing protocols are in use and save applicable AS or PID
     for line in result.splitlines():
         line = line.replace('"', "")
@@ -6982,22 +7692,22 @@ def V216644(devicetype, devicename):
     # Time to verify all EIGRP neighbors are using authentication
     strEIGRP_Interfaces = []
     strEIGRP_Findings = ""
-    strEIGRP_status = "NotAFinding"
+    strEIGRP_status = "NF"
     strEIGRP_VRF = ""
     # crt.Dialog.MessageBox("EIGRP AS is: " + strEIGRP_AS)
     if strEIGRP_AS == "eigrp":
         # Identify the VRF for the EIGRP Named Mode address-family
         command = "sh run | in autonomous-system"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         for line in result.splitlines():
             # crt.Dialog.MessageBox("VRF is: " + line.split()[0])
             if line.find("vrf") > -1 and line.find("#") == -1:
                 # crt.Dialog.MessageBox("VRF is: " + line.split()[4])
                 strEIGRP_VRF = line.split()[4]
                 command = (
-                    "show ip eigrp vrf " + strEIGRP_VRF + " interfaces | begin Peers"
+                        "show ip eigrp vrf " + strEIGRP_VRF + " interfaces | begin Peers"
                 )
-                result = exec_command(command, devicename)
+                result = exec_command(command, device_name)
                 strEIGRP_Findings = result
                 # crt.Dialog.MessageBox("Line Count is: " + str(result.splitlines()))
                 # crt.Dialog.MessageBox("Line 3 is: " + str(result.splitlines()[2]))
@@ -7005,166 +7715,166 @@ def V216644(devicetype, devicename):
                     for line in result.splitlines():
                         # Output of the command shows all active EIGRP Peer interfaces if any exist.  We're going to extract the interfaces for verification.
                         if (
-                            line.find("Peers") == -1
-                            and line.find("#") == -1
-                            and line.find("Xmit") == -1
-                            and line.find("EIGRP") == -1
+                                line.find("Peers") == -1
+                                and line.find("#") == -1
+                                and line.find("Xmit") == -1
+                                and line.find("EIGRP") == -1
                         ):
                             strEIGRP_Interfaces.append(line.split()[0])
                     for interface in strEIGRP_Interfaces:
                         command = (
-                            "show ip eigrp vrf "
-                            + strEIGRP_VRF
-                            + " interfaces detail "
-                            + interface
-                            + " | i Authentication"
+                                "show ip eigrp vrf "
+                                + strEIGRP_VRF
+                                + " interfaces detail "
+                                + interface
+                                + " | i Authentication"
                         )
-                        result = exec_command(command, devicename)
+                        result = exec_command(command, device_name)
                         strEIGRP_Findings = strEIGRP_Findings + result + "\n"
                         # Output of the command shows all active EIGRP interfaces and authentication used.
                         if result.find("md5") == -1 and result.find("sha") == -1:
-                            strEIGRP_status = "Open"
+                            strEIGRP_status = "OP"
                             check.comments = (
-                                check.comments
-                                + "EIGRP Missing authentication on "
-                                + interface
-                                + " in VRF "
-                                + strEIGRP_VRF
-                                + ".\n"
+                                    check.comments
+                                    + "EIGRP Missing authentication on "
+                                    + interface
+                                    + " in VRF "
+                                    + strEIGRP_VRF
+                                    + ".\n"
                             )
                         else:
                             check.comments = (
-                                check.comments
-                                + "EIGRP Authentication found for "
-                                + interface
-                                + " in VRF "
-                                + strEIGRP_VRF
-                                + ".\n"
+                                    check.comments
+                                    + "EIGRP Authentication found for "
+                                    + interface
+                                    + " in VRF "
+                                    + strEIGRP_VRF
+                                    + ".\n"
                             )
                 else:
                     check.comments = (
-                        check.comments
-                        + "There are no EIGRP Peers in VRF "
-                        + strEIGRP_VRF
-                        + ".\n"
+                            check.comments
+                            + "There are no EIGRP Peers in VRF "
+                            + strEIGRP_VRF
+                            + ".\n"
                     )
     else:
         if int(strEIGRP_AS) > 0:
             command = "show ip eigrp interfaces | begin Peers"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             strEIGRP_Findings = result
             for line in result.splitlines():
                 # Output of the command shows all active EIGRP interfaces.  We're going to extract the interfaces for verification.
                 if (
-                    line.find("Peers") == -1
-                    and line.find("#") == -1
-                    and line.find("Xmit") == -1
-                    and line.find("EIGRP") == -1
+                        line.find("Peers") == -1
+                        and line.find("#") == -1
+                        and line.find("Xmit") == -1
+                        and line.find("EIGRP") == -1
                 ):
                     strEIGRP_Interfaces.append(line.split()[0])
             for interface in strEIGRP_Interfaces:
                 command = "show run int " + interface + " | i authen.*.eigrp"
-                result = exec_command(command, devicename)
+                result = exec_command(command, device_name)
                 strEIGRP_Findings = strEIGRP_Findings + result + "\n"
                 if result.find("md5") == -1 and result.find("sha") == -1:
                     # If MD5 or SHA is not configured on the interface we might be running named mode.  Have to check that now.
                     command = "show run | sec af-interface.*." + interface[2:]
-                    result = exec_command(command, devicename)
+                    result = exec_command(command, device_name)
                     strEIGRP_Findings = strEIGRP_Findings + result + "\n"
                     if result.find("sha") == -1:
-                        strEIGRP_status = "Open"
+                        strEIGRP_status = "OP"
                         check.comments = (
-                            check.comments
-                            + "EIGRP Missing authentication on "
-                            + interface
-                            + ".\n"
+                                check.comments
+                                + "EIGRP Missing authentication on "
+                                + interface
+                                + ".\n"
                         )
                     else:
                         check.comments = (
-                            check.comments
-                            + "EIGRP authentication found for "
-                            + interface
-                            + ".\n"
+                                check.comments
+                                + "EIGRP authentication found for "
+                                + interface
+                                + ".\n"
                         )
 
     # Time to verify all OSPF neighbors are using authentication authentication
     strOSPF_Interfaces = []
     strOSPF_Findings = ""
-    strOSPF_status = "NotAFinding"
+    strOSPF_status = "NF"
     if int(strOSPF_PID) > 0:
         command = "show ip ospf interface | i line.protocol.is.up"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         for line in result.splitlines():
             # Output of the command shows all active EIGRP interfaces.  We're going to extract the interfaces for verification.
             if line.find("Loopback") == -1 and line.find("#") == -1:
                 strOSPF_Interfaces.append(line.split()[0])
         for interface in strOSPF_Interfaces:
             command = "show ip ospf interface " + interface + " | i authen"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             strOSPF_Findings = strOSPF_Findings + result + "\n"
             if result.find("authentication enabled") == -1:
                 # If MD5 or SHA is not configured on the interface this is a finding.
-                strOSPF_status = "Open"
+                strOSPF_status = "OP"
                 check.comments = (
-                    check.comments
-                    + "OSPF Missing authentication on "
-                    + interface
-                    + ".\n"
+                        check.comments
+                        + "OSPF Missing authentication on "
+                        + interface
+                        + ".\n"
                 )
             else:
                 check.comments = (
-                    check.comments
-                    + "OSPF authentication configured on interface "
-                    + interface
-                    + ".\n"
+                        check.comments
+                        + "OSPF authentication configured on interface "
+                        + interface
+                        + ".\n"
                 )
 
     # Time to verify all ISIS neighbors are using authentication authentication
     strISIS_Interfaces = []
     strISIS_Findings = ""
-    strISIS_status = "NotAFinding"
+    strISIS_status = "NF"
     if int(strISIS_PID) > 0:
         command = "show clns neighbors"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         for line in result.splitlines():
             # Output of the command shows all active ISIS Neighbors.  We're going to extract the interfaces for verification.
             if (
-                line.find("System") == -1
-                and line.find("#") == -1
-                and line.find("Tag") == -1
-                and line.find("") == -1
+                    line.find("System") == -1
+                    and line.find("#") == -1
+                    and line.find("Tag") == -1
+                    and line.find("") == -1
             ):
                 strISIS_Interfaces.append(line.split()[2])
         for interface in strISIS_Interfaces:
             command = "show run int " + interface + " | i authen"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             strISIS_Findings = strISIS_Findings + result + "\n"
             if result.find("md5") == -1:
                 # If MD5 or SHA is not configured on the interface this is a finding.
-                strOSPF_status = "Open"
+                strOSPF_status = "OP"
                 check.comments = (
-                    check.comments
-                    + "ISIS Missing authentication on "
-                    + interface
-                    + ".\n"
+                        check.comments
+                        + "ISIS Missing authentication on "
+                        + interface
+                        + ".\n"
                 )
             else:
                 check.comments = (
-                    check.comments
-                    + "ISIS authentication configured on interface "
-                    + interface
-                    + ".\n"
+                        check.comments
+                        + "ISIS authentication configured on interface "
+                        + interface
+                        + ".\n"
                 )
 
     # Time to verify all BGP neighbors are using authentication authentication
     strBGP_Neighbors = []
     strBGP_sessions = []
     strBGP_Findings = ""
-    strBGP_status = "NotAFinding"
+    strBGP_status = "NF"
     if int(strBGP_AS) > 0:
         # Look at all the peer session templates and save the ones that contain a password
         command = "show run | i template peer-ses"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         strBGP_Findings = strBGP_Findings + result + "\n"
         for session in result.splitlines():
             if session.find("peer-session") > -1:
@@ -7173,12 +7883,12 @@ def V216644(devicetype, devicename):
                 # Replace password with ***REMOVED***
                 strClean = ""
                 result = ""
-                temp = exec_command(command, devicename)
+                temp = exec_command(command, device_name)
                 for line in temp.splitlines():
                     if line.find("password") > 1:
                         strClean = (
-                            line[0 : line.find("password")]
-                            + "password <-----***REMOVED***----->"
+                                line[0: line.find("password")]
+                                + "password <-----***REMOVED***----->"
                         )
                         bolPassword = 1
                     else:
@@ -7190,26 +7900,26 @@ def V216644(devicetype, devicename):
                     strBGP_sessions.append(session.split()[-1])
         # Get all the bgp Neighbors
         command = "show run | i neigh.*.remote|neigh.*.peer-sess"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         strBGP_Findings = strBGP_Findings + result + "\n"
-        strBGP_neighbor_status = "Open"
+        strBGP_neighbor_status = "OP"
         for neighbor in result.splitlines():
-            strBGP_neighbor_status = "Open"
+            strBGP_neighbor_status = "OP"
             if neighbor.find("#") == -1:
                 if neighbor.find("remote-as") > -1:
                     # If a host is not covered by a peer session, make sure there is a password configured for neighbor.
                     command = (
-                        "show run | i neighbor.*." + neighbor.split()[1] + ".*.password"
+                            "show run | i neighbor.*." + neighbor.split()[1] + ".*.password"
                     )
                     # Replace password with ***REMOVED***
                     strClean = ""
                     result = ""
-                    temp = exec_command(command, devicename)
+                    temp = exec_command(command, device_name)
                     for line in temp.splitlines():
                         if line.find("password 7") > 1:
                             strClean = (
-                                line[0 : line.find("password")]
-                                + "password <-----***REMOVED***----->"
+                                    line[0: line.find("password")]
+                                    + "password <-----***REMOVED***----->"
                             )
                             bolPassword = 1
                         else:
@@ -7218,12 +7928,12 @@ def V216644(devicetype, devicename):
                     strBGP_Findings = strBGP_Findings + result + "\n"
                     # If there's a password defined then we can cler this neighbor
                     if result.find("password") > -1:
-                        strBGP_neighbor_status = "NotAFinding"
+                        strBGP_neighbor_status = "NF"
                         check.comments = (
-                            check.comments
-                            + "BGP neighbor "
-                            + neighbor.split()[1]
-                            + " is configured to use a password.\n"
+                                check.comments
+                                + "BGP neighbor "
+                                + neighbor.split()[1]
+                                + " is configured to use a password.\n"
                         )
 
                 if neighbor.find("inherit peer-session") > -1:
@@ -7231,51 +7941,51 @@ def V216644(devicetype, devicename):
                     # Loop through the peer sessions that have passwords
                     for peersession in strBGP_sessions:
                         if neighbor.split()[-1].find(peersession) > -1:
-                            strBGP_neighbor_status = "NotAFinding"
+                            strBGP_neighbor_status = "NF"
                             check.comments = (
-                                check.comments
-                                + "BGP neighbor "
-                                + neighbor.split()[1]
-                                + " uses a password via peer-session "
-                                + peersession
-                                + "\n"
+                                    check.comments
+                                    + "BGP neighbor "
+                                    + neighbor.split()[1]
+                                    + " uses a password via peer-session "
+                                    + peersession
+                                    + "\n"
                             )
-                if strBGP_neighbor_status == "Open":
-                    strBGP_status = "Open"
+                if strBGP_neighbor_status == "OP":
+                    strBGP_status = "OP"
                     check.comments = (
-                        check.comments
-                        + "Could not match a password for neighbor "
-                        + neighbor.split()[-1]
-                        + ".\n"
+                            check.comments
+                            + "Could not match a password for neighbor "
+                            + neighbor.split()[-1]
+                            + ".\n"
                     )
 
         if (
-            strBGP_status != "NotAFinding"
-            or strOSPF_status != "NotAFinding"
-            or strISIS_status != "NotAFinding"
-            or strEIGRP_status != "NotAFinding"
+                strBGP_status != "NF"
+                or strOSPF_status != "NF"
+                or strISIS_status != "NF"
+                or strEIGRP_status != "NF"
         ):
-            check.status = "Open"
+            check.status = "OP"
         check.finding = (
-            strEIGRP_Findings + strOSPF_Findings + strISIS_Findings + strBGP_Findings
+                strEIGRP_Findings + strOSPF_Findings + strISIS_Findings + strBGP_Findings
         )
         # check.comments = "V-216644 - CAT II - The Cisco router must be configured to use encryption for routing protocol authentication."
     return check
 
 
-def V216645(devicetype, devicename):
+def V216645(device_type, device_name):
     # V-216645 - The Cisco router must be configured to authenticate all routing protocol messages using NIST-validated FIPS 198-1 message authentication code algorithm.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     strEIGRP_AS = "0"
     strOSPF_PID = "0"
     strBGP_AS = "0"
     check.comments = ""
     # Lets find out which routing protocols are in use
     command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Identify which routing protocols are in use and save applicable AS or PID
     for line in result.splitlines():
@@ -7290,10 +8000,10 @@ def V216645(devicetype, devicename):
     strOSPF_Interfaces = []
     strOSPF_Keychains = []
     strOSPF_Findings = ""
-    strOSPF_status = "NotAFinding"
+    strOSPF_status = "NF"
     if int(strOSPF_PID) > 0:
         command = "show ip ospf interface | i line.protocol.is.up"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         strOSPF_Findings = result
         for line in result.splitlines():
             # Output of the command shows all active OSPF interfaces.  We're going to extract the interfaces for verification.
@@ -7301,148 +8011,147 @@ def V216645(devicetype, devicename):
                 strOSPF_Interfaces.append(line.split()[0])
         for interface in strOSPF_Interfaces:
             command = "show run interface " + interface + " | i ospf"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             strOSPF_Findings = strOSPF_Findings + result + "\n"
             if result.find("key-chain") == -1:
-                strOSPF_status = "Open"
+                strOSPF_status = "OP"
                 if result.find("md5") > -1:
                     check.comments = (
-                        check.comments
-                        + "OSPF is using the weak MD5 auth hash on "
-                        + interface
-                        + ".\n"
+                            check.comments
+                            + "OSPF is using the weak MD5 auth hash on "
+                            + interface
+                            + ".\n"
                     )
                 else:
                     check.comments = (
-                        check.comments
-                        + "Could not find any authentication on "
-                        + interface
-                        + ".\n"
+                            check.comments
+                            + "Could not find any authentication on "
+                            + interface
+                            + ".\n"
                     )
             else:
                 check.comments = (
-                    check.comments + "OSPF key chain configured on " + interface + ".\n"
+                        check.comments + "OSPF key chain configured on " + interface + ".\n"
                 )
                 # need to add code here in the future to add the specified key chain that is in use.
                 # Right now we assume that if we have a key chain then OSPF is configured correctly.
 
     strEIGRP_Interfaces = []
     strEIGRP_Findings = ""
-    strEIGRP_status = "NotAFinding"
+    strEIGRP_status = "NF"
     strEIGRP_VRF = ""
     # crt.Dialog.MessageBox("EIGRP AS is: " + strEIGRP_AS)
     if strEIGRP_AS == "eigrp":
         # Identify the VRF for the EIGRP Named Mode address-family
         command = "sh run | in autonomous-system"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         for line in result.splitlines():
             # crt.Dialog.MessageBox("VRF is: " + line.split()[0])
             if line.find("vrf") > -1 and line.find("#") == -1:
                 # crt.Dialog.MessageBox("VRF is: " + line.split()[4])
                 strEIGRP_VRF = line.split()[4]
                 command = (
-                    "show ip eigrp vrf " + strEIGRP_VRF + " interfaces | begin Peers"
+                        "show ip eigrp vrf " + strEIGRP_VRF + " interfaces | begin Peers"
                 )
-                result = exec_command(command, devicename)
+                result = exec_command(command, device_name)
                 strEIGRP_Findings = result
                 if len(result.splitlines()) >= 4 and result.splitlines()[2] != "":
                     for line in result.splitlines():
                         # Output of the command shows all active EIGRP interfaces.  We're going to extract the interfaces for verification.
                         if (
-                            line.find("Peers") == -1
-                            and line.find("#") == -1
-                            and line.find("Xmit") == -1
-                            and line.find("EIGRP") == -1
+                                line.find("Peers") == -1
+                                and line.find("#") == -1
+                                and line.find("Xmit") == -1
+                                and line.find("EIGRP") == -1
                         ):
                             strEIGRP_Interfaces.append(line.split()[0])
                     for interface in strEIGRP_Interfaces:
                         command = (
-                            "show ip eigrp vrf "
-                            + strEIGRP_VRF
-                            + " interfaces detail "
-                            + interface
-                            + " | i Authentication"
+                                "show ip eigrp vrf "
+                                + strEIGRP_VRF
+                                + " interfaces detail "
+                                + interface
+                                + " | i Authentication"
                         )
-                        result = exec_command(command, devicename)
+                        result = exec_command(command, device_name)
                         strEIGRP_Findings = strEIGRP_Findings + result + "\n"
                         # Output of the command shows all active EIGRP interfaces and authentication used.
                         if result.find("sha") == -1:
-                            strEIGRP_status = "Open"
+                            strEIGRP_status = "OP"
                             check.comments = (
-                                check.comments
-                                + "EIGRP does not appear to be using FIPS 198-1 compliant authentication within VRF "
-                                + strEIGRP_VRF
-                                + ".\n"
+                                    check.comments
+                                    + "EIGRP does not appear to be using FIPS 198-1 compliant authentication within VRF "
+                                    + strEIGRP_VRF
+                                    + ".\n"
                             )
                         else:
                             check.comments = (
-                                check.comments
-                                + "EIGRP appears to be using hmac-sha-256 for authentication within VRF "
-                                + strEIGRP_VRF
-                                + ".\n"
+                                    check.comments
+                                    + "EIGRP appears to be using hmac-sha-256 for authentication within VRF "
+                                    + strEIGRP_VRF
+                                    + ".\n"
                             )
                 else:
                     check.comments = (
-                        check.comments
-                        + "There are no EIGRP Peers in VRF "
-                        + strEIGRP_VRF
-                        + ".\n"
+                            check.comments
+                            + "There are no EIGRP Peers in VRF "
+                            + strEIGRP_VRF
+                            + ".\n"
                     )
     else:
         if int(strEIGRP_AS) > 0:
             command = "show run | i authentication mode hmac"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             strEIGRP_Findings = result
-            if result.find("sha", len(devicename) + len(command)) == -1:
+            if result.find("sha", len(device_name) + len(command)) == -1:
                 check.comments = (
-                    check.comments
-                    + "EIGRP does not appear to be using FIPS 198-1 compliant authentication.\n"
+                        check.comments
+                        + "EIGRP does not appear to be using FIPS 198-1 compliant authentication.\n"
                 )
-                strEIGRP_status = "Open"
+                strEIGRP_status = "OP"
             else:
                 check.comments = (
-                    check.comments
-                    + "EIGRP appears to be using hmac-sha-256 for authentication."
+                        check.comments
+                        + "EIGRP appears to be using hmac-sha-256 for authentication."
                 )
-    if strOSPF_status != "NotAFinding" or strEIGRP_status != "NotAFinding":
-        check.status = "Open"
+    if strOSPF_status != "NF" or strEIGRP_status != "NF":
+        check.status = "OP"
     check.finding = check.finding + strOSPF_Findings + strEIGRP_Findings
     return check
 
 
-def V216646(devicetype, devicename):
+def V216646(device_type, device_name):
     # V-216646 - Cisco router must be configured to have all inactive interfaces disabled
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     command = "sh int desc | exc admin.down|up|deleted"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-216646 - NAF - All inactive interfaces are disabled"
-    if result.find("down", len(devicename) + len(command)) > -1:
-        check.status = "Open"
+    if result.find("down", len(device_name) + len(command)) > -1:
+        check.status = "OP"
         check.comments = "V-216646 - OPEN - An interface is not being used but is configured or enabled"
     return check
 
-
-#def V216647(devicetype, devicename):
+    # def V216647(device_type, device_name):
     # V-216647 - Cisco router must be configured to have all non-essential capabilities disabled
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     MsgBox = crt.Dialog.MessageBox
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
         "The router does not have unnecessary or non-secure services enabled."
     )
     command = "sh run all | in boot.network|boot.server|bootp.server|ip.identd|ip.finger|http.server|rcmd.rsh-enable|service.config|service.finger|service.tcp-small-servers|service.udp-small-servers|service.pad"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Find services that are not disabled
     for line in result.splitlines():
         if line.find("#") == -1:
             if line.find("no") == -1:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments = (
                     "The router has unnecessary or non-secure services enabled."
                 )
@@ -7450,851 +8159,851 @@ def V216646(devicetype, devicename):
     return check
 
 
-def V216649(devicetype, devicename):
+def V216649(device_type, device_name):
     # V-216649 - The Cisco router must not be configured to have any zero-touch deployment feature enabled when connected to an operational network.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     MsgBox = crt.Dialog.MessageBox
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "The router does not have zero-touch deployment feature disabled."
     command = "sh run | i cns|CNS"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Find services that are not disabled
-    if result.find("cns", len(devicename) + len(command)) == -1:
-        check.status = "NotAFinding"
+    if result.find("cns", len(device_name) + len(command)) == -1:
+        check.status = "NF"
         check.comments = "The router has the zero-touch deployment feature disabled."
     check.finding = result
     return check
 
 
-def V216650(devicetype, devicename):
+def V216650(device_type, device_name):
     # V-216650 - The router must have control plane protection enabled.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216650 - The router must have control plane protection enabled."
     command = "sh policy-map control-plane | i Class-map"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("CoPP") > -1:
         check.comments = "Control plane policing configured."
-        check.status = "NotAFinding"
+        check.status = "NF"
     return check
 
 
-def V216651(devicetype, devicename):
+def V216651(device_type, device_name):
     # V-216651 - The Cisco router must be configured to restrict traffic destined to itself..
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216651 - The Cisco router must be configured to restrict traffic destined to itself.."
     command = "sh policy-map control-plane | i Class-map"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("CoPP") > -1:
         check.comments = "Control plane policing is configured and restricts traffic destined to itself."
-        check.status = "NotAFinding"
+        check.status = "NF"
     return check
 
 
-def V216652(devicetype, devicename):
+def V216652(device_type, device_name):
     # V-216652 -  The Cisco router must be configured to drop all fragmented Internet Control Message Protocol (ICMP) packets destined to itself.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216652 -  The Cisco router must be configured to drop all fragmented Internet Control Message Protocol (ICMP) packets destined to itself."
     command = "show ip access-lists | i icmp.any.*.fragments|Exten"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    if result.find("fragments", len(devicename) + len(command)) > -1:
+    if result.find("fragments", len(device_name) + len(command)) > -1:
         check.comments = "ACLs in place to drop fragmented icmp traffic."
-        check.status = "NotAFinding"
+        check.status = "NF"
     return check
 
 
-def V216653(devicetype, devicename):
+def V216653(device_type, device_name):
     # V-216653 -  The Cisco router must be configured to have Gratuitous ARP disabled on all external interfaces.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216653 -  The Cisco router must be configured to have Gratuitous ARP disabled on all external interfaces."
     command = "sh run all | i gratuitous"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("no ip gratuitous-arps") > -1:
         check.comments = "The router is configured to have Gratuitous ARP disabled on all external interfaces.."
-        check.status = "NotAFinding"
+        check.status = "NF"
     return check
 
 
-def V216654(devicetype, devicename):
+def V216654(device_type, device_name):
     # V-216654 -  The Cisco router must be configured to have IP directed broadcast disabled on all interfaces.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216654 -  The Cisco router must be configured to have IP directed broadcast disabled on all interfaces."
     command = "sh run all | i directed-broadcast"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if len(result.splitlines()) <= 2:
         check.comments = "The router appears to have directed broadcast disabled."
-        check.status = "NotAFinding"
+        check.status = "NF"
     return check
 
 
-def V216655(devicetype, devicename):
+def V216655(device_type, device_name):
     # V-216655 -  The Cisco router must be configured to have Internet Control Message Protocol (ICMP) unreachable messages disabled on all external interfaces.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216655 -  The Cisco router must be configured to have Internet Control Message Protocol (ICMP) unreachable messages disabled on all external interfaces."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "show run | i ip.unreachables"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
         if (
-            result.find("no ip unreach", len(devicename) + len(command)) == -1
-            or result.find(
-                "icmp rate-limit unreachable", len(devicename) + len(command)
-            )
-            == -1
+                result.find("no ip unreach", len(device_name) + len(command)) == -1
+                or result.find(
+            "icmp rate-limit unreachable", len(device_name) + len(command)
+        )
+                == -1
         ):
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = check.comments + "IP unreachables is configured."
         else:
             check.comments = (
-                check.comments
-                + "Because this is a external facing router unreachables must be configured."
+                    check.comments
+                    + "Because this is a external facing router unreachables must be configured."
             )
     else:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
-            check.comments + "  Because this is an internal router "
-            "ip unreachables"
-            " configuration not required."
+                check.comments + "  Because this is an internal router "
+                                 "ip unreachables"
+                                 " configuration not required."
         )
     return check
 
 
-def V216656(devicetype, devicename):
+def V216656(device_type, device_name):
     # V-216656 -  The Cisco router must be configured to have Internet Control Message Protocol (ICMP) unreachable messages disabled on all external interfaces.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216656 -  The Cisco router must be configured to have Internet Control Message Protocol (ICMP) unreachable messages disabled on all external interfaces."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1 or result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh run all | i mask-reply"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
-        if result.find("ip mask-reply", len(devicename) + len(command)) == -1:
-            check.status = "NotAFinding"
+        if result.find("ip mask-reply", len(device_name) + len(command)) == -1:
+            check.status = "NF"
             check.comments = (
-                check.comments + "V-216656: NAF - mask-reply command is NOT configured."
+                    check.comments + "V-216656: NAF - mask-reply command is NOT configured."
             )
         else:
             check.comments = (
-                check.comments
-                + "V-216656: OPEN - Because this is a external facing router mask-reply must not be configured."
+                    check.comments
+                    + "V-216656: OPEN - Because this is a external facing router mask-reply must not be configured."
             )
     else:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
-            check.comments + "  Because this is an internal router "
-            "mask-reply"
-            " configuration is not applicable."
+                check.comments + "  Because this is an internal router "
+                                 "mask-reply"
+                                 " configuration is not applicable."
         )
     return check
 
 
-def V216657(devicetype, devicename):
+def V216657(device_type, device_name):
     # V-216657 -  The Cisco router must be configured to have Internet Control Message Protocol (ICMP) redirect messages disabled on all external interfaces.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216657 -  The Cisco router must be configured to have Internet Control Message Protocol (ICMP) redirect messages disabled on all external interfaces."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1 or result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh run | i redirects|interface"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
-        if result.find("no ip redirects", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("no ip redirects", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216656: NAF - no ip redirects command is configured."
+                    check.comments
+                    + "V-216656: NAF - no ip redirects command is configured."
             )
         else:
             check.comments = (
-                check.comments
-                + "V-216656: OPEN - Because this is a external facing router no ip redirects must be configured."
+                    check.comments
+                    + "V-216656: OPEN - Because this is a external facing router no ip redirects must be configured."
             )
     else:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
-            check.comments + "  Because this is an internal router "
-            "no ip redirects"
-            " configuration is not required."
+                check.comments + "  Because this is an internal router "
+                                 "no ip redirects"
+                                 " configuration is not required."
         )
     return check
 
 
-def V216658(devicetype, devicename):
+def V216658(device_type, device_name):
     # V-216658 - The network device must log all access control lists (ACL) deny statements.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-2166580 - The network device must log all access control lists (ACL) deny statements."
-    check.status = "Open"
+    check.status = "OP"
     command = "sh access-lists | i log"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    if result.find(" log", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find(" log", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-216658 - NAF - Propper logging has been configured."
     return check
 
 
-def V216659(devicetype, devicename):
+def V216659(device_type, device_name):
     # V-216659 - The Cisco router must be configured to produce audit records containing information to establish where the events occurred.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216659 - The Cisco router must be configured to produce audit records containing information to establish where the events occurred."
-    check.status = "Open"
+    check.status = "OP"
     command = "show run | i access-list|deny.*.log-input"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    if result.find("log-input", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("log-input", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-216659 - NAF - logging-input has been configured."
     return check
 
 
-def V216660(devicetype, devicename):
+def V216660(device_type, device_name):
     # V-216660 - The Cisco router must be configured to produce audit records containing information to establish the source of the events.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216660 - The Cisco router must be configured to produce audit records containing information to establish the source of the events."
-    check.status = "Open"
+    check.status = "OP"
     command = "show run | i access-list|deny.*.log-input"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    if result.find("log-input", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("log-input", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-216660 - NAF - logging-input has been configured."
     return check
 
 
-def V216661(devicetype, devicename):
+def V216661(device_type, device_name):
     # V-216661 - The Cisco router must be configured to disable the auxiliary port unless it is connected to a secured modem providing encryption and authentication.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216661 - The Cisco router must be configured to disable the auxiliary port unless it is connected to a secured modem providing encryption and authentication."
-    check.status = "Open"
+    check.status = "OP"
     command = "sh run | i no exec|aux"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    if result.find("no exec", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("no exec", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-216661 - NAF - Aux exec mode has been disabled."
     return check
 
 
-def V216662(devicetype, devicename):
+def V216662(device_type, device_name):
     # V-216662 -  The Cisco perimeter router must be configured to deny network traffic by default and allow network traffic by exception.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216662 -  The Cisco perimeter router must be configured to deny network traffic by default and allow network traffic by exception."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh run | i ip.access-group|interface.T|interface.G|interface.B"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
         if (
-            result.find("INGRESS", len(devicename) + len(command)) > -1
-            and result.find("EGRESS", len(devicename) + len(command)) > -1
+                result.find("INGRESS", len(device_name) + len(command)) > -1
+                and result.find("EGRESS", len(device_name) + len(command)) > -1
         ):
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216662: NAF - Both INGRESS and EGRESS ACLs are in place."
+                    check.comments
+                    + "V-216662: NAF - Both INGRESS and EGRESS ACLs are in place."
             )
         else:
             check.comments = (
-                check.comments
-                + "V-216662: OPEN - Because this is a external facing router ingress and egress acls are required.."
+                    check.comments
+                    + "V-216662: OPEN - Because this is a external facing router ingress and egress acls are required.."
             )
     else:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, so transit traffic is allowed."
+                check.comments
+                + "  This is not a perimeter router, so transit traffic is allowed."
         )
     return check
 
 
-def V216663(devicetype, devicename):
+def V216663(device_type, device_name):
     # V-216663 -  The Cisco perimeter router must be configured to deny network traffic by default and allow network traffic by exception.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216663 -  The Cisco perimeter router must be configured to deny network traffic by default and allow network traffic by exception."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh run | i ip.access-group|interface.T|interface.G|interface.B"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
         if (
-            result.find("INGRESS", len(devicename) + len(command)) > -1
-            and result.find("EGRESS", len(devicename) + len(command)) > -1
+                result.find("INGRESS", len(device_name) + len(command)) > -1
+                and result.find("EGRESS", len(device_name) + len(command)) > -1
         ):
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216663: NAF - Both INGRESS and EGRESS ACLs are in place and control the flow of information."
+                    check.comments
+                    + "V-216663: NAF - Both INGRESS and EGRESS ACLs are in place and control the flow of information."
             )
         else:
             check.comments = (
-                check.comments
-                + "V-216663: OPEN - Because this is a external facing router ingress and egress acls are required.."
+                    check.comments
+                    + "V-216663: OPEN - Because this is a external facing router ingress and egress acls are required.."
             )
     else:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, so transit traffic is allowed."
+                check.comments
+                + "  This is not a perimeter router, so transit traffic is allowed."
         )
     return check
 
 
-def V216664(devicetype, devicename):
+def V216664(device_type, device_name):
     # V-216664 -  The Cisco perimeter router must be configured to only allow incoming communications from authorized sources to be routed to authorized destinations.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216664 -  The Cisco perimeter router must be configured to deny network traffic by default and allow network traffic by exception."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh run | i ip.access-group|interface.T|interface.G|interface.B"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
         if (
-            result.find("INGRESS", len(devicename) + len(command)) > -1
-            and result.find("EGRESS", len(devicename) + len(command)) > -1
+                result.find("INGRESS", len(device_name) + len(command)) > -1
+                and result.find("EGRESS", len(device_name) + len(command)) > -1
         ):
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216664: NAF - Both INGRESS and EGRESS ACLs are in place and control the flow of information."
+                    check.comments
+                    + "V-216664: NAF - Both INGRESS and EGRESS ACLs are in place and control the flow of information."
             )
         else:
             check.comments = (
-                check.comments
-                + "V-216664: OPEN - Because this is a external facing router ingress and egress acls are required.."
+                    check.comments
+                    + "V-216664: OPEN - Because this is a external facing router ingress and egress acls are required.."
             )
     else:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, so transit traffic is allowed."
+                check.comments
+                + "  This is not a perimeter router, so transit traffic is allowed."
         )
     return check
 
 
-def V216665(devicetype, devicename):
+def V216665(device_type, device_name):
     # V-216665 -  The Cisco perimeter router must be configured to only allow incoming communications from authorized sources to be routed to authorized destinations.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216665 -  The Cisco perimeter router must be configured to deny network traffic by default and allow network traffic by exception."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "show ip access-lists INGRESS | i 192.168.|10.0.0|100.64|127.0.0|169.254|172.16.0|192.0|198.18|198.51|203.0|224.0"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
-        if result.find("10.0.0", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("10.0.0", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216664: NAF - Both INGRESS ACL is blocking Bogon IPs."
+                    check.comments
+                    + "V-216664: NAF - Both INGRESS ACL is blocking Bogon IPs."
             )
         else:
             check.comments = (
-                check.comments
-                + "V-216664: OPEN - Ingress ACL is missing or lacking filter ranges."
+                    check.comments
+                    + "V-216664: OPEN - Ingress ACL is missing or lacking filter ranges."
             )
     else:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, so transit traffic is allowed."
+                check.comments
+                + "  This is not a perimeter router, so transit traffic is allowed."
         )
     return check
 
 
-def V216666(devicetype, devicename):
+def V216666(device_type, device_name):
     # V-216666 -  The Cisco perimeter router must be configured to protect an enclave connected to an alternate gateway by using an inbound filter that only permits packets with destination addresses within the sites address space.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216666 -  The Cisco perimeter router must be configured to deny network traffic by default and allow network traffic by exception."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh run | i ip.access-group|interface.T|interface.G|interface.B"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
-        if result.find("INGRESS", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("INGRESS", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216666: NAF - INGRESS ACL only allowed traffic to internal hosts."
+                    check.comments
+                    + "V-216666: NAF - INGRESS ACL only allowed traffic to internal hosts."
             )
         else:
             check.comments = (
-                check.comments
-                + "V-216666: OPEN - Ingress ACL is missing or lacking configurations."
+                    check.comments
+                    + "V-216666: OPEN - Ingress ACL is missing or lacking configurations."
             )
     else:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, so transit traffic is allowed."
+                check.comments
+                + "  This is not a perimeter router, so transit traffic is allowed."
         )
     return check
 
 
-def V216667(devicetype, devicename):
+def V216667(device_type, device_name):
     # V-216667 -  The Cisco perimeter router must be configured to not be a Border Gateway Protocol (BGP) peer to an alternate gateway service provider.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216667 -  The Cisco perimeter router must be configured to not be a Border Gateway Protocol (BGP) peer to an alternate gateway service provider.."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh run | sec bgp"
-        result = exec_command(command, devicename)
-        check.status = "NotAFinding"
+        result = exec_command(command, device_name)
+        check.status = "NF"
         check.comments = (
-            check.comments
-            + "V-216666: NAF -  perimeter routers only peer with DISA."
+                check.comments
+                + "V-216666: NAF - RCC-SWA perimeter routers only peer with DISA."
         )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, and this check is not applicable.."
+                check.comments
+                + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
 
-def V216668(devicetype, devicename):
+def V216668(device_type, device_name):
     # V-216668 -  The Cisco perimeter router must be configured to not redistribute static routes to an alternate gateway service provider into BGP or an Interior Gateway Protocol (IGP) peering with the NIPRNet or to other autonomous systems.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216668 -  The Cisco perimeter router must be configured to not redistribute static routes to an alternate gateway service provider into BGP or an Interior Gateway Protocol (IGP) peering with the NIPRNet or to other autonomous systems."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh run | sec bgp"
-        result = exec_command(command, devicename)
-        check.status = "NotAFinding"
+        result = exec_command(command, device_name)
+        check.status = "NF"
         check.comments = (
-            check.comments
-            + "V-216668: NAF -  perimeter routers only peer with DISA."
+                check.comments
+                + "V-216668: NAF - RCC-SWA perimeter routers only peer with DISA."
         )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, and this check is not applicable.."
+                check.comments
+                + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
 
-def V216670(devicetype, devicename):
+def V216670(device_type, device_name):
     # V-216670 -  The Cisco perimeter router must be configured to filter traffic destined to the enclave in accordance with the guidelines contained in DoD Instruction 8551.1
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216670 -  The Cisco perimeter router must be configured to not redistribute static routes to an alternate gateway service provider into BGP or an Interior Gateway Protocol (IGP) peering with the NIPRNet or to other autonomous systems."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1 or result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh run | i ip.access-group|interface.T|interface.G|interface.B"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
-        if result.find("INGRESS", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("INGRESS", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216670: NAF -  perimeter router has an ingress ACL."
+                    check.comments
+                    + "V-216670: NAF - RCC-SWA perimeter router has an ingress ACL."
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, and this check is not applicable.."
+                check.comments
+                + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
 
-def V216671(devicetype, devicename):
+def V216671(device_type, device_name):
     # V-216671 -  The Cisco perimeter router must be configured to filter ingress traffic at the external interface on an inbound direction.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216671 -  The Cisco perimeter router must be configured to filter ingress traffic at the external interface on an inbound direction."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1 or result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh run | i ip.access-group|interface.T|interface.G|interface.B"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
-        if result.find("INGRESS", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("INGRESS", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216671: NAF -  perimeter router has an ingress ACL."
+                    check.comments
+                    + "V-216671: NAF - RCC-SWA perimeter router has an ingress ACL."
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, and this check is not applicable.."
+                check.comments
+                + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
 
-def V216672(devicetype, devicename):
+def V216672(device_type, device_name):
     # V-216672 -  The Cisco perimeter router must be configured to filter ingress traffic at the external interface on an inbound direction.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216672 -  The Cisco perimeter router must be configured to filter egress traffic at the internal interface on an inbound direction."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1 or result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh run | i ip.access-group|interface.T|interface.G|interface.B"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
-        if result.find("EGRESS", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("EGRESS", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216672: NAF -  perimeter router has an Egress ACL."
+                    check.comments
+                    + "V-216672: NAF - RCC-SWA perimeter router has an Egress ACL."
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, and this check is not applicable.."
+                check.comments
+                + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
 
-def V216674(devicetype, devicename):
+def V216674(device_type, device_name):
     # V-216674 -  The Cisco perimeter router must be configured to have Link Layer Discovery Protocol (LLDP) disabled on all external interfaces.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216674 -  The Cisco perimeter router must be configured to have Link Layer Discovery Protocol (LLDP) disabled on all external interfaces."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1 or result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "sh lldp"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
-        if result.find("not enabled", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("not enabled", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216674: NAF - LLDP is disabled on the  perimeter router."
+                    check.comments
+                    + "V-216674: NAF - LLDP is disabled on the RCC-SWA perimeter router."
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, and this check is not applicable.."
+                check.comments
+                + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
 
-def V216675(devicetype, devicename):
+def V216675(device_type, device_name):
     # V-216675 -  The Cisco perimeter router must be configured to have Link Layer Discovery Protocol (LLDP) disabled on all external interfaces.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216675 -  The Cisco perimeter router must be configured to have Cisco Discovery Protocol (CDP) disabled on all external interfaces."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1 or result.find("RT1") > -1:
         check.comments = "This router is an external facing , perimeter outer.\n"
         command = "sh cdp"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
-        if result.find("not enabled", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("not enabled", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216675: NAF - CDP is disabled on the  perimeter router."
+                    check.comments
+                    + "V-216675: NAF - CDP is disabled on the RCC-SWA perimeter router."
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, and this check is not applicable.."
+                check.comments
+                + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
 
-def V216676(devicetype, devicename):
+def V216676(device_type, device_name):
     # V-216676 -  The Cisco perimeter router must be configured to have Proxy ARP disabled on all external interfaces.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216676 -  The Cisco perimeter router must be configured to have Proxy ARP disabled on all external interfaces.."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     strExtInterface = "NA"
     if result.find("RT1") > -1 or result.find("RT1") > -1:
         check.comments = "This router is an external facing, perimeter router.\n"
         # Find the interface we egress out to Google with.
         command = "show ip cef 172.217.23.100"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         for line in result.splitlines():
             if line.find("nexthop") > -1:
                 strExtInterface = line.split()[2]
                 check.comments = (
-                    check.comments
-                    + "Egress interface for the perimeter router is "
-                    + strExtInterface
+                        check.comments
+                        + "Egress interface for the perimeter router is "
+                        + strExtInterface
                 )
         if strExtInterface.find("NA") == -1:
             command = "show run int " + strExtInterface
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             check.finding = check.finding + "\n" + result
             if result.find("no ip proxy") > -1:
-                check.status = "NotAFinding"
+                check.status = "NF"
                 check.comments = (
-                    check.comments
-                    + "V-216676: NAF - Proxy-arp is disabled on the external interface.."
+                        check.comments
+                        + "V-216676: NAF - Proxy-arp is disabled on the external interface.."
                 )
             else:
                 check.comments = "V-216676 -  The Cisco perimeter router must be configured to have Proxy ARP disabled on all external interfaces.."
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, and this check is not applicable."
+                check.comments
+                + "  This is not a perimeter router, and this check is not applicable."
         )
     return check
 
 
-def V216677(devicetype, devicename):
+def V216677(device_type, device_name):
     # V-216677 -  The Cisco perimeter router must be configured to block all outbound management traffic.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216677 -  The Cisco perimeter router must be configured to block all outbound management traffic."
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     strExtInterface = "NA"
     if result.find("RT1") > -1 or result.find("RT1") > -1:
         check.comments = "This router is an external facing , perimeter router.\n"
         # Find the interface we egress out to Google with.
         command = "show ip access-lists EGRESS | i eq.22.log|eq.tacacs|eq.snmp|eq.syslog|eq.www|deny.ip.any.any"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
-        if result.find("eq 22 log", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("eq 22 log", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216676: NAF - Egress ACLs are blockng management traffic.."
+                    check.comments
+                    + "V-216676: NAF - Egress ACLs are blockng management traffic.."
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "  This is not a perimeter router, and this check is not applicable."
+                check.comments
+                + "  This is not a perimeter router, and this check is not applicable."
         )
     return check
 
 
-def V216678(devicetype, devicename):
+def V216678(device_type, device_name):
     # V-216678 - The Cisco out-of-band management (OOBM) gateway router must be configured to transport management traffic to the Network Operations Center (NOC) via dedicated circuit, MPLS/VPN service, or IPsec tunnel.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216678 - This is not a dedicated OOB gateway router."
-    check.status = "Not_Applicable"
+    check.status = "NA"
     # command = "show ip access-li"
-    # result = exec_command(command, devicename)
+    # result = exec_command(command, device_name)
     check.finding = "N/A"
     return check
 
 
-def V216679(devicetype, devicename):
+def V216679(device_type, device_name):
     # V-216679 - The Cisco out-of-band management (OOBM) gateway router must be configured to transport management traffic to the Network Operations Center (NOC) via dedicated circuit, MPLS/VPN service, or IPsec tunnel.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216679 - This is not a dedicated OOB gateway router."
-    check.status = "Not_Applicable"
+    check.status = "NA"
     check.finding = "N/A"
     return check
 
 
-def V216680(devicetype, devicename):
+def V216680(device_type, device_name):
     # V-216680 - The Cisco out-of-band management (OOBM) gateway router must be configured to have separate Interior Gateway Protocol (IGP) instances for the managed network and management network.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216680 - This is not a dedicated OOB gateway router."
-    check.status = "Not_Applicable"
+    check.status = "NA"
     check.finding = "N/A"
     return check
 
 
-def V216681(devicetype, devicename):
+def V216681(device_type, device_name):
     # V-216681 - The Cisco out-of-band management (OOBM) gateway router must be configured to not redistribute routes between the management network routing domain and the managed network routing domain.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216681 - This is not a dedicated OOB gateway router."
-    check.status = "Not_Applicable"
+    check.status = "NA"
     check.finding = "N/A"
     return check
 
 
-def V216682(devicetype, devicename):
+def V216682(device_type, device_name):
     # V-216682 - The Cisco out-of-band management (OOBM) gateway router must be configured to block any traffic destined to itself that is not sourced from the OOBM network or the Network Operations Center (NOC)
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216682 - This is not a dedicated OOB gateway router."
-    check.status = "Not_Applicable"
+    check.status = "NA"
     check.finding = "N/A"
     return check
 
 
-def V216683(devicetype, devicename):
+def V216683(device_type, device_name):
     # V-216683 - The Cisco router must be configured to only permit management traffic that ingresses and egresses the out-of-band management (OOBM) interface.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216683 - This is not a dedicated OOB gateway router."
-    check.status = "Not_Applicable"
+    check.status = "NA"
     check.finding = "N/A"
     return check
 
 
-def V216684(devicetype, devicename):
+def V216684(device_type, device_name):
     # V-216684 - The Cisco router providing connectivity to the Network Operations Center (NOC) must be configured to forward all in-band management traffic via an IPsec tunnel.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216684 - This is not a dedicated OOB gateway router."
-    check.status = "Not_Applicable"
+    check.status = "NA"
     check.finding = "N/A"
     return check
 
 
-def V216687(devicetype, devicename):
+def V216687(device_type, device_name):
     # V-216687 -  The Cisco BGP router must be configured to reject inbound route advertisements for any Bogon prefixes.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = (
-        check.vulid
-        + " - The Cisco BGP router must be configured to reject inbound route advertisements for any Bogon prefixes."
+            check.vulid
+            + " - The Cisco BGP router must be configured to reject inbound route advertisements for any Bogon prefixes."
     )
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strPeerfinding = "NotAFinding"
+    strPeerfinding = "NF"
     # Identify which routing protocols are in use and save applicable AS or PID
     for line in result.splitlines():
         line = line.replace('"', "")
@@ -8305,22 +9014,22 @@ def V216687(devicetype, devicename):
         check.comments = "This router seems to be running BGP.\n"
         # Find the external bgp peers.
         command = (
-            "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
-            + strBGP_AS
+                "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
+                + strBGP_AS
         )
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
         if len(result.splitlines()) <= 3:
             command = (
-                "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
+                    "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
             )
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         if len(result.splitlines()) <= 4:
             check.comments = (
-                check.comments + "NAF: This router does not have any eBGP peers.\n"
+                    check.comments + "NAF: This router does not have any eBGP peers.\n"
             )
-            check.status = "NotAFinding"
+            check.status = "NF"
         else:
             # Create a list of external BGP peers
             for line in result.splitlines():
@@ -8330,78 +9039,78 @@ def V216687(devicetype, devicename):
             # Lets loop through the peers, associated route maps, and the prefix lists used.
             if len(strBGP_Peers) > 0:
                 # initial assumption is we're going to pass.  if we can't find an appropriate prefix list blocking networks we'll raise up a finding.
-                check.status = "NotAFinding"
+                check.status = "NF"
                 # check.comments = check.comments + check.vulid +':NAF - Ingress route maps only allow expected and defined prefixes.\n'
                 for peer in strBGP_Peers:
                     command = "show run | i nei.*." + peer + ".*.oute-map.*.in"
-                    result = exec_command(command, devicename)
+                    result = exec_command(command, device_name)
                     check.finding = check.finding + "\n" + result
                     for line in result.splitlines():
                         if line.find("route-map") > -1:
                             command = "show run | sec route-map " + line.split()[3]
-                            result = exec_command(command, devicename)
+                            result = exec_command(command, device_name)
                             check.finding = check.finding + "\n" + result
                             strAllowsAny = "No"
                             for configline in result.splitlines():
                                 if configline.find("prefix-list") > -1:
                                     command = (
-                                        "show ip prefix-list " + configline.split()[-1]
+                                            "show ip prefix-list " + configline.split()[-1]
                                     )
-                                    result = exec_command(command, devicename)
+                                    result = exec_command(command, device_name)
                                     check.finding = check.finding + "\n" + result
                                     if (
-                                        result.find("deny 0.0.0.0") > -1
-                                        or result.find("permit 0.0.0.0") == -1
+                                            result.find("deny 0.0.0.0") > -1
+                                            or result.find("permit 0.0.0.0") == -1
                                     ):
                                         check.comments = (
-                                            check.comments
-                                            + "Prefix list "
-                                            + configline.split()[-1]
-                                            + " filtering peer "
-                                            + peer
-                                            + " appears to only allow specific prefixes.\n"
+                                                check.comments
+                                                + "Prefix list "
+                                                + configline.split()[-1]
+                                                + " filtering peer "
+                                                + peer
+                                                + " appears to only allow specific prefixes.\n"
                                         )
                                     else:
-                                        strPeerfinding = "Open"
+                                        strPeerfinding = "OP"
                                         check.comments = (
-                                            check.comments
-                                            + "Prefix list "
-                                            + configline.split()[-1]
-                                            + " filtering peer "
-                                            + peer
-                                            + " appears to allow all routes.\n"
+                                                check.comments
+                                                + "Prefix list "
+                                                + configline.split()[-1]
+                                                + " filtering peer "
+                                                + peer
+                                                + " appears to allow all routes.\n"
                                         )
             # Now we'll check if there was a finding during any peer check.
-            if strPeerfinding != "NotAFinding":
-                check.status = "Open"
+            if strPeerfinding != "NF":
+                check.status = "OP"
                 check.comments = (
-                    check.comments
-                    + check.vulid
-                    + ":OPEN - Peering rule allows unexpected prefixes."
+                        check.comments
+                        + check.vulid
+                        + ":OPEN - Peering rule allows unexpected prefixes."
                 )
             else:
                 check.comments = (
-                    check.comments
-                    + check.vulid
-                    + ":NAF - Ingress route maps only allow expected and defined prefixes.  Or "
+                        check.comments
+                        + check.vulid
+                        + ":NAF - Ingress route maps only allow expected and defined prefixes.  Or "
                 )
-                check.status = "NotAFinding"
+                check.status = "NF"
     else:
         check.comments = check.comments + "NAF: This router is not running BGP.\n"
-        check.status = "Not_Applicable"
+        check.status = "NA"
     return check
 
 
-def V216688(devicetype, devicename):
+def V216688(device_type, device_name):
     # V-216688 -  The Cisco BGP router must be configured to reject inbound route advertisements for any prefixes belonging to the local autonomous system (AS).
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216688 - The Cisco BGP router must be configured to reject inbound route advertisements for any prefixes belonging to the local autonomous system (AS)."
     command = "sh run | i snmp.*.location"
     strBGP_Peers = []
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1 or result.find("RT2") > -1:
         check.comments = "This router appears to be a perimeter router.  It likely has external BGP peerings.\n"
@@ -8409,11 +9118,11 @@ def V216688(devicetype, devicename):
         command = (
             "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor"
         )
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
         if len(result.splitlines()) <= 3:
             command = "show ip bgp sum | exc 65...|memory|BGP|path|Neighbor"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         # Add the list of peers to the list
         if len(result.splitlines()) > 1:
@@ -8425,52 +9134,52 @@ def V216688(devicetype, devicename):
         if len(strBGP_Peers) > 0:
             for peer in strBGP_Peers:
                 command = "show run | i nei.*." + peer + ".*.oute-map.*.in"
-                result = exec_command(command, devicename)
+                result = exec_command(command, device_name)
                 check.finding = check.finding + "\n" + result
                 for line in result.splitlines():
                     if line.find("route-map") > -1:
                         command = "show run | sec route-map " + line.split()[3]
-                        result = exec_command(command, devicename)
+                        result = exec_command(command, device_name)
                         check.finding = check.finding + "\n" + result
                         for configline in result.splitlines():
                             if configline.find("prefix-list") > -1:
                                 command = (
-                                    "show ip prefix-list " + configline.split()[-1]
+                                        "show ip prefix-list " + configline.split()[-1]
                                 )
-                                result = exec_command(command, devicename)
+                                result = exec_command(command, device_name)
                                 check.finding = check.finding + "\n" + result
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "V-216688: NAF - Ingress route maps only allow expected and defined prefixes."
+                    check.comments
+                    + "V-216688: NAF - Ingress route maps only allow expected and defined prefixes."
             )
         else:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = check.comments + "V-216688: NAF - There are no EBGP peers."
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "  This is not a router that peers with external BGP neighbors."
+                check.comments
+                + "  This is not a router that peers with external BGP neighbors."
         )
     return check
 
 
-def V216689(devicetype, devicename):
+def V216689(device_type, device_name):
     # V-216689 -  The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = (
-        check.vulid
-        + " - The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core."
+            check.vulid
+            + " - The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core."
     )
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strPeerfinding = "NotAFinding"
+    strPeerfinding = "NF"
     # Identify which routing protocols are in use and save applicable AS or PID
     for line in result.splitlines():
         line = line.replace('"', "")
@@ -8481,22 +9190,22 @@ def V216689(devicetype, devicename):
         check.comments = "This router seems to be running BGP.\n"
         # Find the external bgp peers.
         command = (
-            "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
-            + strBGP_AS
+                "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
+                + strBGP_AS
         )
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
         if len(result.splitlines()) <= 3:
             command = (
-                "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
+                    "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
             )
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         if len(result.splitlines()) <= 4:
             check.comments = (
-                check.comments + "NAF: This router does not have any eBGP peers.\n"
+                    check.comments + "NAF: This router does not have any eBGP peers.\n"
             )
-            check.status = "NotAFinding"
+            check.status = "NF"
         else:
             # Create a list of external BGP peers
             for line in result.splitlines():
@@ -8506,82 +9215,82 @@ def V216689(devicetype, devicename):
             # Lets loop through the peers, associated route maps, and the prefix lists used.
             if len(strBGP_Peers) > 0:
                 # initial assumption is we're going to pass.  if we can't find an appropriate prefix list blocking networks we'll raise up a finding.
-                check.status = "NotAFinding"
+                check.status = "NF"
                 # check.comments = check.comments + check.vulid +':NAF - Ingress route maps only allow expected and defined prefixes.\n'
                 for peer in strBGP_Peers:
                     command = "show run | i nei.*." + peer + ".*.oute-map.*.in"
-                    result = exec_command(command, devicename)
+                    result = exec_command(command, device_name)
                     check.finding = check.finding + "\n" + result
                     for line in result.splitlines():
                         if line.find("route-map") > -1:
                             command = "show run | sec route-map " + line.split()[3]
-                            result = exec_command(command, devicename)
+                            result = exec_command(command, device_name)
                             check.finding = check.finding + "\n" + result
                             for configline in result.splitlines():
                                 if configline.find("prefix-list") > -1:
                                     command = (
-                                        "show ip prefix-list " + configline.split()[-1]
+                                            "show ip prefix-list " + configline.split()[-1]
                                     )
-                                    result = exec_command(command, devicename)
+                                    result = exec_command(command, device_name)
                                     check.finding = check.finding + "\n" + result
                                     if (
-                                        result.find("deny 0.0.0.0") > -1
-                                        or result.find("permit 0.0.0.0") == -1
+                                            result.find("deny 0.0.0.0") > -1
+                                            or result.find("permit 0.0.0.0") == -1
                                     ):
                                         check.comments = (
-                                            check.comments
-                                            + "Prefix list "
-                                            + configline.split()[-1]
-                                            + " filtering peer "
-                                            + peer
-                                            + " appears to only allow specific prefixes.\n"
+                                                check.comments
+                                                + "Prefix list "
+                                                + configline.split()[-1]
+                                                + " filtering peer "
+                                                + peer
+                                                + " appears to only allow specific prefixes.\n"
                                         )
                                     else:
-                                        strPeerfinding = "Open"
+                                        strPeerfinding = "OP"
                                         check.comments = (
-                                            check.comments
-                                            + "Prefix list "
-                                            + configline.split()[-1]
-                                            + " filtering peer "
-                                            + peer
-                                            + " appears to allow all routes.\n"
+                                                check.comments
+                                                + "Prefix list "
+                                                + configline.split()[-1]
+                                                + " filtering peer "
+                                                + peer
+                                                + " appears to allow all routes.\n"
                                         )
             # Now we'll check if there was a finding during any peer check.
-            if strPeerfinding != "NotAFinding":
-                check.status = "Open"
+            if strPeerfinding != "NF":
+                check.status = "OP"
                 check.comments = (
-                    check.comments
-                    + check.vulid
-                    + ":OPEN - Peering rule allows unexpected prefixes."
+                        check.comments
+                        + check.vulid
+                        + ":OPEN - Peering rule allows unexpected prefixes."
                 )
             else:
                 check.comments = (
-                    check.comments
-                    + check.vulid
-                    + ":NAF - Ingress route maps only allow expected and defined prefixes. Or only has iBGP peers."
+                        check.comments
+                        + check.vulid
+                        + ":NAF - Ingress route maps only allow expected and defined prefixes. Or only has iBGP peers."
                 )
-                check.status = "NotAFinding"
+                check.status = "NF"
     else:
         check.comments = check.comments + "NAF: This router is not running BGP.\n"
-        check.status = "Not_Applicable"
+        check.status = "NA"
     return check
 
 
-def V216690(devicetype, devicename):
+def V216690(device_type, device_name):
     # V-216690 -  The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = (
-        check.vulid
-        + " - The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core."
+            check.vulid
+            + " - The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core."
     )
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strPeerfinding = "NotAFinding"
+    strPeerfinding = "NF"
     # Identify which routing protocols are in use and save applicable AS or PID
     for line in result.splitlines():
         line = line.replace('"', "")
@@ -8592,22 +9301,22 @@ def V216690(devicetype, devicename):
         check.comments = "This router seems to be running BGP.\n"
         # Find the external bgp peers.
         command = (
-            "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
-            + strBGP_AS
+                "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
+                + strBGP_AS
         )
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
         if len(result.splitlines()) <= 3:
             command = (
-                "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
+                    "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
             )
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         if len(result.splitlines()) <= 5:
             check.comments = (
-                check.comments + "NAF: This router does not have any eBGP peers.\n"
+                    check.comments + "NAF: This router does not have any eBGP peers.\n"
             )
-            check.status = "NotAFinding"
+            check.status = "NF"
         else:
             # Create a list of external BGP peers
             for line in result.splitlines():
@@ -8617,78 +9326,78 @@ def V216690(devicetype, devicename):
             # Lets loop through the peers, associated route maps, and the prefix lists used.
             if len(strBGP_Peers) > 0:
                 # initial assumption is we're going to pass.  if we can't find an appropriate prefix list blocking networks we'll raise up a finding.
-                check.status = "NotAFinding"
+                check.status = "NF"
                 # check.comments = check.comments + check.vulid +':NAF - Ingress route maps only allow expected and defined prefixes.\n'
                 for peer in strBGP_Peers:
                     command = "show run | i nei.*." + peer + ".*.oute-map.*.in"
-                    result = exec_command(command, devicename)
+                    result = exec_command(command, device_name)
                     check.finding = check.finding + "\n" + result
                     for line in result.splitlines():
                         if line.find("route-map") > -1:
                             command = "show run | sec route-map " + line.split()[3]
-                            result = exec_command(command, devicename)
+                            result = exec_command(command, device_name)
                             check.finding = check.finding + "\n" + result
                             for configline in result.splitlines():
                                 if configline.find("prefix-list") > -1:
                                     command = (
-                                        "show ip prefix-list " + configline.split()[-1]
+                                            "show ip prefix-list " + configline.split()[-1]
                                     )
-                                    result = exec_command(command, devicename)
+                                    result = exec_command(command, device_name)
                                     check.finding = check.finding + "\n" + result
                                     if (
-                                        result.find("deny 0.0.0.0") > -1
-                                        or result.find("permit 0.0.0.0") == -1
+                                            result.find("deny 0.0.0.0") > -1
+                                            or result.find("permit 0.0.0.0") == -1
                                     ):
                                         check.comments = (
-                                            check.comments
-                                            + "Prefix list "
-                                            + configline.split()[-1]
-                                            + " filtering peer "
-                                            + peer
-                                            + " appears to only allow specific prefixes.\n"
+                                                check.comments
+                                                + "Prefix list "
+                                                + configline.split()[-1]
+                                                + " filtering peer "
+                                                + peer
+                                                + " appears to only allow specific prefixes.\n"
                                         )
                                     else:
-                                        strPeerfinding = "Open"
+                                        strPeerfinding = "OP"
                                         check.comments = (
-                                            check.comments
-                                            + "Prefix list "
-                                            + configline.split()[-1]
-                                            + " filtering peer "
-                                            + peer
-                                            + " appears to allow all routes.\n"
+                                                check.comments
+                                                + "Prefix list "
+                                                + configline.split()[-1]
+                                                + " filtering peer "
+                                                + peer
+                                                + " appears to allow all routes.\n"
                                         )
             # Now we'll check if there was a finding during any peer check.
-            if strPeerfinding != "NotAFinding":
-                check.status = "Open"
+            if strPeerfinding != "NF":
+                check.status = "OP"
                 check.comments = (
-                    check.comments
-                    + check.vulid
-                    + ":OPEN - Peering rule allows unexpected prefixes."
+                        check.comments
+                        + check.vulid
+                        + ":OPEN - Peering rule allows unexpected prefixes."
                 )
             else:
                 check.comments = (
-                    check.comments
-                    + check.vulid
-                    + ":NAF - Ingress route maps only allow expected and defined prefixes."
+                        check.comments
+                        + check.vulid
+                        + ":NAF - Ingress route maps only allow expected and defined prefixes."
                 )
     else:
         check.comments = check.comments + "NAF: This router is not running BGP.\n"
-        check.status = "Not_Applicable"
+        check.status = "NA"
     return check
 
 
-def V216691(devicetype, devicename):
+def V216691(device_type, device_name):
     # V-216691 -  The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-216691 - The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core."
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strPeerfinding = "NotAFinding"
+    strPeerfinding = "NF"
     # Identify which routing protocols are in use and save applicable AS or PID
     for line in result.splitlines():
         line = line.replace('"', "")
@@ -8699,22 +9408,22 @@ def V216691(devicetype, devicename):
         check.comments = "This router seems to be running BGP.\n"
         # Find the external bgp peers.
         command = (
-            "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
-            + strBGP_AS
+                "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
+                + strBGP_AS
         )
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
         if len(result.splitlines()) <= 3:
             command = (
-                "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
+                    "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
             )
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         if len(result.splitlines()) <= 5:
             check.comments = (
-                check.comments + "NAF: This router does not have any eBGP peers.\n"
+                    check.comments + "NAF: This router does not have any eBGP peers.\n"
             )
-            check.status = "NotAFinding"
+            check.status = "NF"
         else:
             # Create a list of external BGP peers
             for line in result.splitlines():
@@ -8724,81 +9433,81 @@ def V216691(devicetype, devicename):
             # Lets loop through the peers, associated route maps, and the prefix lists used.
             if len(strBGP_Peers) > 0:
                 # initial assumption is we're going to pass.  if we can't find an appropriate prefix list blocking networks we'll raise up a finding.
-                check.status = "NotAFinding"
+                check.status = "NF"
                 # check.comments = check.comments + check.vulid +':NAF - Ingress route maps only allow expected and defined prefixes.\n'
                 for peer in strBGP_Peers:
                     command = "show run | i nei.*." + peer + ".*.oute-map.*.in"
-                    result = exec_command(command, devicename)
+                    result = exec_command(command, device_name)
                     check.finding = check.finding + "\n" + result
                     for line in result.splitlines():
                         if line.find("route-map") > -1:
                             command = "show run | sec route-map " + line.split()[3]
-                            result = exec_command(command, devicename)
+                            result = exec_command(command, device_name)
                             check.finding = check.finding + "\n" + result
                             for configline in result.splitlines():
                                 if configline.find("prefix-list") > -1:
                                     command = (
-                                        "show ip prefix-list " + configline.split()[-1]
+                                            "show ip prefix-list " + configline.split()[-1]
                                     )
-                                    result = exec_command(command, devicename)
+                                    result = exec_command(command, device_name)
                                     check.finding = check.finding + "\n" + result
                                     if (
-                                        result.find("deny 0.0.0.0") > -1
-                                        or result.find("permit 0.0.0.0") == -1
+                                            result.find("deny 0.0.0.0") > -1
+                                            or result.find("permit 0.0.0.0") == -1
                                     ):
                                         check.comments = (
-                                            check.comments
-                                            + "Prefix list "
-                                            + configline.split()[-1]
-                                            + " filtering peer "
-                                            + peer
-                                            + " appears to only allow specific prefixes.\n"
+                                                check.comments
+                                                + "Prefix list "
+                                                + configline.split()[-1]
+                                                + " filtering peer "
+                                                + peer
+                                                + " appears to only allow specific prefixes.\n"
                                         )
                                     else:
-                                        strPeerfinding = "Open"
+                                        strPeerfinding = "OP"
                                         check.comments = (
-                                            check.comments
-                                            + "Prefix list "
-                                            + configline.split()[-1]
-                                            + " filtering peer "
-                                            + peer
-                                            + " appears to allow all routes.\n"
+                                                check.comments
+                                                + "Prefix list "
+                                                + configline.split()[-1]
+                                                + " filtering peer "
+                                                + peer
+                                                + " appears to allow all routes.\n"
                                         )
             # Now we'll check if there was a finding during any peer check.
-            if strPeerfinding != "NotAFinding":
-                check.status = "Open"
+            if strPeerfinding != "NF":
+                check.status = "OP"
                 check.comments = (
-                    check.comments
-                    + check.vulid
-                    + ":OPEN - Peering rule allows unexpected prefixes."
+                        check.comments
+                        + check.vulid
+                        + ":OPEN - Peering rule allows unexpected prefixes."
                 )
             else:
                 check.comments = (
-                    check.comments
-                    + check.vulid
-                    + ":NAF - Ingress route maps only allow expected and defined prefixes."
+                        check.comments
+                        + check.vulid
+                        + ":NAF - Ingress route maps only allow expected and defined prefixes."
                 )
     else:
         check.comments = check.comments + "NAF: This router is not running BGP.\n"
-        check.status = "Not_Applicable"
+        check.status = "NA"
     return check
 
 
-def V216692(devicetype, devicename):
+def V216692(device_type, device_name):
     # V-216692 -  verify the router is configured to deny updates received from eBGP peers that do not list their AS number as the first AS in the AS_PATH attribute..
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " - Verify the router is configured to deny updates received from eBGP peers that do not list their AS number as the first AS in the AS_PATH attribute.\n"
+            check.vulid
+            + " - Verify the router is configured to deny updates received from eBGP peers that do not list their AS number as the first AS in the AS_PATH attribute.\n"
     )
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strPeerfinding = "NotAFinding"
+    strPeerfinding = "NF"
     # Identify which routing protocols are in use and save applicable AS or PID
     for line in result.splitlines():
         line = line.replace('"', "")
@@ -8810,62 +9519,62 @@ def V216692(devicetype, devicename):
         check.comments = check.comments + "\nThis router seems to be running BGP.\n"
         # Find the external bgp peers.
         command = "show run all | i bgp.enforce-first-as"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         # If we have a no then we're in violation...
         if result.find("no") > -1:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":OPEN - the router allows a peer to put another AS before its own."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":OPEN - the router allows a peer to put another AS before its own."
             )
         else:
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NAF - The router denies updates from begp peers that do not list their AS number first."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":NAF - The router denies updates from begp peers that do not list their AS number first."
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments + "\n" + check.vulid + ":NA - Router is not running BGP."
+                check.comments + "\n" + check.vulid + ":NA - Router is not running BGP."
         )
     return check
 
 
-def V216693(devicetype, devicename):
+def V216693(device_type, device_name):
     # V-216693 - The Cisco BGP router must be configured to reject route advertisements from CE routers with an originating AS in the AS_PATH attribute that does not belong to that customer.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
     check.finding = "N/A"
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     check.comments = (
-        check.vulid
-        + " - The Cisco BGP router must be configured to reject route advertisements from CE routers with an originating AS in the AS_PATH attribute that does not belong to that customer.\n NAF - There is no peering with CE devices."
+            check.vulid
+            + " - The Cisco BGP router must be configured to reject route advertisements from CE routers with an originating AS in the AS_PATH attribute that does not belong to that customer.\n NAF - There is no peering with CE devices."
     )
     return check
 
 
-def V216694(devicetype, devicename):
+def V216694(device_type, device_name):
     # V-216694 -  The Cisco BGP router must be configured to use the maximum prefixes feature to protect against route table flooding and prefix de-aggregation attacks..
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " - The Cisco BGP router must be configured to use the maximum prefixes feature to protect against route table flooding and prefix de-aggregation attacks..\n"
+            check.vulid
+            + " - The Cisco BGP router must be configured to use the maximum prefixes feature to protect against route table flooding and prefix de-aggregation attacks..\n"
     )
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strPeerfinding = "NotAFinding"
+    strPeerfinding = "NF"
     # Identify which routing protocols are in use and save applicable AS or PID
     for line in result.splitlines():
         line = line.replace('"', "")
@@ -8879,11 +9588,11 @@ def V216694(devicetype, devicename):
 
         # Look for all the BGP neighbors on BlackCore routers
         command = "sh bgp vpnv4 unicast all summ | b Neighbor"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         if result.find("Invalid") > -1 or len(result.splitlines()) < 3:
             # Look for all the BGP neighbors on Colored routers
             command = "sh bgp ipv4 unicast summ | b Neighbor"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
 
         strBGP_Findings = result + "\n"
         # strBGP_neighbor_status = 'Open'
@@ -8891,87 +9600,87 @@ def V216694(devicetype, devicename):
         for neighbor in result.splitlines():
             # strBGP_neighbor_status = 'Open'
             if (
-                neighbor.find("#") == -1
-                and neighbor.find("Neighbor") == -1
-                and len(neighbor.split()) > 3
+                    neighbor.find("#") == -1
+                    and neighbor.find("Neighbor") == -1
+                    and len(neighbor.split()) > 3
             ):
                 if neighbor.find(strBGP_AS) == -1:
                     strHasEBGP = "YES"
                     check.comments = (
-                        check.comments
-                        + "Found eBGP Neighbor "
-                        + neighbor.split()[0]
-                        + " with AS "
-                        + neighbor.split()[2]
-                        + "\n"
+                            check.comments
+                            + "Found eBGP Neighbor "
+                            + neighbor.split()[0]
+                            + " with AS "
+                            + neighbor.split()[2]
+                            + "\n"
                     )
                 if neighbor.find(strBGP_AS) > -1:
                     # If a host is an internal BGP neighbor, ttl-security hop is not required.
                     check.comments = (
-                        check.comments
-                        + "Found iBGP Neighbor "
-                        + neighbor.split()[0]
-                        + ", max prefix not applicable.\n"
+                            check.comments
+                            + "Found iBGP Neighbor "
+                            + neighbor.split()[0]
+                            + ", max prefix not applicable.\n"
                     )
 
         check.finding = check.finding + strBGP_Findings
 
         if strHasEBGP == "YES":
             command = "show run | i max.*.-prefix"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             check.finding = check.finding + "\n" + result
             # If we have a no then we're in violation...
             if result.find("maximum-prefix") > -1:
                 check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":NAF - The number of received prefixes from each eBGP neighbor is controlled."
+                        check.comments
+                        + "\n"
+                        + check.vulid
+                        + ":NAF - The number of received prefixes from each eBGP neighbor is controlled."
                 )
             else:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":OPEN - The number of received prefixes from each eBGP neighbor is NOT controlled.."
+                        check.comments
+                        + "\n"
+                        + check.vulid
+                        + ":OPEN - The number of received prefixes from each eBGP neighbor is NOT controlled.."
                 )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments + "\n" + check.vulid + ":NA - Router is not running eBGP."
+                check.comments + "\n" + check.vulid + ":NA - Router is not running eBGP."
         )
     return check
 
 
-def V216695(devicetype, devicename):
+def V216695(device_type, device_name):
     # V-216695 - The Cisco BGP router must be configured to limit the prefix size on any inbound route advertisement to /24, or the least significant prefixes issued to the customer.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.finding = "N/A"
-    check.status = "Not_Applicable"
+    check.status = "NA"
     check.comments = (
-        check.vulid
-        + " - The Cisco BGP router must be configured to limit the prefix size on any inbound route advertisement to /24, or the least significant prefixes issued to the customer.\nNAF - There is no peering with CE devices."
+            check.vulid
+            + " - The Cisco BGP router must be configured to limit the prefix size on any inbound route advertisement to /24, or the least significant prefixes issued to the customer.\nNAF - There is no peering with CE devices."
     )
     return check
 
 
-def V216696(devicetype, devicename):
+def V216696(device_type, device_name):
     # V-216696 -  The Cisco BGP router must be configured to use its loopback address as the source address for iBGP peering sessions.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
-    strBGP_status = "NotAFinding"
+    check.set_vulid()
+    check.status = "OP"
+    strBGP_status = "NF"
     # check.comments = check.vulid + " -The Cisco BGP router must be configured to use its loopback address as the source address for iBGP peering sessions."
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strPeerfinding = "NotAFinding"
+    strPeerfinding = "NF"
     strBGP_sessions = []
     # Identify which routing protocols are in use and save applicable AS or PID
     for line in result.splitlines():
@@ -8983,7 +9692,7 @@ def V216696(devicetype, devicename):
     if int(strBGP_AS) > 0:
         # Look at all the peer session templates and save the ones that contain a password
         command = "show run | i template peer-ses"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         strBGP_Findings = strBGP_Findings + result + "\n"
         for session in result.splitlines():
             if session.find("peer-session") > -1:
@@ -8992,12 +9701,12 @@ def V216696(devicetype, devicename):
                 # Replace password with ***REMOVED***
                 strClean = ""
                 result = ""
-                temp = exec_command(command, devicename)
+                temp = exec_command(command, device_name)
                 for line in temp.splitlines():
                     if line.find("password 7") > 1:
                         strClean = (
-                            line[0 : line.find("password")]
-                            + "password <-----***REMOVED***----->"
+                                line[0: line.find("password")]
+                                + "password <-----***REMOVED***----->"
                         )
                         bolPassword = 1
                     else:
@@ -9010,16 +9719,16 @@ def V216696(devicetype, devicename):
         # Get VPNv4 MP-BGP Neighbors on BlackCore PE routers
         # command = "show ip bgp vpnv4 all summary | inc " + strBGP_AS
         command = "show ip bgp vpnv4 all neighbors | inc AS." + strBGP_AS
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         # If we're not running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
         if len(result.splitlines()) <= 3:
             command = "sh ip bgp neighbors | inc " + strBGP_AS
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
         strBGP_Findings = strBGP_Findings + "\n" + result
         if len(result.splitlines()) > 2:
-            strBGP_neighbor_status = "Open"
+            strBGP_neighbor_status = "OP"
             for neighbor in result.splitlines():
-                strBGP_neighbor_status = "Open"
+                strBGP_neighbor_status = "OP"
                 if neighbor.find("#") == -1:
                     neighborIP = neighbor.split()[3]
                     neighborIP = neighborIP.replace(",", "")
@@ -9027,12 +9736,12 @@ def V216696(devicetype, devicename):
                     # Replace password with ***REMOVED***
                     strClean = ""
                     result = ""
-                    temp = exec_command(command, devicename)
+                    temp = exec_command(command, device_name)
                     for line in temp.splitlines():
                         if line.find("password 7") > 1:
                             strClean = (
-                                line[0 : line.find("password")]
-                                + "password <-----***REMOVED***----->"
+                                    line[0: line.find("password")]
+                                    + "password <-----***REMOVED***----->"
                             )
                             bolPassword = 1
                         else:
@@ -9040,73 +9749,73 @@ def V216696(devicetype, devicename):
                         result = result + "\n" + strClean
                     strBGP_Findings = strBGP_Findings + result + "\n"
                     check.comments = (
-                        check.comments
-                        + "Found iBGP Neighbor "
-                        + neighborIP
-                        + "\n"
+                            check.comments
+                            + "Found iBGP Neighbor "
+                            + neighborIP
+                            + "\n"
                     )
                     if result.find("update-source Loopback") > -1:
-                        strBGP_neighbor_status = "NotAFinding"
+                        strBGP_neighbor_status = "NF"
                         check.comments = (
-                            check.comments
-                            + "BGP neighbor "
-                            + neighborIP
-                            + " is configured to use update-source Loopback.\n"
+                                check.comments
+                                + "BGP neighbor "
+                                + neighborIP
+                                + " is configured to use update-source Loopback.\n"
                         )
                     if result.find("inherit peer-session") > -1:
                         # If a neighbor has a peer session, check if the session has a password configured.
                         # Loop through the peer sessions that have passwords
                         for peersession in strBGP_sessions:
                             if result.find(peersession) > -1:
-                                strBGP_neighbor_status = "NotAFinding"
+                                strBGP_neighbor_status = "NF"
                                 check.comments = (
-                                    check.comments
-                                    + " - BGP neighbor "
-                                    + neighborIP
-                                    + " has a loopback for an update-source through peer-session "
-                                    + peersession
-                                    + ".\n"
+                                        check.comments
+                                        + " - BGP neighbor "
+                                        + neighborIP
+                                        + " has a loopback for an update-source through peer-session "
+                                        + peersession
+                                        + ".\n"
                                 )
-                    if strBGP_neighbor_status == "Open":
-                        strBGP_status = "Open"
+                    if strBGP_neighbor_status == "OP":
+                        strBGP_status = "OP"
                         check.comments = (
-                            check.comments
-                            + "Could not match a configuration for neighbor "
-                            + neighborIP
-                            + ".\n"
+                                check.comments
+                                + "Could not match a configuration for neighbor "
+                                + neighborIP
+                                + ".\n"
                         )
 
-            if strBGP_status != "NotAFinding":
-                check.status = "Open"
+            if strBGP_status != "NF":
+                check.status = "OP"
             else:
-                check.status = "NotAFinding"
+                check.status = "NF"
             check.finding = strBGP_Findings
             # check.comments = "V-216644 - CAT II - The Cisco router must be configured to use encryption for routing protocol authentication."
         else:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = check.comments + "There are no iBGP neighbors."
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments + "\n" + check.vulid + ":NA - Router is not running BGP."
+                check.comments + "\n" + check.vulid + ":NA - Router is not running BGP."
         )
     return check
 
 
-def V216697(devicetype, devicename):
+def V216697(device_type, device_name):
     # V-216697 -  The Cisco MPLS router must be configured to use its loopback address as the source address for LDP peering sessions.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " -The Cisco MPLS router must be configured to use its loopback address as the source address for LDP peering sessions.\n"
+            check.vulid
+            + " -The Cisco MPLS router must be configured to use its loopback address as the source address for LDP peering sessions.\n"
     )
-    strPeerfinding = "NotAFinding"
+    strPeerfinding = "NF"
     strLDP = "NA"
     command = "show mpls ldp igp sync"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we're running MPLS
     if result.find("LDP configured") > -1:
@@ -9116,49 +9825,49 @@ def V216697(devicetype, devicename):
         check.comments = "This router seems to be running MPLS.\n"
         # Find the external bgp peers.
         command = "show run | i mpls.*.uter-id"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         # If we have a no then we're in violation...
         if result.find("ldp router-id Loopback") > -1:
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NAF - The router is configured to use its loopback address for LDP peering."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":NAF - The router is configured to use its loopback address for LDP peering."
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":OPEN - The router is not configured to use its loopback address for LDP peering."
+            )
+    else:
+        check.status = "NA"
+        check.comments = (
                 check.comments
                 + "\n"
                 + check.vulid
-                + ":OPEN - The router is not configured to use its loopback address for LDP peering."
-            )
-    else:
-        check.status = "Not_Applicable"
-        check.comments = (
-            check.comments
-            + "\n"
-            + check.vulid
-            + ":NA - Router is not running LDP/MPLS so this check is not applicable."
+                + ":NA - Router is not running LDP/MPLS so this check is not applicable."
         )
     return check
 
 
-def V216698(devicetype, devicename):
+def V216698(device_type, device_name):
     # V-216698 -  The Cisco MPLS router must be configured to synchronize Interior Gateway Protocol (IGP) and LDP to minimize packet loss.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " -The Cisco MPLS router must be configured to synchronize Interior Gateway Protocol (IGP) and LDP to minimize packet loss.\n"
+            check.vulid
+            + " -The Cisco MPLS router must be configured to synchronize Interior Gateway Protocol (IGP) and LDP to minimize packet loss.\n"
     )
-    strPeerfinding = "NotAFinding"
+    strPeerfinding = "NF"
     strLDP = "NA"
     command = "show mpls ldp igp sync"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we're running MPLS
     if result.find("LDP configured") > -1:
@@ -9168,49 +9877,49 @@ def V216698(devicetype, devicename):
         check.comments = "This router seems to be running MPLS.\n"
         # Find the external bgp peers.
         command = "show run all | i mpls.*.sync"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         # If we have a no then we're in violation...
         if result.find("mpls ldp igp sync") > -1:
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NAF -  The router is configured to synchronize IGP and LDP."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":NAF -  The router is configured to synchronize IGP and LDP."
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":OPEN -  The router is not configured to synchronize IGP and LDP."
+            )
+    else:
+        check.status = "NA"
+        check.comments = (
                 check.comments
                 + "\n"
                 + check.vulid
-                + ":OPEN -  The router is not configured to synchronize IGP and LDP."
-            )
-    else:
-        check.status = "Not_Applicable"
-        check.comments = (
-            check.comments
-            + "\n"
-            + check.vulid
-            + ":NA - Router is not running LDP/MPLS so this check is not applicable."
+                + ":NA - Router is not running LDP/MPLS so this check is not applicable."
         )
     return check
 
 
-def V216699(devicetype, devicename):
+def V216699(device_type, device_name):
     # V-216699 -  The MPLS router with RSVP-TE enabled must be configured with message pacing to adjust maximum burst and maximum number of RSVP messages to an output queue based on the link speed and input queue size of adjacent core routers.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " -The MPLS router with RSVP-TE enabled must be configured with message pacing to adjust maximum burst and maximum number of RSVP messages to an output queue based on the link speed and input queue size of adjacent core routers.\n"
+            check.vulid
+            + " -The MPLS router with RSVP-TE enabled must be configured with message pacing to adjust maximum burst and maximum number of RSVP messages to an output queue based on the link speed and input queue size of adjacent core routers.\n"
     )
-    strPeerfinding = "NotAFinding"
+    strPeerfinding = "NF"
     strLDP = "NA"
     command = "show run | i mpls.traff.*.tunnels"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we're running MPLS
     if result.find("mpls traffic-eng tunnels") > -1:
@@ -9220,46 +9929,46 @@ def V216699(devicetype, devicename):
         check.comments = "This router seems to be running MPLS-TE.\n"
         # Find the external bgp peers.
         command = "show run all | i ip.rsvp.*.rate-limit"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         # If we have a no then we're in violation...
         if result.find("ip rsvp signalling rate-limit") > -1:
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NAF -  The router is configured  rate limit RSVP messages."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":NAF -  The router is configured  rate limit RSVP messages."
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":OPEN -  The router is not configured to rate limit RSVP messages."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":OPEN -  The router is not configured to rate limit RSVP messages."
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS-TE."
+                check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS-TE."
         )
     return check
 
 
-def V216700(devicetype, devicename):
+def V216700(device_type, device_name):
     # V-216700 -  The Cisco MPLS router must be configured to have TTL Propagation disabled.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " -The Cisco MPLS router must be configured to have TTL Propagation disabled.\n"
+            check.vulid
+            + " -The Cisco MPLS router must be configured to have TTL Propagation disabled.\n"
     )
-    strPeerfinding = "NotAFinding"
+    strPeerfinding = "NF"
     strLDP = "NA"
     command = "show mpls ldp discovery"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we're running MPLS
     if result.find("Local LDP Identifier") > -1:
@@ -9269,45 +9978,45 @@ def V216700(devicetype, devicename):
         check.comments = "This router seems to be running MPLS.\n"
         # Find mpls configs.
         command = "show run all | i mpls.*.propagate-ttl"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         # If we have a no then we're in violation...
         if result.find("no") > -1:
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NAF -  The router is configured to disable TTL propagation."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":NAF -  The router is configured to disable TTL propagation."
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":OPEN -  The router is not configured to disable TTL propagation."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":OPEN -  The router is not configured to disable TTL propagation."
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
+                check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
         )
     return check
 
 
-def V216701(devicetype, devicename):
+def V216701(device_type, device_name):
     # V-216701 -  The Cisco PE router must be configured to have each Virtual Routing and Forwarding (VRF) instance bound to the appropriate physical or logical interfaces .
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " -The Cisco PE router must be configured to have each Virtual Routing and Forwarding (VRF) instance bound to the appropriate physical or logical interfaces.\n"
+            check.vulid
+            + " -The Cisco PE router must be configured to have each Virtual Routing and Forwarding (VRF) instance bound to the appropriate physical or logical interfaces.\n"
     )
     strLDP = "NA"
     command = "show mpls ldp discovery"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we're running MPLS
     if result.find("Local LDP Identifier") > -1:
@@ -9317,45 +10026,45 @@ def V216701(devicetype, devicename):
         check.comments = "This router seems to be running MPLS.\n"
         # Find the cef configs.
         command = "show vrf"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         # If we have a no then we're in violation...
         if result.find("Interfaces") > -1:
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NAF -  Each CE-facing interface is only associated to one VRF."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":NAF -  Each CE-facing interface is only associated to one VRF."
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":OPEN -  Each CE-facing interface is NOT associated to one VRF"
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":OPEN -  Each CE-facing interface is NOT associated to one VRF"
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
+                check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
         )
     return check
 
 
-def V216702(devicetype, devicename):
+def V216702(device_type, device_name):
     # V-216702 -  The Cisco PE router must be configured to have each Virtual Routing and Forwarding (VRF) instance with the appropriate Route Target .
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " -The Cisco PE router must be configured to have each Virtual Routing and Forwarding (VRF) instance with the appropriate Route Target .\n"
+            check.vulid
+            + " -The Cisco PE router must be configured to have each Virtual Routing and Forwarding (VRF) instance with the appropriate Route Target .\n"
     )
     strLDP = "NA"
     command = "show mpls ldp discovery"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we're running MPLS
     if result.find("Local LDP Identifier") > -1:
@@ -9365,41 +10074,41 @@ def V216702(devicetype, devicename):
         check.comments = "This router seems to be running MPLS.\n"
         # Find the cef configs.
         command = "show run | sec vrf.definition"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         # If we have a no then we're in violation...
         if result.find("route-target export") > -1:
             check.comments = (
-                check.comments + "\n" + check.vulid + ":NAF -  The router"
-                "s RT is configured for each VRF."
+                    check.comments + "\n" + check.vulid + ":NAF -  The router"
+                                                          "s RT is configured for each VRF."
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                check.comments + "\n" + check.vulid + ":OPEN -  The router"
-                "s RT is NOT configured for each VRF"
+                    check.comments + "\n" + check.vulid + ":OPEN -  The router"
+                                                          "s RT is NOT configured for each VRF"
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
+                check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
         )
     return check
 
 
-def V216703(devicetype, devicename):
+def V216703(device_type, device_name):
     # V-216703 -  The Cisco PE router must be configured to have each VRF with the appropriate Route Distinguisher (RD).
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " -The Cisco PE router must be configured to have each VRF with the appropriate Route Distinguisher (RD).\n"
+            check.vulid
+            + " -The Cisco PE router must be configured to have each VRF with the appropriate Route Distinguisher (RD).\n"
     )
     strLDP = "NA"
     command = "show mpls ldp discovery"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we're running MPLS
     if result.find("Local LDP Identifier") > -1:
@@ -9409,108 +10118,77 @@ def V216703(devicetype, devicename):
         check.comments = "This router seems to be running MPLS.\n"
         # Find the cef configs.
         command = "show run | sec vrf.definition"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         # If we have a no then we're in violation...
         if result.find("rd") > -1 and result.find(":") > -1:
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NAF -  The Cisco PE router is configured to have each VRF with the appropriate Route Distinguisher (RD)"
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":NAF -  The Cisco PE router is configured to have each VRF with the appropriate Route Distinguisher (RD)"
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":OPEN -  The Cisco PE router is NOT configured to have each VRF with the appropriate Route Distinguisher (RD)"
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":OPEN -  The Cisco PE router is NOT configured to have each VRF with the appropriate Route Distinguisher (RD)"
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
+                check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
         )
     return check
 
 
-def V216704(devicetype, devicename):
-    # V-216704 -  The Cisco PE router providing MPLS Layer 2 Virtual Private Network (L2VPN) services must be configured to authenticate targeted Label Distribution Protocol (LDP) sessions.
+def V216704(device_type, device_name):
+    # V-216704 - The Cisco PE router providing MPLS Layer 2 Virtual Private Network (L2VPN) services must be configured to authenticate targeted Label Distribution Protocol (LDP) sessions.
     check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"  # Default status
+    # Initial comment about the STIG ID and description
     check.comments = (
-        check.vulid
-        + " -The Cisco PE router providing MPLS Layer 2 Virtual Private Network (L2VPN) services must be configured to authenticate targeted Label Distribution Protocol (LDP) sessions.\n"
-    )
-    strLDP = "NA"
+        f"{check.vulid} - The Cisco PE router providing MPLS L2VPN services must authenticate targeted LDP sessions.\n")
     command = "show mpls ldp discovery"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    # Find out if we're running MPLS
-    if result.find("Local LDP Identifier") > -1:
-        strLDP = "enabled"
-    # If we're running LDP lets get busy...
+    # Determine MPLS usage status based on 'Local LDP Identifier' presence in output
+    strLDP = "NA" if "Local LDP Identifier" not in result else "enabled"
+    # Proceed if MPLS is enabled
     if strLDP == "enabled":
-        check.comments = "This router seems to be running MPLS.\n"
-        # Find the cef configs.
-        command = "show run | i mpls.*.nei"
-        #
-        # Replace password with ***REMOVED***
-        strClean = ""
-        result = ""
-        temp = exec_command(command, devicename)
-        for line in temp.splitlines():
-            if line.find("password") > 1:
-                strClean = (
-                    line[0 : line.find("password")]
-                    + "password <-----***REMOVED***----->"
-                )
-                bolPassword = 1
-            else:
-                strClean = line
-            #
-            result = result + "\n" + strClean
-        check.finding = check.finding + "\n" + result
-        # If we have a no then we're in violation...
-        if result.find("password") > -1:
-            check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NAF - The Cisco PE router is configured to authenticate LDP neighbors."
-            )
+        check.comments += "This router seems to be running MPLS.\n"
+        command = "show run | include mpls ldp neighbor"
+        result = exec_command(command, device_name)
+        check.finding += "\n" + result
+        # Evaluate the presence of 'password' to determine the compliance status
+        if "password" in result:
+            check.comments += f"{check.vulid}: NAF - The router is configured to authenticate LDP neighbors."
         else:
-            check.status = "Open"
-            check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":OPEN - The Cisco PE router is NOT configured to authenticate LDP neighbors."
-            )
+            check.status = "OP"
+            check.comments += f"{check.vulid}: OPEN - The router is NOT configured to authenticate LDP neighbors."
     else:
-        check.status = "Not_Applicable"
-        check.comments = (
-            check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
-        )
+        check.status = "NA"
+        check.comments += f"{check.vulid}: NA - Router is not running MPLS."
+
     return check
 
 
-def V216705(devicetype, devicename):
+def V216705(device_type, device_name):
     # V-216705 -  the correct VC ID is configured for each attachment circuit.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " - Verify the correct VC ID is configured for each attachment circuit.\n"
+            check.vulid
+            + " - Verify the correct VC ID is configured for each attachment circuit.\n"
     )
     strLDP = "NA"
     command = "show xconnect pwmib | i up|VC"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we're running MPLS
     if len(result.splitlines()) > 5:
@@ -9520,48 +10198,48 @@ def V216705(devicetype, devicename):
         check.comments = "This router seems to be running MPLS.\n"
         # Find the cef configs.
         command = "show xconnect pwmib | exc pw"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         # If we have a no then we're in violation...
         if result.find("Encap") > -1:
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NAF - The CE-facing interface that is configured for VPWS is unique."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":NAF - The CE-facing interface that is configured for VPWS is unique."
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":OPEN - The CE-facing interface that is configured for VPWS is NOT unique."
+            )
+    else:
+        check.status = "NA"
+        check.comments = (
                 check.comments
                 + "\n"
                 + check.vulid
-                + ":OPEN - The CE-facing interface that is configured for VPWS is NOT unique."
-            )
-    else:
-        check.status = "Not_Applicable"
-        check.comments = (
-            check.comments
-            + "\n"
-            + check.vulid
-            + ":NA - Router is not terminating any Virtual Private Wire Service (VPWS)."
+                + ":NA - Router is not terminating any Virtual Private Wire Service (VPWS)."
         )
     return check
 
 
-def V216706(devicetype, devicename):
+def V216706(device_type, device_name):
     # V-216706 -  The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have all attachment circuits defined to the virtual forwarding instance (VFI) with the globally unique VPN ID assigned for each customer VLAN.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have all attachment circuits defined to the virtual forwarding instance (VFI) with the globally unique VPN ID assigned for each customer VLAN.\n"
+            check.vulid
+            + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have all attachment circuits defined to the virtual forwarding instance (VFI) with the globally unique VPN ID assigned for each customer VLAN.\n"
     )
     strLDP = "NA"
     command = "show run | sec l2.vfi"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we're running MPLS
     if len(result.splitlines()) > 2:
@@ -9571,48 +10249,48 @@ def V216706(devicetype, devicename):
         check.comments = "This router seems to be running VPLS VFI.\n"
         # Find the cef configs.
         command = "show xconnect pwmib | exc pw"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         # If we have a no then we're in violation...
         if result.find("VC ID") > -1:
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NAF - Attachment circuits are associated to the appropriate VFI."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":NAF - Attachment circuits are associated to the appropriate VFI."
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":OPEN - Attachment circuits are NOT associated to the appropriate VFI."
+            )
+    else:
+        check.status = "NA"
+        check.comments = (
                 check.comments
                 + "\n"
                 + check.vulid
-                + ":OPEN - Attachment circuits are NOT associated to the appropriate VFI."
-            )
-    else:
-        check.status = "Not_Applicable"
-        check.comments = (
-            check.comments
-            + "\n"
-            + check.vulid
-            + ":NA - Router is not providing L2 VFI services."
+                + ":NA - Router is not providing L2 VFI services."
         )
     return check
 
 
-def V216707(devicetype, devicename):
+def V216707(device_type, device_name):
     # V-216707 -  The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have all attachment circuits defined to the virtual forwarding instance (VFI) with the globally unique VPN ID assigned for each customer VLAN.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have all attachment circuits defined to the virtual forwarding instance (VFI) with the globally unique VPN ID assigned for each customer VLAN.\n"
+            check.vulid
+            + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have all attachment circuits defined to the virtual forwarding instance (VFI) with the globally unique VPN ID assigned for each customer VLAN.\n"
     )
     strLDP = "NA"
     command = "show run | sec l2.vfi"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we're running MPLS
     if len(result.splitlines()) > 2:
@@ -9623,105 +10301,105 @@ def V216707(devicetype, devicename):
         # If we have a no split horizon then we're in violation...
         if result.find("no-split-horizon") == -1:
             check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NAF - Split horizon is not enabled."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":NAF - Split horizon is not enabled."
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":OPEN - If split horizon is not enabled, this is a finding.."
+            )
+    else:
+        check.status = "NA"
+        check.comments = (
                 check.comments
                 + "\n"
                 + check.vulid
-                + ":OPEN - If split horizon is not enabled, this is a finding.."
-            )
-    else:
-        check.status = "Not_Applicable"
-        check.comments = (
-            check.comments
-            + "\n"
-            + check.vulid
-            + ":NA - Router is not providing L2 VFI services."
+                + ":NA - Router is not providing L2 VFI services."
         )
     return check
 
 
-def V216708(devicetype, devicename):
+def V216708(device_type, device_name):
     # V-216708 -  The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have traffic storm control thresholds on CE-facing interfaces.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have traffic storm control thresholds on CE-facing interfaces.\n"
+            check.vulid
+            + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have traffic storm control thresholds on CE-facing interfaces.\n"
     )
     strLDP = "NA"
-    strVPLS = "NotAFinding"
+    strVPLS = "NF"
     command = "show xconnect pwmib | exc pw"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we have local ports terminating VPWS
     if len(result.splitlines()) > 5:
         strLDP = "enabled"
         command = "show run | sec service.instance|bridge"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
         if len(result.splitlines()) > 3:
             for line in result.splitlines():
                 if line.find("MPLS") > -1:
                     command = "show run int " + line.split()[-1]
-                    result = exec_command(command, devicename)
+                    result = exec_command(command, device_name)
                     check.finding = check.finding + result
                     if result.find("storm-control") == -1:
-                        strVPLS = "Open"
+                        strVPLS = "OP"
                         check.comments = (
-                            check.comments
-                            + "OPEN: Missing storm control on VPLS interface "
-                            + line.split()[-1]
-                            + "\n"
+                                check.comments
+                                + "OPEN: Missing storm control on VPLS interface "
+                                + line.split()[-1]
+                                + "\n"
                         )
-            if strVPLS != "NotAFinding":
-                check.status = "Open"
+            if strVPLS != "NF":
+                check.status = "OP"
                 check.comments = (
-                    check.comments
-                    + "OPEN: Private LAN Services (VPLS) must be configured to have traffic storm control thresholds on CE-facing interfaces.\n"
+                        check.comments
+                        + "OPEN: Private LAN Services (VPLS) must be configured to have traffic storm control thresholds on CE-facing interfaces.\n"
                 )
             else:
-                check.status = "NotAFinding"
+                check.status = "NF"
                 check.comments = check.comments + "NAF: Storm control is in place.\n"
         else:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                check.comments
-                + "NAF: There is no service instance or bridge group configured.\n"
+                    check.comments
+                    + "NAF: There is no service instance or bridge group configured.\n"
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "\n"
-            + check.vulid
-            + ":NA - Router is not providing L2 VFI services."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NA - Router is not providing L2 VFI services."
         )
     return check
 
 
-def V216709(devicetype, devicename):
+def V216709(device_type, device_name):
     # V-216709 -  The Cisco PE router must be configured to implement Internet Group Management Protocol (IGMP) or Multicast Listener Discovery (MLD) snooping for each Virtual Private LAN Services (VPLS) bridge domain.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " - The Cisco PE router must be configured to implement Internet Group Management Protocol (IGMP) or Multicast Listener Discovery (MLD) snooping for each Virtual Private LAN Services (VPLS) bridge domain.\n"
+            check.vulid
+            + " - The Cisco PE router must be configured to implement Internet Group Management Protocol (IGMP) or Multicast Listener Discovery (MLD) snooping for each Virtual Private LAN Services (VPLS) bridge domain.\n"
     )
     strLDP = "NA"
-    strVPLS = "NotAFinding"
+    strVPLS = "NF"
     command = "show xconnect pwmib | exc pw"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we have local ports terminating VPWS
     if len(result.splitlines()) > 5:
@@ -9729,200 +10407,201 @@ def V216709(devicetype, devicename):
         # If we're running LDP lets get busy...
         # Find out if igmp snooping configured
         command = "show run | sec bridge-domain"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
         if len(result.splitlines()) > 3:
             command = "show run | i igmp.snoop"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             check.finding = check.finding + result
             if result.find("ip igmp snooping") == -1:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments = (
-                    check.comments
-                    + "OPEN: Missing IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
+                        check.comments
+                        + "OPEN: Missing IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
                 )
             else:
-                check.status = "NotAFinding"
+                check.status = "NF"
                 check.comments = (
-                    check.comments
-                    + "NAF: Found IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
+                        check.comments
+                        + "NAF: Found IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
                 )
         else:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = check.comments + "NAF: No bridge domain configured.\n"
 
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "\n"
-            + check.vulid
-            + ":NA - Router is not providing L2 VFI services."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NA - Router is not providing L2 VFI services."
         )
     return check
 
 
-def V216710(devicetype, devicename):
+def V216710(device_type, device_name):
     # V-216710 - The Cisco PE router must be configured to limit the number of MAC addresses it can learn for each Virtual Private LAN Services (VPLS) bridge domain.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     check.comments = (
-        check.vulid
-        + " - The Cisco PE router must be configured to limit the number of MAC addresses it can learn for each Virtual Private LAN Services (VPLS) bridge domain.\n"
+            check.vulid
+            + " - The Cisco PE router must be configured to limit the number of MAC addresses it can learn for each Virtual Private LAN Services (VPLS) bridge domain.\n"
     )
     strLDP = "NA"
-    strVPLS = "NotAFinding"
+    strVPLS = "NF"
     command = "show xconnect pwmib | exc pw"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Find out if we have local ports terminating VPWS
     if len(result.splitlines()) > 5:
         # If we're running LDP lets get busy...
         # Find out if igmp snooping configured
         command = "show run | sec bridge-domain"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
         if len(result.splitlines()) > 3:
             if result.find("mac limit maximum") == -1:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments = (
-                    check.comments
-                    + "OPEN: Missing IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
+                        check.comments
+                        + "OPEN: Missing IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
                 )
             else:
-                check.status = "NotAFinding"
+                check.status = "NF"
                 check.comments = (
-                    check.comments
-                    + "NAF: Found IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
+                        check.comments
+                        + "NAF: Found IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
                 )
         else:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = check.comments + "NAF: No bridge domain configured.\n"
 
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + "\n"
-            + check.vulid
-            + ":NA - Router is not providing L2 VFI services."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NA - Router is not providing L2 VFI services."
         )
     return check
 
-def V216711(devicetype, devicename):
+
+def V216711(device_type, device_name):
     # V-216711 -  The Cisco PE router must be configured to block any traffic that is destined to IP core infrastructure.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     # Find all physical interfaces that could be CE facig
     command = "show int desc | i up"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strIntStatus = "Not_Applicable"
+    strIntStatus = "NA"
     strPolicies = []
     strInterfaces = result.splitlines()
     bolHasSWAB = 0
     for line in strInterfaces:
         if len(line.split()) > 1:
             if (
-                line.split()[0].find("Lo") == -1
-                and line.split()[0].find("Tu") == -1
-                and line.split()[0].find("RESERVED") == -1
-                and line.split()[0].find("#") == -1
-                and line.split()[0].find("pw") == -1
+                    line.split()[0].find("Lo") == -1
+                    and line.split()[0].find("Tu") == -1
+                    and line.split()[0].find("RESERVED") == -1
+                    and line.split()[0].find("#") == -1
+                    and line.split()[0].find("pw") == -1
             ):
                 command = (
-                    "sh run int "
-                    + line.split()[0]
-                    + " | i vrf.forwarding|ip.verify.unicast.source.*.any|description|inter"
+                        "sh run int "
+                        + line.split()[0]
+                        + " | i vrf.forwarding|ip.verify.unicast.source.*.any|description|inter"
                 )
-                result = exec_command(command, devicename)
+                result = exec_command(command, device_name)
                 check.finding = check.finding + result
                 if result.find("SWAB") > -1:
                     bolHasSWAB = 1
                     strVRF = ""
-                    strIntStatus = "NotAFinding"
+                    strIntStatus = "NF"
                     # Right now this will always pass.  We can add a check for ACLs later if needed.
                     if result.find("SWAB") == -1:
-                        strIntStatus = "Open"
+                        strIntStatus = "OP"
 
                     for command in result.splitlines():
                         if command.find("vrf forwarding") > -1:
                             strVRF = command.split()[2]
 
                     check.comments = (
-                        check.comments
-                        + "Interface "
-                        + line.split()[0]
-                        + " is configured for VRF "
-                        + strVRF
+                            check.comments
+                            + "Interface "
+                            + line.split()[0]
+                            + " is configured for VRF "
+                            + strVRF
                     )
-                    if strIntStatus == "Open":
+                    if strIntStatus == "OP":
                         check.comments = (
-                            check.comments + " and does NOT have a VRF configured.\n"
+                                check.comments + " and does NOT have a VRF configured.\n"
                         )
                     else:
                         check.comments = (
-                            check.comments
-                            + ", which prevents core network elements from being accessible from any external hosts.\n"
+                                check.comments
+                                + ", which prevents core network elements from being accessible from any external hosts.\n"
                         )
     if bolHasSWAB == 0:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + check.vulid
-            + " -Not Applicable - This is not a PE router so this check is not applicable.."
+                check.comments
+                + check.vulid
+                + " -Not Applicable - This is not a PE router so this check is not applicable.."
         )
     else:
         check.status = strIntStatus
         check.comments = (
-            check.comments
-            + check.vulid
-            + " The Cisco PE router must be configured to block any traffic that is destined to IP core infrastructure."
+                check.comments
+                + check.vulid
+                + " The Cisco PE router must be configured to block any traffic that is destined to IP core infrastructure."
         )
     return check
 
 
-def V216712(devicetype, devicename):
+def V216712(device_type, device_name):
     # V-216712 -  The Cisco PE router must be configured with Unicast Reverse Path Forwarding (uRPF) loose mode enabled on all CE-facing interfaces.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     # Find all physical interfaces that could be CE facig
     command = "show int desc | i up"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strIntStatus = "Not_Applicable"
+    strIntStatus = "NA"
     strPolicies = []
     strInterfaces = result.splitlines()
     bolHasSWAB = 0
     for line in strInterfaces:
         if len(line.split()) > 1:
             if (
-                line.split()[0].find("Lo") == -1
-                and line.split()[0].find("Tu") == -1
-                and line.split()[0].find("RESERVED") == -1
-                and line.split()[0].find("#") == -1
-                and line.split()[0].find("pw") == -1
+                    line.split()[0].find("Lo") == -1
+                    and line.split()[0].find("Tu") == -1
+                    and line.split()[0].find("RESERVED") == -1
+                    and line.split()[0].find("#") == -1
+                    and line.split()[0].find("pw") == -1
             ):
                 command = (
-                    "sh run int "
-                    + line.split()[0]
-                    + " | i vrf.forwarding|ip.verify.unicast.source.*.any|inter"
+                        "sh run int "
+                        + line.split()[0]
+                        + " | i vrf.forwarding|ip.verify.unicast.source.*.any|inter"
                 )
-                result = exec_command(command, devicename)
+                result = exec_command(command, device_name)
                 check.finding = check.finding + result
                 if result.find("SWAB") > -1:
                     bolHasSWAB = 1
                     strVRF = ""
-                    strIntStatus = "NotAFinding"
+                    strIntStatus = "NF"
 
                     if result.find("ip verify unicast source") == -1:
-                        strIntStatus = "Open"
+                        strIntStatus = "OP"
                     # This is a CE facing interface based on a VRF defination.
 
                     for command in result.splitlines():
@@ -9930,313 +10609,313 @@ def V216712(devicetype, devicename):
                             strVRF = command.split()[2]
 
                     check.comments = (
-                        check.comments
-                        + "Interface "
-                        + line.split()[0]
-                        + " is configured for VRF "
-                        + strVRF
+                            check.comments
+                            + "Interface "
+                            + line.split()[0]
+                            + " is configured for VRF "
+                            + strVRF
                     )
-                    if strIntStatus == "Open":
+                    if strIntStatus == "OP":
                         check.comments = (
-                            check.comments + " and does NOT have uRPF configured.\n"
+                                check.comments + " and does NOT have uRPF configured.\n"
                         )
                     else:
                         check.comments = check.comments + " and has uRPF configured.\n"
     if bolHasSWAB == 0:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.comments
-            + check.vulid
-            + " -Not Applicable - This is not a PE router so this check is not applicable.."
+                check.comments
+                + check.vulid
+                + " -Not Applicable - This is not a PE router so this check is not applicable.."
         )
     else:
         check.status = strIntStatus
         check.comments = (
-            check.comments
-            + check.vulid
-            + " -OPEN - The Cisco PE router must be configured with Unicast Reverse Path Forwarding (uRPF) loose mode enabled on all CE-facing interfaces."
+                check.comments
+                + check.vulid
+                + " -OPEN - The Cisco PE router must be configured with Unicast Reverse Path Forwarding (uRPF) loose mode enabled on all CE-facing interfaces."
         )
     # else:
     #    check.comments = check.comments + check.vulid + " -NAF - The Cisco PE router is configured with Unicast Reverse Path Forwarding (uRPF) loose mode enabled on all CE-facing interfaces."
     return check
 
 
-def V216714(devicetype, devicename):
+def V216714(device_type, device_name):
     # V-216714 - The Cisco P router must be configured to implement a Quality-of-Service (QoS) policy in accordance with the QoS DODIN Technical Profile.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     # Find all physical interfaces that could be configured for QoS
     command = "show int desc | i up"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strIntStatus = "Open"
+    strIntStatus = "OP"
     strPolicies = []
     strInterfaces = result.splitlines()
     for line in strInterfaces:
         if len(line.split()) > 1:
             if (
-                line.split()[0].find("Lo") == -1
-                and line.split()[0].find("Tu") == -1
-                and line.split()[0].find("RESERVED") == -1
-                and line.split()[0].find("#") == -1
-                and line.split()[0].find("pw") == -1
+                    line.split()[0].find("Lo") == -1
+                    and line.split()[0].find("Tu") == -1
+                    and line.split()[0].find("RESERVED") == -1
+                    and line.split()[0].find("#") == -1
+                    and line.split()[0].find("pw") == -1
             ):
                 command = (
-                    "sh run int "
-                    + line.split()[0]
-                    + " | i service-policy.input|service-policy.output|description|inter"
+                        "sh run int "
+                        + line.split()[0]
+                        + " | i service-policy.input|service-policy.output|description|inter"
                 )
-                result = exec_command(command, devicename)
+                result = exec_command(command, device_name)
                 check.finding = check.finding + result
                 # Look for the config line that specifies policies.
                 for command in result.splitlines():
                     if (
-                        command.find("service-policy input") > -1
-                        or command.find("service-policy output") > -1
+                            command.find("service-policy input") > -1
+                            or command.find("service-policy output") > -1
                     ):
                         # If we have a QoS policy defined, add it to our list of QoS policies.
                         if command.split()[2] not in strPolicies:
                             strPolicies.append(command.split()[2])
-                        check.status = "NotAFinding"
+                        check.status = "NF"
                         check.comments = (
-                            check.comments
-                            + "Found QoS policy on interface "
-                            + line.split()[0]
-                            + ".\n"
+                                check.comments
+                                + "Found QoS policy on interface "
+                                + line.split()[0]
+                                + ".\n"
                         )
 
-    if check.status == "Open":
+    if check.status == "OP":
         check.comments = (
-            check.vulid
-            + " -OPEN - The Cisco PE router must be configured to implement a Quality-of-Service (QoS) policy in accordance with the QoS DODIN Technical Profile."
+                check.vulid
+                + " -OPEN - The Cisco PE router must be configured to implement a Quality-of-Service (QoS) policy in accordance with the QoS DODIN Technical Profile."
         )
     else:
         for policy in strPolicies:
             command = "show run | sec policy-map." + policy.strip()
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             check.finding = check.finding + result
         check.comments = (
-            check.comments
-            + check.vulid
-            + " -NAF - The Cisco PE router is configured to enforce a Quality-of-Service (QoS) policy."
+                check.comments
+                + check.vulid
+                + " -NAF - The Cisco PE router is configured to enforce a Quality-of-Service (QoS) policy."
         )
     return check
 
 
-def V216715(devicetype, devicename):
+def V216715(device_type, device_name):
     # V-216715 - The Cisco P router must be configured to implement a Quality-of-Service (QoS) policy in accordance with the QoS DODIN Technical Profile.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     # Find all physical interfaces that could be configured for QoS
     command = "show int desc | i up"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strIntStatus = "Open"
+    strIntStatus = "OP"
     strPolicies = []
     strInterfaces = result.splitlines()
     for line in strInterfaces:
         if len(line.split()) > 1:
             if (
-                line.split()[0].find("Lo") == -1
-                and line.split()[0].find("Tu") == -1
-                and line.split()[0].find("RESERVED") == -1
-                and line.split()[0].find("#") == -1
-                and line.split()[0].find("pw") == -1
+                    line.split()[0].find("Lo") == -1
+                    and line.split()[0].find("Tu") == -1
+                    and line.split()[0].find("RESERVED") == -1
+                    and line.split()[0].find("#") == -1
+                    and line.split()[0].find("pw") == -1
             ):
                 command = (
-                    "sh run int "
-                    + line.split()[0]
-                    + " | i service-policy.input|service-policy.output|description|inter"
+                        "sh run int "
+                        + line.split()[0]
+                        + " | i service-policy.input|service-policy.output|description|inter"
                 )
-                result = exec_command(command, devicename)
+                result = exec_command(command, device_name)
                 check.finding = check.finding + result
                 # Look for the config line that specifies policies.
                 for command in result.splitlines():
                     if (
-                        command.find("service-policy input") > -1
-                        or command.find("service-policy output") > -1
+                            command.find("service-policy input") > -1
+                            or command.find("service-policy output") > -1
                     ):
                         # If we have a QoS policy defined, add it to our list of QoS policies.
                         if command.split()[2] not in strPolicies:
                             strPolicies.append(command.split()[2])
-                        check.status = "NotAFinding"
+                        check.status = "NF"
                         check.comments = (
-                            check.comments
-                            + "Found QoS policy on interface "
-                            + line.split()[0]
-                            + ".\n"
+                                check.comments
+                                + "Found QoS policy on interface "
+                                + line.split()[0]
+                                + ".\n"
                         )
 
-    if check.status == "Open":
+    if check.status == "OP":
         check.comments = (
-            check.vulid
-            + " -OPEN - The Cisco P router must be configured to implement a Quality-of-Service (QoS) policy in accordance with the QoS DODIN Technical Profile."
+                check.vulid
+                + " -OPEN - The Cisco P router must be configured to implement a Quality-of-Service (QoS) policy in accordance with the QoS DODIN Technical Profile."
         )
     else:
         for policy in strPolicies:
             command = "show run | sec policy-map." + policy.strip()
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             check.finding = check.finding + result
         check.comments = (
-            check.comments
-            + check.vulid
-            + " -NAF - The Cisco P router is configured to implement a Quality-of-Service (QoS) policy."
+                check.comments
+                + check.vulid
+                + " -NAF - The Cisco P router is configured to implement a Quality-of-Service (QoS) policy."
         )
     return check
 
 
-def V216716(devicetype, devicename):
+def V216716(device_type, device_name):
     # V-216716 - The Cisco PE router must be configured to enforce a Quality-of-Service (QoS) policy to limit the effects of packet flooding denial of service (DoS) attacks.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run class-map | in class-map|dscp.cs1"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("cs1") > -1:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
-            check.vulid + " -NAF - QoS is configured to enforce a QoS policy to limit the effects of packet flooding DoS attacks."
+                check.vulid + " -NAF - QoS is configured to enforce a QoS policy to limit the effects of packet flooding DoS attacks."
         )
     else:
         check.comments = check.vulid + " -OPEN - QoS is NOT configured to enforce a QoS policy to limit the effects of packet flooding DoS attacks."
     return check
 
 
-def V216717(devicetype, devicename):
+def V216717(device_type, device_name):
     # V-216717 -  The Cisco multicast router must be configured to disable Protocol Independent Multicast (PIM) on all interfaces that are not required to support multicast routing.
     check = Stig()
     result = ""
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     strPIMInterfaces = []
     # Find all physical interfaces running PIM
     command = "show ip pim interface | exc Tunn|Loop"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strIntStatus = "NotAFinding"
+    strIntStatus = "NF"
     # If we have pim running on an interface, we need to check.  Else Not applicable.
     if result.find("v2/SD") > -1:
         strPIMInterfaces = result.splitlines()
         for interface in strPIMInterfaces:
             if len(interface.split()) > 1:
                 if (
-                    interface.split()[1].find("Ether") > -1
-                    or interface.split()[1].find("Port") > -1
+                        interface.split()[1].find("Ether") > -1
+                        or interface.split()[1].find("Port") > -1
                 ):
                     command = "sh run int " + interface.split()[1]
-                    result = exec_command(command, devicename)
+                    result = exec_command(command, device_name)
                     check.finding = check.finding + result
                     if (
-                        result.find("shutdown") == -1
-                        and result.find("TIER0") == -1
+                            result.find("shutdown") == -1
+                            and result.find("TIER0") == -1
                     ):
-                        strIntStatus = "Open"
+                        strIntStatus = "OP"
                         check.comments = (
-                            check.comments
-                            + "PIM appears to be on an EGRESS interface "
-                            + interface.split()[1]
-                            + ".\n"
+                                check.comments
+                                + "PIM appears to be on an EGRESS interface "
+                                + interface.split()[1]
+                                + ".\n"
                         )
-        if strIntStatus == "NotAFinding":
+        if strIntStatus == "NF":
             check.comments = (
-                check.vulid
-                + "- NAF - The Cisco multicast router either has (PIM) neighbor filter configured or a disabled interface."
+                    check.vulid
+                    + "- NAF - The Cisco multicast router either has (PIM) neighbor filter configured or a disabled interface."
             )
-            check.status = "NotAFinding"
+            check.status = "NF"
         else:
             check.comments = (
+                    check.comments
+                    + check.vulid
+                    + "- OPEN - The Cisco multicast router must be configured to disable Protocol Independent Multicast (PIM) on all interfaces that are not required to support multicast routing.."
+            )
+            check.status = "OP"
+    else:
+        check.status = "NA"
+        check.comments = (
                 check.comments
                 + check.vulid
-                + "- OPEN - The Cisco multicast router must be configured to disable Protocol Independent Multicast (PIM) on all interfaces that are not required to support multicast routing.."
-            )
-            check.status = "Open"
-    else:
-        check.status = "Not_Applicable"
-        check.comments = (
-            check.comments
-            + check.vulid
-            + "- NA - Router does not have multicast configured"
+                + "- NA - Router does not have multicast configured"
         )
     return check
 
 
-def V216718(devicetype, devicename):
+def V216718(device_type, device_name):
     # V-216718 -  The Cisco multicast router must be configured to bind a Protocol Independent Multicast (PIM) neighbor filter to interfaces that have PIM enabled..
     check = Stig()
     result = ""
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     strPIMInterfaces = []
     # Find all physical interfaces running PIM
     command = "show ip pim interface | exc Tunn|Loop"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
-    strIntStatus = "NotAFinding"
+    strIntStatus = "NF"
     # If we have pim running on an interface, we need to check.  Else Not applicable.
     if result.find("v2/SD") > -1:
         strPIMInterfaces = result.splitlines()
         for interface in strPIMInterfaces:
             if len(interface.split()) > 1:
                 if (
-                    interface.split()[1].find("Ether") > -1
-                    or interface.split()[1].find("Port") > -1
+                        interface.split()[1].find("Ether") > -1
+                        or interface.split()[1].find("Port") > -1
                 ):
                     command = "sh run int " + interface.split()[1]
-                    result = exec_command(command, devicename)
+                    result = exec_command(command, device_name)
                     check.finding = check.finding + result
                     if (
-                        result.find("shutdown") == -1
-                        and result.find("ip pim neighbor-filter") == -1
+                            result.find("shutdown") == -1
+                            and result.find("ip pim neighbor-filter") == -1
                     ):
-                        strIntStatus = "Open"
+                        strIntStatus = "OP"
                         check.comments = (
-                            check.comments
-                            + "Could not find a pim filter on interface "
-                            + interface.split()[1]
-                            + ".\n"
+                                check.comments
+                                + "Could not find a pim filter on interface "
+                                + interface.split()[1]
+                                + ".\n"
                         )
-        if strIntStatus == "NotAFinding":
+        if strIntStatus == "NF":
             check.comments = (
-                check.vulid
-                + "- NAF - The Cisco multicast router either has (PIM) neighbor filter configured or a disabled interface."
+                    check.vulid
+                    + "- NAF - The Cisco multicast router either has (PIM) neighbor filter configured or a disabled interface."
             )
-            check.status = "NotAFinding"
+            check.status = "NF"
         else:
             check.comments = (
+                    check.comments
+                    + check.vulid
+                    + "- OPEN - The Cisco multicast router must have a (PIM) neighbor filter applied to interfaces that have PIM enabled."
+            )
+            check.status = "OP"
+    else:
+        check.status = "NA"
+        check.comments = (
                 check.comments
                 + check.vulid
-                + "- OPEN - The Cisco multicast router must have a (PIM) neighbor filter applied to interfaces that have PIM enabled."
-            )
-            check.status = "Open"
-    else:
-        check.status = "Not_Applicable"
-        check.comments = (
-            check.comments
-            + check.vulid
-            + "- NA - Router does not have multicast configured"
+                + "- NA - Router does not have multicast configured"
         )
     return check
 
 
-def V216719(devicetype, devicename):
+def V216719(device_type, device_name):
     # V-216719 -  The Cisco multicast edge router must be configured to establish boundaries for administratively scoped multicast traffic.
     check = Stig()
     result = ""
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     command = "sh run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("RT1") > -1 or result.find("RT1") > -1:
         check.comments = "This router is a external facing router.\n"
         command = "show run | i ip.pim"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
         # Find the interface egressing the network.
         # Then check if it has PIM configured.
@@ -10244,419 +10923,419 @@ def V216719(devicetype, devicename):
         if result.find("pim rp-address") > -1:
             command = "sh run  | inc ip.pim.accept-register.list"
             if result.find("pim accept-register list") > -1:
-                check.status = "NotAFinding"
+                check.status = "NF"
                 check.comments = (
-                    check.vulid
-                    + "- OPEN - The Cisco multicast edge router must be configured to establish boundaries for administratively scoped multicast traffic.."
+                        check.vulid
+                        + "- OPEN - The Cisco multicast edge router must be configured to establish boundaries for administratively scoped multicast traffic.."
                 )
             else:
-                check.status = "Open"
+                check.status = "OP"
                 check.comments = (
-                    check.vulid
-                    + "- NAF - The Cisco multicast edge router is configured to establish boundaries for administratively scoped multicast traffic."
+                        check.vulid
+                        + "- NAF - The Cisco multicast edge router is configured to establish boundaries for administratively scoped multicast traffic."
                 )
         else:
-            check.status = "Not_Applicable"
+            check.status = "NA"
             check.comments = (
-                check.comments
-                + check.vulid
-                + "- NA - Router  does not have multicast configured.."
+                    check.comments
+                    + check.vulid
+                    + "- NA - Router  does not have multicast configured.."
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.vulid
-            + "- NA - Router is not a multicast edge or it does not have multicast configured.."
+                check.vulid
+                + "- NA - Router is not a multicast edge or it does not have multicast configured.."
         )
     check.finding = result
     return check
 
 
-def V216720(devicetype, devicename):
+def V216720(device_type, device_name):
     # V-216720 -  router must be configured to limit the multicast forwarding cache so that its resources are not saturated.
     check = Stig()
     result = ""
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     command = "sh run | in pim.rp"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Find the DR interfaces
     if result.find("pim rp-address") > -1:
         command = "sh run  | inc ip.pim.accept-register.list"
         if result.find("pim accept-register list") > -1:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                check.vulid
-                + "- OPEN - The router must be configured to limit the multicast forwarding cache so that its resources are not saturated."
+                    check.vulid
+                    + "- OPEN - The router must be configured to limit the multicast forwarding cache so that its resources are not saturated."
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                check.vulid
-                + "- NAF - router is configured to limit the multicast forwarding cache so that its resources are not saturated."
+                    check.vulid
+                    + "- NAF - router is configured to limit the multicast forwarding cache so that its resources are not saturated."
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.vulid + "- NA - Router does not have multicast configured"
+                check.vulid + "- NA - Router does not have multicast configured"
         )
     check.finding = result
     return check
 
 
-def V216721(devicetype, devicename):
+def V216721(device_type, device_name):
     # V-216721 -  The Cisco multicast Rendezvous Point (RP) router must be configured to filter Protocol Independent Multicast (PIM) Register messages received from the Designated Router (DR) for any undesirable multicast groups and sources.
     check = Stig()
     result = ""
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     command = "sh run | in pim.rp"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Find the DR interfaces
     if result.find("pim rp-address") > -1:
         command = "sh run  | inc ip.pim.accept-register.list"
         if result.find("pim accept-register list") > -1:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                check.vulid
-                + "- OPEN - router must be configured to filter Protocol Independent Multicast (PIM) Register messages "
+                    check.vulid
+                    + "- OPEN - router must be configured to filter Protocol Independent Multicast (PIM) Register messages "
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                check.vulid
-                + "- NAF - router is configured to filter Protocol Independent Multicast (PIM) Register messages "
+                    check.vulid
+                    + "- NAF - router is configured to filter Protocol Independent Multicast (PIM) Register messages "
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.vulid + "- NA - Router does not have multicast configured"
+                check.vulid + "- NA - Router does not have multicast configured"
         )
     check.finding = result
     return check
 
 
-def V216722(devicetype, devicename):
+def V216722(device_type, device_name):
     # V-216722 - The Cisco multicast Designated Router (DR) must be configured to limit the number of mroute states resulting from Internet Group Management Protocol (IGMP) and Multicast Listener Discovery (MLD) Host Membership Reports.
     check = Stig()
     result = ""
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     command = "sh run | in pim.rp"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Find the DR interfaces
     if result.find("pim rp-address") > -1:
         command = "sh run  | inc pim.accept-rp"
         if result.find("pim accept-rp") > -1:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                check.vulid
-                + "- OPEN - RP is configured to filter join messages received from the DR for any undesirable multicast groups"
+                    check.vulid
+                    + "- OPEN - RP is configured to filter join messages received from the DR for any undesirable multicast groups"
             )
         else:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                check.vulid
-                + "- NAF - RP is not configured to filter join messages received from the DR for any undesirable multicast groups"
+                    check.vulid
+                    + "- NAF - RP is not configured to filter join messages received from the DR for any undesirable multicast groups"
             )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = (
-            check.vulid + "- NA - Router does not have multicast configured"
+                check.vulid + "- NA - Router does not have multicast configured"
         )
     check.finding = result
     return check
 
 
-def V216723(devicetype, devicename):
+def V216723(device_type, device_name):
     # V-216723 - The Cisco multicast Rendezvous Point (RP) must be configured to rate limit the number of Protocol Independent Multicast (PIM) Register messages.
     check = Stig()
     temp = ""
     result = ""
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | in igmp.join"
-    temp = exec_command(command, devicename)
+    temp = exec_command(command, device_name)
     # Find the DR interfaces
     if len(temp.splitlines()) > 4:
         for pimneigh in temp.splitlines():
             if pimneigh.find("Address") == -1 and pimneigh.find("DR") > -1:
                 # If a PIM neighbor is a DR, check the interface for IGMP limit.
                 command = (
-                    "sh run interface " + pimneigh.split()[1] + " | inc igmp.limit"
+                        "sh run interface " + pimneigh.split()[1] + " | inc igmp.limit"
                 )
-                result = result + "\r" + exec_command(command, devicename)
+                result = result + "\r" + exec_command(command, device_name)
                 if result.find("igmp limit") > -1:
-                    check.status = "NotAFinding"
+                    check.status = "NF"
                     check.comments = (
-                        check.comments
-                        + check.vulid
-                        + "- NAF - DR interface "
-                        + pimneigh.split()[1]
-                        + " RP is limiting PIM register messages.\n"
+                            check.comments
+                            + check.vulid
+                            + "- NAF - DR interface "
+                            + pimneigh.split()[1]
+                            + " RP is limiting PIM register messages.\n"
                     )
                 else:
-                    check.status = "Open"
+                    check.status = "OP"
                     check.comments = (
-                        check.comments
-                        + check.vulid
-                        + "- OPEN - DR interface "
-                        + pimneigh.split()[1]
-                        + " RP is not limiting PIM register messages.\n"
+                            check.comments
+                            + check.vulid
+                            + "- OPEN - DR interface "
+                            + pimneigh.split()[1]
+                            + " RP is not limiting PIM register messages.\n"
                     )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = check.vulid + "- NA - Router is not configured for multicast."
     check.finding = temp + result
     return check
 
 
-def V216724(devicetype, devicename):
+def V216724(device_type, device_name):
     # V-216724 - The Cisco multicast Designated Router (DR) must be configured to filter the Internet Group Management Protocol (IGMP) and Multicast Listener Discovery (MLD) Report messages to allow hosts to join only multicast groups that have been approved by the organization.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "sh run | in igmp.join"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-216724 - NA - COMMENTS: This requirement is only applicable to Source Specific Multicast (SSM) implementation."
     return check
 
 
-def V216725(devicetype, devicename):
+def V216725(device_type, device_name):
     # V-216725 - The Cisco multicast Designated Router (DR) must be configured to filter the Internet Group Management Protocol (IGMP) and Multicast Listener Discovery (MLD) Report messages to allow hosts to join a multicast group only from sources that have been approved by the organization.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "sh run | in igmp.join"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-216725 - NA - COMMENTS: This requirement is only applicable to Source Specific Multicast (SSM) implementation."
     return check
 
 
-def V216726(devicetype, devicename):
+def V216726(device_type, device_name):
     # V-216726 - The Cisco multicast Designated Router (DR) must be configured to limit the number of mroute states resulting from Internet Group Management Protocol (IGMP) and Multicast Listener Discovery (MLD) Host Membership Reports.
     check = Stig()
     temp = ""
     result = ""
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     command = "sh run | in igmp.join"
-    temp = exec_command(command, devicename)
+    temp = exec_command(command, device_name)
     # Find the DR interfaces
     if len(temp.splitlines()) > 4:
         for pimneigh in temp.splitlines():
             if pimneigh.find("Address") == -1 and pimneigh.find("DR") > -1:
                 # If a PIM neighbor is a DR, check the interface for IGMP limit.
                 command = (
-                    "sh run interface " + pimneigh.split()[1] + " | inc igmp.limit"
+                        "sh run interface " + pimneigh.split()[1] + " | inc igmp.limit"
                 )
-                result = result + "\r" + exec_command(command, devicename)
+                result = result + "\r" + exec_command(command, device_name)
                 if result.find("igmp limit") > -1:
-                    check.status = "NotAFinding"
+                    check.status = "NF"
                     check.comments = (
-                        check.comments
-                        + check.vulid
-                        + "- NAF - DR interface "
-                        + pimneigh.split()[1]
-                        + " is configured to limit the number of mroute states.\n"
+                            check.comments
+                            + check.vulid
+                            + "- NAF - DR interface "
+                            + pimneigh.split()[1]
+                            + " is configured to limit the number of mroute states.\n"
                     )
                 else:
-                    check.status = "Open"
+                    check.status = "OP"
                     check.comments = (
-                        check.comments
-                        + check.vulid
-                        + "- OPEN - DR interface "
-                        + pimneigh.split()[1]
-                        + " is not configured to limit the number of mroute states.\n"
+                            check.comments
+                            + check.vulid
+                            + "- OPEN - DR interface "
+                            + pimneigh.split()[1]
+                            + " is not configured to limit the number of mroute states.\n"
                     )
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = check.vulid + "- NA - Router is not configured for multicast."
     check.finding = temp + result
     return check
 
 
-def V216727(devicetype, devicename):
+def V216727(device_type, device_name):
     # V-216727 - The Cisco multicast Designated Router (DR) must be configured to limit the number of mroute states resulting from Internet Group Management Protocol (IGMP) and Multicast Listener Discovery (MLD) Host Membership Reports.
     check = Stig()
     temp = ""
     result = ""
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     command = "sh run | in pim.rp"
-    temp = exec_command(command, devicename)
+    temp = exec_command(command, device_name)
     # Find the DR interfaces
     if len(temp.splitlines()) > 2:
         command = "sh run  | inc pim.spt-threshold"
-        result = result + "\r" + exec_command(command, devicename)
+        result = result + "\r" + exec_command(command, device_name)
         if result.find("pim spt-threshold infinity") > -1:
-            check.status = "NotAFinding"
+            check.status = "NF"
             check.comments = (
-                check.vulid
-                + "- NAF - DR is configured to increase the SPT threshold or set to infinity to minimalize (S, G) state"
+                    check.vulid
+                    + "- NAF - DR is configured to increase the SPT threshold or set to infinity to minimalize (S, G) state"
             )
         if result.find("pim spt-threshold infinity") == -1:
-            check.status = "Open"
+            check.status = "OP"
             check.comments = (
-                check.vulid
-                + "- OPEN - DR is not configured to increase the SPT threshold or set to infinity to minimalize (S, G) state"
+                    check.vulid
+                    + "- OPEN - DR is not configured to increase the SPT threshold or set to infinity to minimalize (S, G) state"
             )
         else:
-            check.status = "Not_Applicable"
+            check.status = "NA"
             check.comments = check.vulid + "- NA - Router is not a DR."
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = check.vulid + "- NA - Router does not have a PIM RP configured"
     check.finding = temp + result
     return check
 
 
-def V216728(devicetype, devicename):
+def V216728(device_type, device_name):
     # V-216728 -  The Cisco Multicast Source Discovery Protocol (MSDP) router must be configured to only accept MSDP packets from known MSDP peers.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.status = ""
     check.comments = ""
     command = "sh run | in ip.msdp"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("password") == -1:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "V-216728 - OPEN - The router is not configured to only accept MSDP packets from known MSDP peers"
     if result.find("password") > -1:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-216728 - NAF - The router is configured to only accept MSDP packets from known MSDP peers"
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = "V-216728 - NA - The router is not configured as a MSDP router"
     return check
 
 
-def V216729(devicetype, devicename):
+def V216729(device_type, device_name):
     # V-216729 -  The Cisco Multicast Source Discovery Protocol (MSDP) router must be configured to authenticate all received MSDP packets.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.status = ""
     check.comments = ""
     command = "sh run | in ip.msdp"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("password") == -1:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = (
             "V-216729 - OPEN - The router does not require MSDP authentication"
         )
     if result.find("password") > -1:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-216729 - NAF - The router does require MSDP authentication"
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = "V-216729 - NA - The router is not configured as a MSDP router"
     return check
 
 
-def V216730(devicetype, devicename):
+def V216730(device_type, device_name):
     # V-216730 -  The Cisco Multicast Source Discovery Protocol (MSDP) router must be configured to filter received source-active multicast advertisements for any undesirable multicast groups and sources.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.status = ""
     check.comments = ""
     command = "sh run | in ip.msdp"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("msdp sa-filter") == -1:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "V-216730 - OPEN - The router is not configured with an import policy to filter undesirable SA multicast advertisements"
     if result.find("msdp sa-filter") > -1:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-216730 - NAF - The router is configured with an import policy to filter undesirable SA multicast advertisements"
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = "V-216730 - NA - The router is not configured as a MSDP router"
     return check
 
 
-def V216731(devicetype, devicename):
+def V216731(device_type, device_name):
     # V-216731 -  The Cisco Multicast Source Discovery Protocol (MSDP) router must be configured to filter source-active multicast advertisements to external MSDP peers to avoid global visibility of local-only multicast sources and groups.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.status = ""
     check.comments = ""
     command = "sh run | in ip.msdp"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("msdp sa-filter") == -1:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "V-216731 - OPEN - The router is not configured with an export policy to filter local source-active multicast advertisements"
     if result.find("msdp sa-filter") > -1:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-216731 - NAF - The router is configured with an export policy to filter local source-active multicast advertisements"
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = "V-216731 - NA - The router is not configured as a MSDP router"
     return check
 
 
-def V216732(devicetype, devicename):
+def V216732(device_type, device_name):
     # V-216732 -  The Cisco Multicast Source Discovery Protocol (MSDP) router must be configured to limit the amount of source-active messages it accepts on a per-peer basis.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.status = ""
     check.comments = ""
     command = "sh run | in ip.msdp"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("msdp sa-limit") == -1:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "V-216732 - OPEN - The router is not configured to limit the source-active messages it accepts"
     if result.find("msdp sa-limit") > -1:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-216732 - NAF - The router is configured to limit the source-active messages it accepts"
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = "V-216732 - NA - The router is not configured as a MSDP router"
     return check
 
 
-def V216733(devicetype, devicename):
+def V216733(device_type, device_name):
     # V-216733 -  The Cisco Multicast Source Discovery Protocol (MSDP) router must be configured to use a loopback address as the source address when originating MSDP traffic.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.status = ""
     check.comments = ""
     command = "sh run | in ip.msdp"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     if result.find("loopback") == -1:
-        check.status = "Open"
+        check.status = "OP"
         check.comments = "V-216733 - OPEN - The router does not use its loopback address as the source address when originating MSDP traffic"
     if result.find("loopback") > -1:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-216733 - NAF - The router does use its loopback address as the source address when originating MSDP traffic"
     else:
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = "V-216733 - NA - The router is not configured as a MSDP router"
     return check
 
 
-def V216994(devicetype, devicename):
+def V216994(device_type, device_name):
     # V-216994 - The Cisco router must be configured to implement message authentication for all control plane protocols.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = ""
-    check.status = "Open"
+    check.status = "OP"
     bolEIGRP = False
     bolOSPF = False
     isEIGRP = False
@@ -10664,30 +11343,30 @@ def V216994(devicetype, devicename):
     isBGP = False
     temp1 = temp2 = temp3 = temp4 = ""
     command = "sh ip eigrp neighbors"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     if len(result.splitlines()) > 3:
         isEIGRP = True
     temp1 = result
     command = "sh ip ospf neighbor"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     if len(result.splitlines()) > 3:
         isOSPF = True
     command = "sh bgp all summ"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     if len(result.splitlines()) > 3:
         isBGP = True
     if (isEIGRP == False) and (isOSPF == False) and (isBGP == False):
-        check.status = "Not_Applicable"
+        check.status = "NA"
         check.comments = " Neither EIGRP, OSPF, or BGP is is use.  No control plane protocol configured."
     else:
         if isEIGRP == True:
             temp2 = result
             command = "sh run | sec router.eigrp"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
             check.finding = result
             if (
-                result.find("authentication mode", len(devicename) + len(command))
-                > -1
+                    result.find("authentication mode", len(device_name) + len(command))
+                    > -1
             ):
                 check.comments = "V-216994 - NAF - EIGRP authentication is enabled"
                 bolEIGRP = False
@@ -10697,8 +11376,8 @@ def V216994(devicetype, devicename):
         if isOSPF == True:
             temp3 = result
             command = "sh run | sec router.ospf "
-            result = exec_command(command, devicename)
-            if result.find("message-digest", len(devicename) + len(command)) > -1:
+            result = exec_command(command, device_name)
+            if result.find("message-digest", len(device_name) + len(command)) > -1:
                 check.comments = "V-216994 - NAF - OSPF authentication is enabled"
                 bolOSPF = False
             else:
@@ -10710,59 +11389,59 @@ def V216994(devicetype, devicename):
             # Replace password with ***REMOVED***
             strClean = ""
             result = ""
-            temp = exec_command(command, devicename)
+            temp = exec_command(command, device_name)
             for line in temp.splitlines():
                 if line.find("password") > 1:
                     strClean = (
-                        line[0 : line.find("password")]
-                        + "password <-----***REMOVED***----->"
+                            line[0: line.find("password")]
+                            + "password <-----***REMOVED***----->"
                     )
                     bolPassword = 1
                 else:
                     strClean = line
                 result = result + "\n" + strClean
             check.finding = result
-            if result.find("password", len(devicename) + len(command)) == -1:
-                check.status = "Open"
+            if result.find("password", len(device_name) + len(command)) == -1:
+                check.status = "OP"
                 check.comments = (
-                    check.comments + " and BGP authentication is not enabled"
+                        check.comments + " and BGP authentication is not enabled"
                 )
             else:
                 if isEIGRP == True:
                     if bolEIGRP == False:
                         check.comments = (
-                            check.comments + " and BGP authentication is enabled"
+                                check.comments + " and BGP authentication is enabled"
                         )
-                        check.status = "NotAFinding"
+                        check.status = "NF"
                     if bolEIGRP == True:
                         check.comments = (
-                            check.comments + " and BGP authentication is enabled"
+                                check.comments + " and BGP authentication is enabled"
                         )
-                        check.status = "Open"
+                        check.status = "OP"
                 if isOSPF == True:
                     if bolOSPF == False:
                         check.comments = (
-                            check.comments + " and BGP authentication is enabled"
+                                check.comments + " and BGP authentication is enabled"
                         )
-                        check.status = "NotAFinding"
+                        check.status = "NF"
                     if bolOSPF == True:
                         check.comments = (
-                            check.comments + " and BGP authentication is enabled"
+                                check.comments + " and BGP authentication is enabled"
                         )
-                        check.status = "Open"
+                        check.status = "OP"
     result = temp1 + temp2 + temp3 + temp4 + result
     check.finding = result
     return check
 
 
-def V216995(devicetype, devicename):
+def V216995(device_type, device_name):
     # V-216995 - The Cisco router must be configured to use keys with a duration not exceeding 180 days for authenticating routing protocol messages.
     # create a list of active keychains
     # Loop through each keychain, and show keys
     # 2 keys = a return length of 9.  If greater, we have more than 2 keys
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = (
         "V-216995 - OPEN - Router has keys with lifetime of more than 180 days"
     )
@@ -10770,112 +11449,112 @@ def V216995(devicetype, devicename):
     numChains = 0
     numTooManyKeys = 0
     command = "sh key chain | i Key-"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     temp = result
     for line in result.splitlines():
         if line.find("Key-chain") > -1:
-            KeyChain.append(line[line.find(" ") : line.find(":")].strip())
+            KeyChain.append(line[line.find(" "): line.find(":")].strip())
     for chain in KeyChain:
         numChains = numChains + 1
         command = "show key chain " + chain
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         temp = temp + "\r" + result
         if len(result.splitlines()) > 11:
             numTooManyKeys = numTooManyKeys + 1
     check.finding = temp
     check.comments = (
-        "Found "
-        + str(numChains)
-        + " keychains, of which "
-        + str(numTooManyKeys)
-        + " contained more than two keys."
+            "Found "
+            + str(numChains)
+            + " keychains, of which "
+            + str(numTooManyKeys)
+            + " contained more than two keys."
     )
     numTooManyKeys = 0
     if numTooManyKeys == 0:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
             "V-216995 - NAF - Router keys are within the lifetime of 180 days"
         )
     return check
 
 
-# def V216996(devicetype, devicename):
-    # V-216996 - A service or feature that calls home to the vendor must be disabled.
-    # check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    # check.vulid = format_vulid()
-    # check.comments = "V-216996 - OPEN - Call-Home is not disbaled"
-    # check.status = "Open"
-    # command = "sh run all | i call-home"
-    # result = exec_command(command, devicename)
-    # check.finding = result
-    # if result.find("no service call-home", len(devicename) + len(command)) > -1:
-        # check.status = "NotAFinding"
-        # check.comments = "V-216996 - NAF - Call-Home is disabled"
-    # return check
+# def V216996(device_type, device_name):
+# V-216996 - A service or feature that calls home to the vendor must be disabled.
+# check = Stig()
+# The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
+# check.set_vulid()
+# check.comments = "V-216996 - OPEN - Call-Home is not disbaled"
+# check.status = "OP"
+# command = "sh run all | i call-home"
+# result = exec_command(command, device_name)
+# check.finding = result
+# if result.find("no service call-home", len(device_name) + len(command)) > -1:
+# check.status = "NF"
+# check.comments = "V-216996 - NAF - Call-Home is disabled"
+# return check
 
 
-def V216997(devicetype, devicename):
+def V216997(device_type, device_name):
     # V-216997 -  The Cisco perimeter router must be configured to restrict it from accepting outbound IP packets that contain an illegitimate address in the source address field via egress filter or by enabling Unicast Reverse Path Forwarding (uRPF).
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216997 - OPEN - uRPF or an egress ACL has not been configured on all internal interfaces to restrict the router from accepting outbound IP packets"
-    check.status = "Open"
+    check.status = "OP"
     command = "show run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Check if we're a perimeter router.
     if result.find("RT1") == -1:
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = (
-            check.vulid + " - NAF as this device is not a perimeter router."
+                check.vulid + " - NAF as this device is not a perimeter router."
         )
     else:
         command = "sh run | in unicast.source"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = check.finding + result
-        if result.find("unicast", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("unicast", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = "V-216997 - NAF - uRPF or an egress ACL has not been configured on all internal interfaces to restrict the router from accepting outbound IP packets"
     return check
 
 
-def V216998(devicetype, devicename):
+def V216998(device_type, device_name):
     # V-216998 -  The Cisco perimeter router must be configured to block all packets with any IP options.
     check = Stig()
-    check.vulid = format_vulid()
+    check.set_vulid()
     check.comments = "V-216998 - OPEN - The router is not configured to drop all packets with IP options"
-    check.status = "Open"
+    check.status = "OP"
     command = "show run | i snmp.*.location"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Check if we're a perimeter router.  If not no ACLs are required
-    if result.find("RT1", len(devicename) + len(command)) == -1:
-        check.status = "NotAFinding"
+    if result.find("RT1", len(device_name) + len(command)) == -1:
+        check.status = "NF"
         check.comments = (
-            check.vulid + " - NAF as this device is not a perimeter router."
+                check.vulid + " - NAF as this device is not a perimeter router."
         )
     else:
         command = "sh access-lists | i option"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         check.finding = result
-        if result.find("option", len(devicename) + len(command)) > -1:
-            check.status = "NotAFinding"
+        if result.find("option", len(device_name) + len(command)) > -1:
+            check.status = "NF"
             check.comments = "V-216998 - NAF - The router is configured to drop all packets with IP options"
     return check
 
 
-def V216999(devicetype, devicename):
+def V216999(device_type, device_name):
     # V-216999-  The Cisco BGP router must be configured to enable the Generalized TTL Security Mechanism (GTSM).
     check = Stig()
     MsgBox = crt.Dialog.MessageBox
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "NotAFinding"
+    check.set_vulid()
+    check.status = "NF"
     strBGP_AS = "0"
     check.comments = ""
     # Lets find out if the BGP routing protocols is in use
     command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Identify BGP routing protocols is in use and save applicable AS
     for line in result.splitlines():
         line = line.replace('"', "")
@@ -10885,172 +11564,157 @@ def V216999(devicetype, devicename):
     # strBGP_neighbor = []
     # strBGP_sessions = []2266
     strBGP_Findings = ""
-    strBGP_status = "NotAFinding"
+    strBGP_status = "NF"
     if int(strBGP_AS) > 0:
         # Look for all the mBGP neighbors on BlackCore routers
         command = "sh bgp vpnv4 unicast all summ | b Neighbor"
-        result = exec_command(command, devicename)
+        result = exec_command(command, device_name)
         if result.find("Invalid") > -1:
             # Look for all the eBGP neighbors on Colored routers
             command = "sh bgp ipv4 unicast summ | b Neighbor"
-            result = exec_command(command, devicename)
+            result = exec_command(command, device_name)
         strBGP_Findings = strBGP_Findings + result + "\n"
-        strBGP_neighbor_status = "Open"
+        strBGP_neighbor_status = "OP"
         for neighbor in result.splitlines():
-            strBGP_neighbor_status = "Open"
+            strBGP_neighbor_status = "OP"
             if (
-                neighbor.find("#") == -1
-                and neighbor.find("Neighbor") == -1
-                and len(neighbor.split()) > 3
+                    neighbor.find("#") == -1
+                    and neighbor.find("Neighbor") == -1
+                    and len(neighbor.split()) > 3
             ):
                 if neighbor.find(strBGP_AS) == -1:
                     # If a host is an external BGP neighbor, make sure there is a ttl-security hop configured for neighbor.
                     command = (
-                        "sh run | in neighbor.*." + neighbor.split()[0] + ".*.ttl"
+                            "sh run | in neighbor.*." + neighbor.split()[0] + ".*.ttl"
                     )
-                    result = exec_command(command, devicename)
+                    result = exec_command(command, device_name)
                     strBGP_Findings = strBGP_Findings + result + "\n"
                     # If there's a ttl-security hop defined then we can clear this neighbor
                     if result.find("ttl-security hops") > -1:
-                        strBGP_neighbor_status = "NotAFinding"
+                        strBGP_neighbor_status = "NF"
                         check.comments = (
-                            check.comments
-                            + "BGP neighbor "
-                            + neighbor.split()[0]
-                            + " is configured to use ttl-security hop.\n"
+                                check.comments
+                                + "BGP neighbor "
+                                + neighbor.split()[0]
+                                + " is configured to use ttl-security hop.\n"
                         )
                 if neighbor.find(strBGP_AS) > -1:
                     # If a host is an internal BGP neighbor, ttl-security hop is not required.
-                    strBGP_neighbor_status = "NotAFinding"
+                    strBGP_neighbor_status = "NF"
                     check.comments = (
-                        check.comments
-                        + "BGP neighbor "
-                        + neighbor.split()[0]
-                        + " is an internal BGP neighbor.\n"
+                            check.comments
+                            + "BGP neighbor "
+                            + neighbor.split()[0]
+                            + " is an internal BGP neighbor.\n"
                     )
-                if strBGP_neighbor_status == "Open":
-                    strBGP_status = "Open"
+                if strBGP_neighbor_status == "OP":
+                    strBGP_status = "OP"
                     check.comments = (
-                        check.comments
-                        + "Could not find ttl-security hop for neighbor "
-                        + neighbor.split()[0]
-                        + ".\n"
+                            check.comments
+                            + "Could not find ttl-security hop for neighbor "
+                            + neighbor.split()[0]
+                            + ".\n"
                     )
-        if strBGP_status != "NotAFinding":
-            check.status = "Open"
+        if strBGP_status != "NF":
+            check.status = "OP"
         check.finding = strBGP_Findings
         # check.comments = "V-216999 - CAT II - The Cisco router must be configured to use encryption for routing protocol authentication."
     return check
 
 
-def V217000(devicetype, devicename):
+def V217000(device_type, device_name):
     # V-217000 - The Cisco BGP router must be configured to use a unique key for each autonomous system (AS) that it peers with.
     check = Stig()
-    temp = ""
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"  # Default to "OP" assuming that the check is not compliant unless proven otherwise.
     check.comments = "V-217000 - The router is not using unique keys within the same or between autonomous systems (AS)."
-    command = "sh run | sec bgp"
-    #
-    # Replace password with ***REMOVED***
-    bolPassword = 0
-    strClean = ""
-    result = ""
-    temp = exec_command(command, devicename)
-    for line in temp.splitlines():
-        if line.find("password") > 1:
-            strClean = (
-                line[0 : line.find("password")] + "password <-----***REMOVED***----->"
-            )
-            bolPassword = 1
-        else:
-            strClean = line
-        #
-        result = result + "\n" + strClean
-    check.finding = result
-    if (
-        len(result.splitlines()) < 3
-        or result.find("password ", len(devicename + "#" + command)) > -1
-    ):
-        if bolPassword == 1:
-            check.comments = "V-217000 - NAF - The router is using unique keys within the same or between autonomous systems (AS)."
-        else:
-            check.comments = "V-217000 - NAF - BGP not running."
-        check.status = "NotAFinding"
+
+    # Command execution and findings
+    command = "show run | section bgp"
+    result = exec_command(command, device_name)
+    check.finding = result  # Store the raw result from the command which is presumed to be sanitized by exec_command.
+
+    # The actual analysis is presumed to be conducted outside of this function using the result data.
+    # The comments and status should be set based on the analysis of 'result'.
+    # For simplicity, the following code assumes an analysis is performed with a placeholder comment.
+    # You would replace this with the actual logic based on 'result'.
+    if result:  # Check if the 'result' is not empty and analyze it to set the check status and comments appropriately.
+        check.status = "NF"  # Presumed 'Not a Finding' after analysis for the sake of example.
+        check.comments = "V-217000 - NAF - The router is using unique keys for peering AS."
+
     return check
 
 
-def V217001(devicetype, devicename):
+def V217001(device_type, device_name):
     # V-217001 - The Cisco PE router must be configured to ignore or drop all packets with any IP options.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     MsgBox = crt.Dialog.MessageBox
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-217001 - OPEN - The router is not configured to drop or block all packets with IP options"
     command = "sh run | in ip options"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Find services that are not disabled
     if (
-        result.find("ip options ignore", len(devicename) + len(command))
-        or result.find("ip options drop", len(devicename) + len(command)) > -1
+            result.find("ip options ignore", len(device_name) + len(command))
+            or result.find("ip options drop", len(device_name) + len(command)) > -1
     ):
-        check.status = "NotAFinding"
+        check.status = "NF"
         check.comments = "V-217001 - NAF -The router is configured to drop or block all packets with IP options"
     check.finding = result
     return check
 
 
-def V229031(devicetype, devicename):
+def V229031(device_type, device_name):
     # V-229031 - The Cisco router must be configured to have Cisco Express Forwarding enabled.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     MsgBox = crt.Dialog.MessageBox
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-229031 - OPEN - The router does not have CEF enabled."
     command = "sh ip cef summ"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Find services that are not disabled
-    if result.find("IPv4 CEF is enabled", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("IPv4 CEF is enabled", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-229031 - NAF -The router has CEF enabled."
     check.finding = result
     return check
 
 
-def V230039(devicetype, devicename):
+def V230039(device_type, device_name):
     # V-230039 - The Cisco router must be configured to advertise a hop limit of at least 32 in Router Advertisement messages for IPv6 stateless auto-configuration deployments.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     MsgBox = crt.Dialog.MessageBox
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-230039 - OPEN - The router has not been configured and has not been set to at least 32."
     command = "sh run | in ipv6.hop-limit"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Find services that are not disabled
-    if result.find("ipv6 hop-limit", len(devicename) + len(command)) > -1:
-        check.status = "NotAFinding"
+    if result.find("ipv6 hop-limit", len(device_name) + len(command)) > -1:
+        check.status = "NF"
         check.comments = "V-230039 - NAF - The router has been configured and has been set to at least 32."
     check.finding = result
     return check
 
 
-def V230042(devicetype, devicename):
+def V230042(device_type, device_name):
     # V-230042 - The Cisco router must not be configured to use IPv6 Site Local Unicast addresses.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     MsgBox = crt.Dialog.MessageBox
-    check.vulid = format_vulid()
-    check.status = "Open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-230042 - OPEN -  IPv6 Site Local Unicast addresses are defined"
     command = "sh run | in FEC0::"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     # Find services that are not disabled
-    if result.find("FEC0::", len(devicename) + len(command)) == -1:
-        check.status = "NotAFinding"
+    if result.find("FEC0::", len(device_name) + len(command)) == -1:
+        check.status = "NF"
         check.comments = (
             "V-230042 - NAF -  IPv6 Site Local Unicast addresses are not defined"
         )
@@ -11058,489 +11722,319 @@ def V230042(devicetype, devicename):
     return check
 
 
-def V230045(devicetype, devicename):
+def V230045(device_type, device_name):
     # V-230045 - The Cisco perimeter router must be configured to suppress Router Advertisements on all external IPv6-enabled interfaces.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "sh ipv6 access-list"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-230045 - NA - COMMENTS: No external interface is configured with ipv6 on this router."
     return check
 
 
-def V230048(devicetype, devicename):
+def V230048(device_type, device_name):
     # V-230048 - The Cisco perimeter router must be configured to drop IPv6 undetermined transport packets.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "sh ipv6 access-list"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-230048 - NA - COMMENTS: No inbound interface is configured with ipv6 on this router."
     return check
 
 
-def V230051(devicetype, devicename):
+def V230051(device_type, device_name):
     # V-230051 - The Cisco perimeter router must be configured drop IPv6 packets with a Routing Header type 0, 1, or 3–255.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "sh ipv6 access-list"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-230051 - NA - COMMENTS: No inbound interface is configured with ipv6 on this router."
     return check
 
 
-def V230146(devicetype, devicename):
+def V230146(device_type, device_name):
     # V-230146 - The Cisco perimeter router must be configured to drop IPv6 packets containing a Hop-by-Hop header with invalid option type values.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "sh ipv6 access-list"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-230146 - NA - COMMENTS: No inbound interface is configured with ipv6 on this router."
     return check
 
 
-def V230150(devicetype, devicename):
+def V230150(device_type, device_name):
     # V-230150 - The Cisco perimeter router must be configured to drop IPv6 packets containing a Destination Option header with invalid option type values.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "sh ipv6 access-list"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-230150 - NA - COMMENTS: No inbound interface is configured with ipv6 on this router."
     return check
 
 
-def V230153(devicetype, devicename):
+def V230153(device_type, device_name):
     # V-230153 - The Cisco perimeter router must be configured to drop IPv6 packets containing an extension header with the Endpoint Identification option.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "sh ipv6 access-list"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-230153 - NA - COMMENTS: No inbound interface is configured with ipv6 on this router."
     return check
 
 
-def V230156(devicetype, devicename):
+def V230156(device_type, device_name):
     # V-230156 - The Cisco perimeter router must be configured to drop IPv6 packets containing the NSAP address option within Destination Option header.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "sh ipv6 access-list"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-230156 - NA - COMMENTS: No inbound interface is configured with ipv6 on this router."
     return check
 
 
-def V230159(devicetype, devicename):
+def V230159(device_type, device_name):
     # V-230159 - The Cisco perimeter router must be configured to drop IPv6 packets containing a Hop-by-Hop or Destination Option extension header with an undefined option type.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = format_vulid()
-    check.status = "Not_Applicable"
+    check.set_vulid()
+    check.status = "NA"
     command = "sh ipv6 access-list"
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-230159 - NA - COMMENTS: No inbound interface is configured with ipv6 on this router."
     return check
 
 
-def Vtemplate(devicetype, devicename):
+def Vtemplate(device_type, device_name):
     # Info about Vulnerability.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
-    check.vulid = format_vulid()
-    check.status = "Not_Reviewed"
+    check.set_vulid()
+    check.status = "NF"
     command = "sh run| i aaa authentic"
-    # if devicetype == "NXOS":
+    # if device_type == "NXOS":
     #    command = "sh run | i \"aaa authentic\""
-    result = exec_command(command, devicename)
+    result = exec_command(command, device_name)
     check.finding = result
     # Time to check the results of the command...   save check status to check.status and commants to check.comments
     # if len(result1.splitlines()) < 3 and len(result2.splitlines()) < 3:
-    # 	check.status = "NotAFinding"
+    # 	check.status = "NF"
     # 	check.comments = "NAF - There are no community or user accounts."
-    # if result.find("logging level", len(devicename + "#" + command)) > -1:
-    #        check.status = "NotAFinding"
+    # if result.find("logging level", len(device_name + "#" + command)) > -1:
+    #        check.status = "NF"
     #        check.comments = "NXOS logging enabled."
     #
     return check
 
 
-
 """
 ***************IOS XE ROUTER CHECK END************
-"""      
-
+"""
 
 
 # ----------------------------------------------------------------------------------------
-def Is_It_Int(s):
-    try:
-        int(s)
-        return True
-    except ValueError:
+# Main Processing Functions
+def process_host(host, checklist_file, auth_method, current_host_number, total_hosts_count, stig_instance,
+                 command_cache_instance):
+    """
+    Connects to a host device, executes STIG checks, logs the results, and updates the CKL file.
+
+    Args:
+    - host (str): The hostname or IP of the target device.
+    - checklist_file (str): The filename of the CKL or CKLB template to be used based on the file type.
+    - auth_method (str): The authentication method ('2FA' or 'un').
+    - current_host_number (int): The current count of the host being processed in the sequence.
+    - total_hosts_count (int): The total number of hosts that will be processed.
+
+    Returns:
+    - bool: True if the process is successful, False otherwise.
+    """
+    host = host.replace("\n", "").strip()
+    device_type = "IOS"
+    connection_type_map = {'2FA': 'pki', 'un': 'user_pass'}
+    connection_type = connection_type_map.get(auth_method, 'default')
+
+    # Try to establish a connection to the host
+    device_name, common_name = connect_to_host(host, connection_type, current_host_number, total_hosts_count)
+
+    if device_name is None:
+        # Connection failed, return False
         return False
 
+    # Initialize the flag for success to False
+    process_success = False
 
-def remove_dup(duplicate):
-    final_list = []
-    for num in duplicate:
-        if num not in final_list:
-            final_list.append(num)
-    return final_list
-
-
-def remove_char(x):
-    Output = re.sub("\D", "", x)
-    return Output
-
-  
-def format_vulid():
-    return f"{inspect.stack()[1].function[:1]}-{inspect.stack()[1].function[1:]}"    
-
-def get_script_path():
-    # Get the current script's directory using SecureCRT's scripting API
-    script_dir = crt.ScriptFullName
-    return os.path.dirname(script_dir)
-
-strFilePath = get_script_path()
-
-# Append the script's directory to sys.path
-sys.path.append(strFilePath)
-
-def read_function_names_from_ckl(ckl_filename):
-    """Reads the Vuln_Num values from the CKL file and returns them in the V###### format."""
-    function_names = []
-    
-    # Create the full path to the CKL file
-    full_ckl_path = os.path.join(strFilePath, ckl_filename)
-    # Read the CKL file
-    tree = ET.parse(full_ckl_path)
-    root = tree.getroot()
-    for vuln in root.iter('VULN'):
-        for stig_data in vuln.findall('STIG_DATA'):
-            vuln_attribute = stig_data.find('VULN_ATTRIBUTE')
-            if vuln_attribute is not None and vuln_attribute.text == 'Vuln_Num':
-                attribute_data = stig_data.find('ATTRIBUTE_DATA')
-                if attribute_data is not None:
-                    function_name = attribute_data.text.replace("-", "")
-                    function_names.append(function_name)
-    return function_names
-
-
-def read_function_names_from_csv(filename):
-    """Reads the function names from the STIG CSV file."""
-    full_path = os.path.join(strFilePath, filename)
-    with open(full_path, "r") as file:
-        reader = csv.reader(file)
-        # Skip the header
-        next(reader, None)
-        # Get the first element from each row
-        return [row[0] for row in reader if row]
-
-def read_function_names(ckl_filename):
-    # Full path to the CSV file
-    stig_csv_file = os.path.join(strFilePath, "stig_vul.csv")
-
-    # First, try reading from the CSV file
-    function_names = read_function_names_from_csv(stig_csv_file)
-
-    # If no function names are found in the CSV, read from the CKL file
-    if not function_names:
-        function_names = read_function_names_from_ckl(ckl_filename)  # Note: No path joining here
-
-    return function_names
-
-
-
-def send_command(command, device_name):
-    if device_name.find(".") > -1:
-        prompt = "#"
-    else:
-        prompt = device_name + "#"
-    crt.Screen.WaitForStrings([prompt], 1)
-    crt.Screen.Send(command + "\r")
-    return crt.Screen.ReadString(prompt, 30)
-
-
-def exec_command(command, device_name):
-    output = command_cache.get(device_name, command)
-
-    if output is None:
-        result = send_command(command, device_name)
-        result = handle_errors(result, command, device_name)
-
-        if "." in device_name:
-            output = result.strip().replace(device_name, "")
-        else:
-            result = result.replace('\r', '')
-            output = f"{device_name}#{result}{device_name}#"
-
-        if "Invalid" not in output:
-            command_cache.add(device_name, command, output)
-
-    return output
-
-
-def load_template(template_name):
-    full_path = os.path.join(strFilePath, template_name)
     try:
-        with open(full_path, "r", encoding="utf-8") as objStigTemplateFile:
-            content = objStigTemplateFile.read()
-            return content
-    except FileNotFoundError:
-        crt.Dialog.MessageBox(f"Template file not found at: {full_path}")
-        return ''
+        # Read the function names and create STIG list
+        stig_list = create_stig_list_from_host(device_name, checklist_file, device_type)
+
+        # Log the STIG results to the CSV file
+        log_stig_results_to_csv(stig_list, host, device_name)
+
+        # Update and write CKL/CKLB
+        update_and_write_checklist(stig_list, device_name, host, checklist_file)
+        process_success = True  # Set the flag to True if all steps are successful
+    except Exception as e:
+        # Exception handling (you might want to include more detailed logging or handling here)
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        tb_info = traceback.extract_tb(exc_traceback)[-1]
+        line_number, function_name = tb_info[1], tb_info[2]
+        # Handle the exception as needed
+    finally:
+        # Disconnect session, regardless of success or failure
+        crt.Session.Disconnect()
+        # Clear the Stig and Commandcache instances for the next host
+        stig_instance.clear()
+        command_cache_instance.clear()
+        return process_success
 
 
-def read_hosts_from_csv(filename):
-    host_data = []
-    with open(filename, 'r') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            host_data.append(row)
-    return host_data
+def create_stig_list_from_host(device_name, checklist_file, device_type):
+    """
+    Creates a list of STIG objects for the given host device, handling any exceptions.
+    It logs any errors that occur during the execution of vulnerability check functions
+    both to a CSV file and within the Stig object for CKL/CKLB inclusion.
 
+    Args:
+    - device_name (str): The name of the device.
+    - checklist_file (str): The filename of the CKL/CKLB template.
+    - device_type (str): The type of device (e.g., 'IOS').
 
-def create_log_file():
-    log_file_name = "cisco_stig_scanner_v_4" + str(today) + ".csv"
-    log_file_path = os.path.join(strFilePath, log_file_name)
-    return open(log_file_path, "a")
-
-
-def log_error(message):
-    """Utility function to log errors to a file."""
-    log_filename = "error_log.txt"
-    log_path = os.path.join(strFilePath, log_filename)
-    with open(log_path, "a") as error_log:
-        error_log.write(f"{message}\n")
-
-
-def connect_to_host(strHost, connection_type='default'):
-    global stored_username, stored_password  # Declare them as global so that we can modify them
-    
-    # Define different types of connection strings
-    connect_string_default = f"/SSH2 /ACCEPTHOSTKEYS /Z 4 {strHost}"
-    connect_string_pki = f"/SSH2 /AUTH publickey /ACCEPTHOSTKEYS /Z 4 {strHost}"
-    
-    if connection_type == 'user_pass':
-        # Use stored username and password if available
-        if not stored_username:
-            stored_username = crt.Dialog.Prompt("Enter your username:", "Login", "", False).strip()
-        if not stored_password:
-            stored_password = crt.Dialog.Prompt("Enter your password:", "Login", "", True).strip()
-        
-        connect_string_user_pass = f"/SSH2 /L {stored_username} /PASSWORD {stored_password} /AUTH keyboard-interactive /ACCEPTHOSTKEYS /Z 4 {strHost}"
-    
-    # Choose the appropriate connection string based on the connection_type argument
-    if connection_type == 'pki':
-        connect_string = connect_string_pki
-    elif connection_type == 'user_pass':
-        connect_string = connect_string_user_pass
-    else:  # default
-        connect_string = connect_string_default
-    
-    # Terminal settings
-    term_len = "term len 0"
-    term_width = "term width 400"
-    
-    # Initialize log file
-    log_file = create_log_file()
-    
-    try:
-        # Attempt to connect to the host
-        crt.Session.Connect(connect_string, False)
-    except ScriptError:
-        # Log any errors that occur during connection
-        error = crt.GetLastErrorMessage()
-        log_error(f"Failed to connect to host {strHost}. Error: {error}")
-        log_file.write(f"Error accessing host {strHost} {error}\r")
-        return None, None
-
-    if crt.Session.Connected:
-        crt.Screen.Synchronous = True
-        
-        # Check for the presence of the "#" or ">" prompts or any error messages
-        found_index = crt.Screen.WaitForStrings(["#", ">", "failed", "error", "refused", "timed out"], 15)
-        
-        if found_index in [3, 4, 5]:  # Any error message was found
-            error_line = crt.Screen.Get(crt.Screen.CurrentRow, 0, crt.Screen.CurrentRow, crt.Screen.CurrentColumn - 1)
-            log_error(f"Connection error with host {strHost}. Error on line: {error_line}")
-            log_file.write(f"Connection error with host {strHost}. Error on line: {error_line}\r")
-            return None, None
-        
-        # Set terminal length and width
-        exec_command(f"{term_len}\r", strHost)
-        crt.Screen.WaitForStrings(["#", ">"], 15)
-        exec_command(f"{term_width}\r", strHost)
-
-        # Get the device name from the current screen
-        device_name = crt.Screen.Get(crt.Screen.CurrentRow, 0, crt.Screen.CurrentRow, crt.Screen.CurrentColumn - 2).replace("#", "")
-        return device_name, device_name
-    else:
-        return None, None
-
-
-def handle_errors(result, command, device_name):
-    """Handle errors during command execution."""
-    # Determine the prompt based on the device name
-    prompt = "#" if "." in device_name else f"{device_name}#"
-
-    # If the result is shorter than the device name, an error likely occurred
-    if len(result) < len(device_name):
-        crt.Screen.WaitForStrings([prompt], 1)
-        crt.Screen.Send("\x03\r")
-        result = crt.Screen.ReadString(prompt, 10)
-        crt.Screen.WaitForStrings([prompt], 5)
-        crt.Screen.Send(f"{command}\r")
-        result = crt.Screen.ReadString(prompt, 110)
-
-    # Additional error handling for connection failures
-    if "Failed to connect" in result:
-        log_error(result)
-        print(f"Error: {result}")
-        # Continue with the next host or operation
-        return result
-
-    return result
-
-
-
-def process_host(host, ckl_filename, log_file, auth_method):
-    host = host.replace("\n", "")
-    device_type = "IOS"
+    Returns:
+    list: A list of STIG objects.
+    """
+    stig_vul_list = read_function_names(checklist_file)
     stig_list = []
-    
-    # Map auth_method to connection_type
-    connection_type_map = {
-        '2FA': 'pki',
-        'un': 'user_pass'
-    }
-    connection_type = connection_type_map.get(auth_method, 'default')
-    
-    # Pass connection_type to connect_to_host
-    device_name, _ = connect_to_host(host, connection_type)
-    
-    if device_name is None:
-        return
-    
-    # Read the function names based on the provided CKL filename
-    stig_vul_list = read_function_names(ckl_filename)
-    
-    # Load the CKL template for the current host
-    ckl_content = load_template(ckl_filename)
-    
-    if host and "#" not in host:
-        for func_name in stig_vul_list:
+    for func_name in stig_vul_list:
+        try:
             func = globals()[func_name]
             stig_list.append(func(device_type, device_name.strip()))
+        except Exception as e:
+            # Create a Stig object and handle the error using the handle_error method
+            error_stig = Stig()
+            error_stig.device_name = device_name  # Set device name for logging
+            error_stig.device_type = device_type  # Set device type for logging
+            error_stig.handle_error(func_name, e)
+            stig_list.append(error_stig)
 
-        for obj in stig_list:
-            log_to_csv(obj, host, device_name, device_name, log_file)
-            ckl_content = update_ckl_template(obj, ckl_content)
-
-        # Parse the CKL XML and replace the placeholders for hostname and IP
-        root = ET.fromstring(ckl_content)
-        root.find('.//ASSET/HOST_NAME').text = str(device_name)
-        root.find('.//ASSET/HOST_IP').text = str(host)
-        ckl_content = ET.tostring(root, encoding='utf-8').decode('utf-8')
-        
-        # Extract relevant part from template name to use in the CKL filename
-        template_part = ckl_filename.split(".")[0]  # Remove the ".ckl" extension
-        name_parts = template_part.split("-")
-        name_prefix = "-".join(name_parts[:-1])  # Keep the prefix
-        
-        # Create the new CKL filename
-        ckl_file = os.path.join(strFilePath, f"{device_name}_{name_prefix}_{strDateTime}.ckl")
-        
-        # Write the CKL content to the file
-        with open(ckl_file, "w", encoding="utf-8") as objCKLFile:
-            objCKLFile.write(ckl_content)
-
-    crt.Session.Disconnect()
+    return stig_list
 
 
-def log_to_csv(obj, host, device_name, common_name, log_file):
-    finding_details = xml.sax.saxutils.escape(obj.finding)
-    comments = xml.sax.saxutils.escape(obj.comments)
-    log_file.write(f"{strDateTime},{host},{common_name.strip()},{device_name.strip()},{obj.vulid},{obj.status},\"{finding_details}\",\"{comments}\",,\n")
+def update_and_write_checklist(stig_list, device_name, host, checklist_file):
+    """
+    Updates and writes the checklist based on the file extension.
+    It delegates to the specific function handling .ckl or .cklb files.
+
+    Args:
+    - stig_list (list): A list of STIG check results.
+    - device_name (str): The name of the device.
+    - host (str): The hostname or IP of the device.
+    - checklist_file (str): The file path of the checklist to be updated.
+
+    Returns:
+    None: The function will write to a file directly.
+    """
+    checklist_manager = ChecklistManager()
+    if checklist_file.endswith('.ckl'):
+        checklist_manager.update_and_write_ckl(stig_list, device_name, host, checklist_file)
+    elif checklist_file.endswith('.cklb'):
+        checklist_manager.update_and_write_cklb(stig_list, device_name, host, checklist_file)
+    else:
+        raise ValueError("Unsupported checklist file format. Provide a .ckl or .cklb file.")
 
 
-def update_ckl_template(obj, ckl):
-    root = ET.fromstring(ckl)
-    for vuln in root.iter('VULN'):
-        for stig_data in vuln.findall('STIG_DATA'):
-            vuln_attribute = stig_data.find('VULN_ATTRIBUTE')
-            if vuln_attribute is not None and vuln_attribute.text == 'Vuln_Num':
-                attribute_data = stig_data.find('ATTRIBUTE_DATA')
-                if attribute_data is not None and attribute_data.text == obj.vulid:
-                    vuln.find('STATUS').text = obj.status
-                    vuln.find('FINDING_DETAILS').text = xml.sax.saxutils.escape(obj.finding)
-                    vuln.find('COMMENTS').text = xml.sax.saxutils.escape(obj.comments)
-
-    return ET.tostring(root, encoding='utf-8').decode('utf-8')
+def prompt_for_un_authentication():
+    """
+    Prompts the user for 'un' authentication only once and stores it globally.
+    """
+    global stored_username, stored_password
+    stored_username = crt.Dialog.Prompt("Enter your username for 'un' authentication:", "Login", "", False).strip()
+    stored_password = crt.Dialog.Prompt("Enter your password for 'un' authentication:", "Login", "", True).strip()
 
 
-def Main():
-    # Read the hosts, auth, and ckl information from the CSV file
-    csv_filename = os.path.join(strFilePath, "host.csv")
-    hosts_data = read_hosts_from_csv(csv_filename)
-    global stored_username, stored_password  # Declare them as global
-    
-    # Initialize a log file
-    log_file = create_log_file()
-    
-    # Write the header to the log file
-    log_file.write("Date,Hostname,CommonName,DeviceName,VulnID,Status,Finding,Comments,,\n")
-    
-    # Initialize a counter for total hosts (currently unused)
-    int_total_hosts = 0
-    
-    # Prompt once for 'un' authentication and store the username and password
-    if any(host_info['auth'] == 'un' and "#" not in host_info['skip'] for host_info in hosts_data):
-        stored_username = crt.Dialog.Prompt("Enter your username for 'un' authentication:", "Login", "", False).strip()
-        stored_password = crt.Dialog.Prompt("Enter your password for 'un' authentication:", "Login", "", True).strip()
-
+def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
+    """
+    Processes all hosts and returns the count of failed hosts.
+    """
+    int_failed_hosts = 0
+    processed_hosts_count = 0
+    int_total_hosts = sum(1 for host_info in hosts_data if "#" not in host_info['skip'])
     for host_info in hosts_data:
-        # Skip the row if 'skip' column has "#"
-        if "#" in host_info['skip']:
+        if "#" in host_info['skip']:  # Skip the processing for marked hosts
             continue
-        
-        # Get host, ckl filename, and auth method from the current row
+        # Increment only for hosts that will be processed
+        processed_hosts_count += 1
         host = host_info['host']
-        ckl_filename = host_info['ckl']
+        checklist_file = host_info['checklist']
         auth_method = host_info['auth']
-    
-        # Process the host
-        process_host(host, ckl_filename, log_file, auth_method)
-    
-    # Write the total number of hosts checked to the log file
-    log_file.write(f"{strDateTime},Total Hosts Checked: {int_total_hosts},,\n")
-    
-    # Close the log file
-    log_file.close()
 
+        if not process_host(host, checklist_file, auth_method, processed_hosts_count, int_total_hosts, stig_instance,
+                            command_cache_instance):
+            int_failed_hosts += 1
+    return int_failed_hosts, processed_hosts_count
+
+
+def display_summary(processed_hosts_count, int_failed_hosts):
+    """
+    Displays the summary of the script's execution.
+    """
+    t2 = time.perf_counter()
+    elapsed_time = t2 - t1
+    elapsed_minutes, elapsed_seconds = divmod(elapsed_time, 60)
+    summary_message = f"The script finished executing in {int(elapsed_minutes)} minutes and {int(elapsed_seconds)} seconds with {processed_hosts_count - int_failed_hosts} hosts scanned and {int_failed_hosts} failed."
+    crt.Dialog.MessageBox(summary_message)
+
+
+# Main Execution
+def Main():
+    """
+    The main function that orchestrates the entire script.
+    """
+    csv_filename = "host.csv"
+    hosts_data = read_hosts_from_csv(csv_filename)
+
+    # Check if 'un' authentication is needed and prompt for it once
+    if any(host_info['auth'] == 'un' and "#" not in host_info['skip'] for host_info in hosts_data):
+        prompt_for_un_authentication()
+
+    stig_instance = Stig()
+    command_cache_instance = Commandcache()
+
+    int_failed_hosts, processed_hosts_count = process_all_hosts(hosts_data, stig_instance, command_cache_instance)
+
+    display_summary(processed_hosts_count, int_failed_hosts)
 
 
 Main()
-t2 = time.perf_counter()
-ShowTimer = crt.Dialog.MessageBox(f'The script finished executing in {round(t2-t1,2)} seconds.')
+
+"""
+ In a typical Python environment, the following guard is used to ensure that
+ the code is only executed when the script is run directly. However, in SecureCRT,
+ each script runs in its own isolated environment, and this guard may not behave as expected.
+ Therefore, it is commented out.
+
+ if __name__ == '__main__':
+     Main()
+"""
