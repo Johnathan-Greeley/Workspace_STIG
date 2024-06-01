@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.b
+# Version:4.1.2.c
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
 Creator: Johnathan A. Greeley
@@ -386,19 +386,12 @@ class Commandcache:
 
 
 # Grouping global variables here
-
-# Cache for storing command outputs
-# Is this fine in Global or should it be moved into the Main?
-command_cache = Commandcache()
-
-# Stored username and password for authentication
-# Thinking of moving this into the Main or its own function
-# stored_username = ""
-# stored_password = ""
+# As of 2023-NOV-30 all but one (path import near the the top) have been global
+# variable has been moved into a function.
 
 
 # Thinking about moving this into either the Main function or proccess_host function
-t1 = time.perf_counter()
+# t1 = time.perf_counter()
 
 
 # Helper Functions
@@ -610,13 +603,11 @@ def connect_to_host(strHost, connection_type, current_host_number, total_hosts_c
             return device_name, device_name
         else:
             # Connection failed but no exception was raised
-            error_message = crt.GetLastErrorMessage()
-            log_connection_error(strHost, connection_type, error_message)
+            handle_connection_failure(strHost, connection_type)  # Using handle_connection_failure
             return None, None
     except ScriptError as e:
-        # Handle the failed connection attempt
-        error_message = f"Failed to connect to {strHost} using {connection_type}: {e}"
-        log_connection_error(strHost, connection_type, error_message)
+        # Handle the failed connection attempt using handle_connection_failure
+        handle_connection_failure(strHost, connection_type, f"ScriptError: {e}")
         return None, None
 
 
@@ -12077,6 +12068,10 @@ def Main():
     """
     The main function that orchestrates the entire script.
     """
+    global t1
+    t1 = time.perf_counter()
+    global command_cache
+    command_cache = Commandcache()
     csv_filename = "host.csv"
     hosts_data = read_hosts_from_csv(csv_filename)
 
