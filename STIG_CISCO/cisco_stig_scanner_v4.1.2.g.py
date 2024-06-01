@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.f
+# Version:4.1.2.g
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
 Creator: Johnathan A. Greeley
@@ -5949,44 +5949,41 @@ def V220479(device_type, device_name):
 
 
 def V220480(device_type, device_name):
-    # Initialize the check object and set its default status
     check = Stig()
     check.set_vulid()
     check.status = "OP"
-    strModel = "unknown"
-    strModelVersion = "unknown"
 
     # Execute the command to get the device model
     command = "show inventory | i PID"
     result = exec_command(command, device_name)
 
-    # Extract the model from the result
-    intStart = result.splitlines()[1].find(" ")
-    intEnd = result.splitlines()[1].find(" ", intStart + 1)
-    strModel = str(result.splitlines()[1][intStart:intEnd]).strip()
+    # Use regular expression to find the model
+    match = re.search(r'PID:\s*(N\dK)-', result)
+    strModel = match.group(1) if match else "unknown"
 
-    # Check for N9K model and return early if found
     if "N9K" in strModel:
         check.status = "NA"
         check.comments = "NA: Nexus 9K series switches do not have this capability"
         return check
 
-    # Additional logic for other models (e.g., N5K, N3K)
     if "N5K" in strModel:
         command = "sh run | i login.block"
         result = exec_command(command, device_name)
         check.finding = result
-        check.comments = "V-220480 - OPEN - Cisco switch not configured to enforce the limit of three consecutive invalid logon attempts"
         if "block-for" in result:
             check.status = "NF"
             check.comments = "V-220480 - NAF - Cisco switch configured to enforce the limit of three consecutive invalid logon attempts"
+        else:
+            check.comments = "V-220480 - OPEN - Cisco switch not configured to enforce the limit of three consecutive invalid logon attempts"
 
-    if "N3K" in strModel:
+    elif "N3K" in strModel:
         check.status = "NA"
         check.comments = "NA: Nexus 3K series switches do not have this capability"
 
-    # Update the finding with the result and return the check object
-    check.finding = result
+    else:
+        check.finding = result
+        check.comments = "V-220480 - OPEN - Unable to determine switch model"
+
     return check
 
 
@@ -12081,10 +12078,14 @@ def Main():
     """
     The main function that orchestrates the entire script.
     """
-    global t1
+    global t1, stored_username, stored_password, command_cache
     t1 = time.perf_counter()
-    global command_cache
     command_cache = Commandcache()
+
+    # Initialize credentials with default values
+    stored_username = ""
+    stored_password = ""
+
     csv_filename = "host.csv"
     hosts_data = read_hosts_from_csv(csv_filename)
 
