@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.c
+# Version:4.1.2.d
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
 Creator: Johnathan A. Greeley
@@ -31,35 +31,47 @@ Update as of 2023-NOV-16:
 - Added a function to display a count of hosts in the current connection tab (e.g., 192.168.1.1 (3 of 5)).
 - Consolidated most time-related logic into the 'display_summary' function.
 
-Version: cisco_stig_scanner_v4.1.1 (last update NOV-20-2023)
-Moving checklist & connection logic to classes to support Modularization
-Moved Checklist logic to it own class called ChecklistManager
-    moved the following functions/logic to ChecklistManager:
-    read_function_names_from_cklb
-    read_function_names_from_ckl
-    read_function_names_from_csv
-    load_ckl_template
-    load_cklb_template
-    update_and_write_cklb
-    update_and_write_ckl
-    update_cklb_template
-    update_ckl_template
-Moved Stig status mapping from Stig class to ChecklistManager class as they are used for checklist
-    STATUS_MAP_CKL
-    STATUS_MAP_CKLB
-Updated functions for working with check list to use the new class ChecklistManager
-    updated delgator function:
-    read_function_names_from_checklist
-    read_function_names
-    load_template
-    update_and_write_checklist
-Version: cisco_stig_scanner_v4.1.2 (last update NOV-23-2023)
-    Bug fix: Issue with 2FA hosts having the ‘term len 0’ command sent before the '#' resulting in the user needing to input the command to let the rest of the script run.
-    corrected ‘set_terminal_settings’ to address this issue with the move of ‘crt.Screen.WaitForStrings(["#", ">"], 15)’
-    Bug fix: Issue requiring the user to hit "X" if auth failed before it went to the next host
-    used crt API call to ensure the pop up does not come up when a failed connection happens. ‘crt.Session.ConnectInTab(connect_string, False, True)’
-    NOTE: Logging logic in place but need to fine tune the logs
-    NOTE: Pending move of connection logic into Class
+Version: cisco_stig_scanner_v4.1.1 (last update: 2023-NOV-20)
+- Transitioned checklist classe for modularization.
+- Introduced ChecklistManager class for checklist-related operations.
+- Moved following functions/logic to ChecklistManager:
+    - read_function_names_from_cklb
+    - read_function_names_from_ckl
+    - read_function_names_from_csv
+    - load_ckl_template
+    - load_cklb_template
+    - update_and_write_cklb
+    - update_and_write_ckl
+    - update_cklb_template
+    - update_ckl_template
+- Transferred Stig status mapping from Stig class to ChecklistManager.
+- Updated functions interacting with checklists to utilize ChecklistManager.
+- Updated delegator functions:
+    - read_function_names_from_checklist
+    - read_function_names
+    - load_template
+    - update_and_write_checklist
+
+Version: cisco_stig_scanner_v4.1.2 (last update: 2023-NOV-23)
+- Bug fix: Addressed issue with 'term len 0' command in 2FA hosts.
+- Corrected 'set_terminal_settings' to address premature '#' command issue.
+- Bug fix: Resolved authentication failure handling, preventing unnecessary user input.
+- Utilized crt API to suppress pop-up on failed connections.
+- Note: Logging logic in place but requires fine-tuning.
+
+Version: cisco_stig_scanner_v4.1.2.d (last update: 2023-NOV-30)
+- Updated 'connect_to_host' to use 'handle_connection_failure'.
+- Renamed 'prompt_for_un_authentication' to 'get_credentials'.
+- Shifted 't1', 'command_cache' from global to 'Main'.
+- Moved 'stored_username', 'stored_password' from global to 'get_credentials'.
+- Enabled writing to both CKL & CKLB for a single host by removing the file extension from the template name in the host CSV. To write to both file types for the same host, simply omit the file extension.
+- Updated functions to support dual checklist writing:
+    - 'read_function_names'
+    - 'read_function_names_from_checklist'
+    - 'update_and_write_checklist'
+- Removed 'load_template' (no longer used).
+- Note: Pending relocation of connection logic into a dedicated class.
+
 '''
 
 '''
@@ -193,7 +205,6 @@ class Stig:
         self.comments = ""
 
 
-# Add a way of writing STIG data to a CKL & CKLB file for the same host
 class ChecklistManager:
     # Class-level mapping of short status codes to their full description for ckl/cklb
     STATUS_MAP_CKL = {
@@ -390,10 +401,6 @@ class Commandcache:
 # variable has been moved into a function.
 
 
-# Thinking about moving this into either the Main function or proccess_host function
-# t1 = time.perf_counter()
-
-
 # Helper Functions
 
 
@@ -413,20 +420,28 @@ def remove_char(x):
 
 def read_function_names_from_checklist(checklist_file):
     """
-    Determines the file type of the checklist file and reads function names
-    accordingly, whether it is a .ckl or .cklb file.
+    Reads function names from the checklist file based on its format.
+    Supports .ckl and .cklb formats. If no extension is provided, defaults to .ckl format.
 
     Args:
-    checklist_file: A string with the filename of the checklist.
+    - checklist_file (str): The filename of the checklist.
 
     Returns:
-    A list of function names read from the given checklist file.
+    - list: A list of function names read from the given checklist file.
+
+    Raises:
+    - ValueError: If an unsupported file format is provided.
     """
     checklist_manager = ChecklistManager()
-    if checklist_file.endswith('.ckl'):
+    file_extension = os.path.splitext(checklist_file)[1].lower()
+
+    if file_extension == '.ckl':
         return checklist_manager.read_function_names_from_ckl(checklist_file)
-    elif checklist_file.endswith('.cklb'):
+    elif file_extension == '.cklb':
         return checklist_manager.read_function_names_from_cklb(checklist_file)
+    elif file_extension == '':
+        # Default to CKL format if no extension is provided
+        return checklist_manager.read_function_names_from_ckl(checklist_file + '.ckl')
     else:
         raise ValueError("Unsupported file format. Please provide a .ckl or .cklb file.")
 
@@ -435,6 +450,7 @@ def read_function_names(checklist_file):
     """
     Attempts to read function names from a STIG CSV file. If the CSV file is empty or not present,
     the function then reads from a provided CKL or CKLB checklist file based on its extension.
+    If no extension is provided, defaults to .ckl format.
 
     Args:
     - checklist_file (str): The name of the CKL or CKLB checklist file to read from if CSV is empty.
@@ -442,42 +458,22 @@ def read_function_names(checklist_file):
     Returns:
     - list: A list of function names.
     """
-    # Initialize an empty list for function names
     checklist_manager = ChecklistManager()
     function_names = checklist_manager.read_function_names_from_csv("stig_vul.csv")
+
     if not function_names:
-        if checklist_file.endswith('.ckl'):
-            return checklist_manager.read_function_names_from_ckl(checklist_file)
-        elif checklist_file.endswith('.cklb'):
+        file_extension = os.path.splitext(checklist_file)[1].lower()
+
+        if file_extension == '.ckl' or file_extension == '':
+            # Default to CKL format if no extension is provided
+            checklist_file_with_ext = checklist_file if file_extension else checklist_file + '.ckl'
+            return checklist_manager.read_function_names_from_ckl(checklist_file_with_ext)
+        elif file_extension == '.cklb':
             return checklist_manager.read_function_names_from_cklb(checklist_file)
         else:
-            raise ValueError("Unsupported checklist file format. Provide a .ckl or .cklb file.")
+            raise ValueError("Unsupported checklist file format. Provide a .ckl, .cklb, or no extension for CKL.")
+
     return function_names
-
-
-def load_template(template_name):
-    """
-    Loads a template file from the file system and parses it according to its type.
-    Delegates to the specific Class method based on file extension.
-
-    Args:
-    - template_name (str): The name of the template file.
-
-    Returns:
-    - dict or str: The content of the template file, parsed as a dictionary if JSON (CKLB),
-                    or raw string if XML/CKL.
-
-    Raises:
-    - ValueError: If the template file format is not supported.
-    """
-    checklist_manager = ChecklistManager()
-    file_extension = os.path.splitext(template_name)[1].lower()
-    if file_extension == '.cklb':
-        return checklist_manager.load_cklb_template(template_name)
-    elif file_extension == '.ckl':
-        return checklist_manager.load_ckl_template(template_name)
-    else:
-        raise ValueError(f"Unsupported template file format: {template_name}")
 
 
 def read_hosts_from_csv(filename):
@@ -773,7 +769,6 @@ def handle_errors(result, command, device_name):
     return result
 
 
-# For later use for 'connect_to_host'
 def handle_connection_failure(strHost, connection_type, additional_info=""):
     # SecureCRT specific error handling for authentication failure
     error_message = crt.GetLastErrorMessage()
@@ -11991,12 +11986,10 @@ def create_stig_list_from_host(device_name, checklist_file, device_type):
     return stig_list
 
 
-# Once ChecklistManager class is updated to write SITG data to CKL & CKLB at the same time
-# Will need to add the call to class in this function to support that.
 def update_and_write_checklist(stig_list, device_name, host, checklist_file):
     """
     Updates and writes the checklist based on the file extension.
-    It delegates to the specific function handling .ckl or .cklb files.
+    If no extension is provided, it writes both .ckl and .cklb files.
 
     Args:
     - stig_list (list): A list of STIG check results.
@@ -12008,12 +12001,19 @@ def update_and_write_checklist(stig_list, device_name, host, checklist_file):
     None: The function will write to a file directly.
     """
     checklist_manager = ChecklistManager()
-    if checklist_file.endswith('.ckl'):
+    file_extension = os.path.splitext(checklist_file)[1].lower()
+
+    if file_extension == '.ckl':
         checklist_manager.update_and_write_ckl(stig_list, device_name, host, checklist_file)
-    elif checklist_file.endswith('.cklb'):
+    elif file_extension == '.cklb':
         checklist_manager.update_and_write_cklb(stig_list, device_name, host, checklist_file)
+    elif file_extension == '':
+        # Process both .ckl and .cklb if no specific extension is provided
+        base_filename = os.path.splitext(checklist_file)[0]
+        checklist_manager.update_and_write_ckl(stig_list, device_name, host, base_filename + '.ckl')
+        checklist_manager.update_and_write_cklb(stig_list, device_name, host, base_filename + '.cklb')
     else:
-        raise ValueError("Unsupported checklist file format. Provide a .ckl or .cklb file.")
+        raise ValueError("Unsupported checklist file format. Provide a .ckl, .cklb, or no extension for both.")
 
 
 # noticed an issue with this on if you try to 'x' of the auth it loops and keeps asking.
@@ -12021,7 +12021,7 @@ def update_and_write_checklist(stig_list, device_name, host, checklist_file):
 # Need to add support that allows a user to provide other username/password per device if they mark it
 # in the CSV file, this will help with device that may not be on TACACS or is using another auth source
 # Maybe use getpass here to get the password?
-def prompt_for_un_authentication():
+def get_credentials():
     """
     Prompts the user for 'un' authentication only once and stores it globally.
     """
@@ -12077,7 +12077,7 @@ def Main():
 
     # Check if 'un' authentication is needed and prompt for it once
     if any(host_info['auth'] == 'un' and "#" not in host_info['skip'] for host_info in hosts_data):
-        prompt_for_un_authentication()
+        get_credentials()
 
     stig_instance = Stig()
     command_cache_instance = Commandcache()
