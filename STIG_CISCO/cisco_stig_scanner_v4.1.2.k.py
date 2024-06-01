@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.j
+# Version:4.1.2.k
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
 Creator: Johnathan A. Greeley
@@ -71,7 +71,13 @@ Version: cisco_stig_scanner_v4.1.2.d (last update: 2023-NOV-30)
     - 'update_and_write_checklist'
 - Removed 'load_template' (no longer used).
 - Note: Pending relocation of connection logic into a dedicated class.
-
+Version: cisco_stig_scanner_v4.1.2.k (last update: 2024-MAY-24)
+-updated,V216645,V217000,V220140,215823,215833,215854,220139,215842
+-Removed, 216644,V216651,V216652,V216994,V216995
+-Updated Vuls for IOS XE Switch, IOS XE RTR, NXOS.
+-Updated CKLB/CKL(Emass export) files
+-Note: Pending update of Switch RTR Vuls.
+-Note: Still working on "clean_output" its not cleaning all know yet.
 '''
 
 '''
@@ -797,7 +803,7 @@ def handle_connection_failure(strHost, connection_type, additional_info=""):
 """
 --------------------------------------------------------------------------
 Cisco IOS XE Switch NDM Security Technical Implementation Guide
-Version 2, Release: 6 Benchmark Date: 07 Jun 2023
+Version 2, Release: 9 Benchmark Date: 24 Apr 2024
 --------------------------------------------------------------------------
 """
 
@@ -2232,7 +2238,7 @@ def V220569(device_type, device_name):
 """
 --------------------------------------------------------------------------
 Cisco IOS XE Switch L2S Security Technical Implementation Guide
-Version 2, Release: 4 Benchmark Date: 26 Jul 2023
+Version 2, Release: 5 Benchmark Date: 25 Oct 2023
 --------------------------------------------------------------------------
 """
 
@@ -2255,20 +2261,23 @@ def V220650(device_type, device_name):
     V-220650 - The Cisco switch must authenticate all VLAN Trunk Protocol (VTP) messages with a hash function using the most secured cryptographic algorithm available.
     """
     check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check.set_vulid()
     check.status = "NF"
     check.comments = "V-220650 - Not running VTP."
 
     command = "show vtp status"
     result = exec_command(command, device_name)
-    if "Off" in result[len(device_name) + len(command):]:
+
+    # Check if VTP is off
+    if "VTP Operating Mode                : Off" in result:
         check.status = "NF"
-        check.comments = "V-220650 - Running VTP, but in transparent mode."
+        check.comments = "V-220650 - NAF - VTP configured but mode is off thus no need for a password."
     else:
-        command = "show vtp pass"
-        result += "\r" + exec_command(command, device_name)
-        if "Password" not in result[len(device_name) + len(command):]:
+        command = "show vtp password"
+        vtp_pass_result = exec_command(command, device_name)
+        result += "\r" + vtp_pass_result
+
+        if "Password" not in vtp_pass_result:
             check.status = "OP"
             check.comments = "V-220650 - Open - Participating in VTP, but without a password configured."
         else:
@@ -5256,24 +5265,49 @@ def V237778(device_type, device_name):
 """
 --------------------------------------------------------------------------
 Cisco NX OS Switch L2S Security Technical Implementation Guide
-Version 2, Release: 2 Benchmark Date: 26 Jul 2023
+Version 2, Release: 3 Benchmark Date: 24 Jan 2024
 --------------------------------------------------------------------------
 """
 
 
 def V220674(device_type, device_name):
-    # V-101219 - The Cisco switch must be configured to disable non-essential capabilities.
+    """
+    V-220674 - The Cisco switch must be configured to disable non-essential capabilities.
+    """
     check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check.set_vulid()
-    check.status = "OP"
-    check.comments = "V-220674 - Open as a non-essential features is enabled"
-    command = "show feature | i telnet|dhcp|wccp|nxapi|imp|vtp"
+    check.status = "NF"
+    check.comments = "V-220674 - NAF as no non-essential features are enabled"
+
+    # List of non-essential services (excluding VTP)
+    non_essential_services = [
+        "telnet", "dhcp", "wccp", "nxapi", "imp"
+    ]
+
+    # Execute the command to check the status of features
+    command = "show feature | i " + "|".join(non_essential_services)
     result = exec_command(command, device_name)
-    if result.find("enabled", len(device_name) + len(command)) == -1:
+
+    # Initialize a list to store enabled services
+    enabled_services = []
+
+    # Regex to find enabled services
+    regex_enabled = re.compile(r"\b(enabled)\b")
+
+    # Check if any non-essential features are enabled
+    for line in result.splitlines():
+        if regex_enabled.search(line):
+            enabled_services.append(line.strip())
+
+    # Update status and comments based on the findings
+    if enabled_services:
+        check.status = "OP"
+        check.comments = "V-220674 - CAT I - OPEN - non-essential features enabled:\n" + "\n".join(enabled_services)
+    else:
         check.status = "NF"
         check.comments = "V-220674 - NAF as no non-essential features are enabled"
-    check.finding = result + "\r"
+
+    check.finding = result
     return check
 
 
@@ -5841,7 +5875,7 @@ def V220696(device_type, device_name):
 """
 --------------------------------------------------------------------------
 Cisco NX OS Switch NDM Security Technical Implementation Guide
-Version 2, Release: 5 Benchmark Date: 07 Jun 2023
+Version 2, Release: 8 Benchmark Date: 24 Apr 2024
 --------------------------------------------------------------------------
 """
 
@@ -6582,79 +6616,107 @@ def V220516(device_type, device_name):
 
 
 def V220517(device_type, device_name):
-    # V-220517 - The Cisco router must be running an IOS release that is currently supported by Cisco Systems.
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
+    """
+    V-220517 - The Cisco router must be running an IOS release that is currently supported by Cisco Systems.
+    """
     check = Stig()
     check.set_vulid()
-    check.status = "OP"
-    strModel = "unknown"
-    strModelVersion = "unknown"
+    check.status = "OP"  # Open by default
 
-    command = "show inventory | i PID"
-    result = exec_command(command, device_name)
-
-    intStart = result.splitlines()[1].find(" ")
-    intEnd = result.splitlines()[1].find(" ", intStart + 1)
-    strModel = str(result.splitlines()[1][intStart:intEnd]).strip()
-
+    # Command to get the version and model
     command = "show ver | i System:|system:|NXOS:|Chassis|chassis"
     result = exec_command(command, device_name)
-    if len(result.splitlines()) > 2:
-        if len(result.splitlines()[1]) > 8:
-            strModelVersion = result.splitlines()[1][
-                              result.splitlines()[1].find("version")
-                              + 8: len(result.splitlines()[1])
-                              ]
-    if strModel.find("N9K") > -1:
-        if remove_char(strModelVersion) >= remove_char("70378"):
-            check.status = "NF"
-            check.comments = (
-                    "NAF: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(8).  This device has "
-                    + strModelVersion
-            )
-        else:
-            check.status = "OP"
-            check.comments = (
-                    "OPEN: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(8).  This device has "
-                    + strModelVersion
-            )
-
-    if strModel.find("N5K") > -1:
-        if remove_char(strModelVersion) >= remove_char("73711"):
-            check.status = "NF"
-            check.comments = (
-                    "NAF: As of 1/16/2020 Nexus 5K series switches should have code level 7.3(7)N1(1b).  This device has "
-                    + strModelVersion
-            )
-        else:
-            check.status = "OP"
-            check.comments = (
-                    "OPEN: As of 1/16/2020 Nexus 5K series switches should have code level 7.3(7)N1(1b).  This device has "
-                    + strModelVersion
-            )
-
-    if strModel.find("N3K") > -1:
-        if remove_char(strModelVersion) >= remove_char("70378"):
-            check.status = "NF"
-            check.comments = (
-                    "NAF: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(8).  This device has "
-                    + strModelVersion
-            )
-        else:
-            check.status = "OP"
-            check.comments = (
-                    "OPEN: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(8).  This device has "
-                    + strModelVersion
-            )
-
     check.finding = result
+
+    # Skip the command line and process the actual output lines
+    output_lines = result.splitlines()[1:]
+
+    # Use regex to find model and version
+    version_str = None
+    model_str = None
+
+    debug_info = []
+
+    for line in output_lines:
+        debug_info.append(f"Processing line: {line}")
+        if not version_str:
+            version_match = re.search(r'NXOS:\s+version\s+([^\s]+)|system:\s+version\s+([^\s]+)', line, re.IGNORECASE)
+            if version_match:
+                version_str = version_match.group(1) or version_match.group(2)
+                debug_info.append(f"Found version: {version_str}")
+        if not model_str:
+            model_match = re.search(r'cisco\s+Nexus\s*(\d{4})', line, re.IGNORECASE)
+            if model_match:
+                model_str = model_match.group(1).upper()
+                debug_info.append(f"Found model: {model_str}")
+        if version_str and model_str:
+            break
+
+    if not model_str or not version_str:
+        check.comments = "Unable to determine the model or version from the output. Debug info:\n" + "\n".join(
+            debug_info)
+        return check
+
+    # Map models to known series
+    if model_str.startswith("9"):
+        model_str = "N9K"
+    elif model_str.startswith("5"):
+        model_str = "N5K"
+    elif model_str.startswith("3"):
+        model_str = "N3K"
+
+    # Define the checks for model and version
+    checks = [
+        {"model_str": "N9K", "version": "9.3(12)", "device": "Nexus 9K"},
+        {"model_str": "N5K", "version": "7.3(7)N1(1b)", "device": "Nexus 5K"},
+        {"model_str": "N3K", "version": "7.0(3)I7(8)", "device": "Nexus 3K"},
+    ]
+
+    # Iterate through the checks and determine the status
+    for check_item in checks:
+        if check_item["model_str"] == model_str:
+            if version.parse(version_str) >= version.parse(check_item["version"]):
+                check.status = "NF"
+                check.comments = (
+                        f"NAF: As of 07/30/2023 {check_item['device']} devices should have code level {check_item['version']}. This device has "
+                        + version_str
+                )
+            else:
+                check.status = "OP"
+                check.comments = (
+                        f"OPEN: As of 07/30/2023 {check_item['device']} devices should have code level {check_item['version']}. This device has "
+                        + version_str
+                )
+            break
+        else:
+            debug_info.append(f"Model {model_str} did not match {check_item['model_str']}")
+
+    if check.status == "OP":
+        check.comments += "\nDebug info:\n" + "\n".join(debug_info)
+
+    return check
+
+
+def V260464(devicetype, devicename):
+    # V-260464 - The router must have control plane protection enabled.
+    check = Stig()
+    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
+    check.vulid = "V-260464"
+    check.status = "open"
+    check.comments = "V-260464 - Cisco switch is not configured with a control plane policy."
+    strCommand = "sh run all | sec service-policy.input"
+    strResult = ExecCommand(strCommand, devicename)
+    check.finding = strResult
+    if strResult.find("copp") > -1:
+        check.comments = "V-260464 - NAF - Cisco switch is configured with a control plane policy."
+        check.status = "not_a_finding"
     return check
 
 
 """
 --------------------------------------------------------------------------
 Cisco IOS XE Router NDM Security Technical Implementation Guide
-Version 2, Release: 7 Benchmark Date: 07 Jun 2023
+Version 2, Release: 9 Benchmark Date: 24 Jan 2024
 --------------------------------------------------------------------------
 """
 
@@ -6909,8 +6971,6 @@ def V215820(device_type, device_name):
     check.set_vulid()
     check.status = "OP"
     command = "sh run all | i file.privilege"
-    # if device_type == "NXOS":
-    #    command = "sh run | i \"aaa authentic\""
     result = exec_command(command, device_name)
     check.finding = result
     check.comments = "V-215820 - CAT II - Open - non-standard config.  Please note that IOS 15.x does not support the file privilege feature."
@@ -6962,22 +7022,49 @@ def V215823(device_type, device_name):
     # Legacy IDs: V-96239; SV-105377
     # V-215823 - CAT I - The Cisco router must be configured to prohibit the use of all unnecessary and nonsecure functions and services.
     check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check.set_vulid()
-    check.status = "NF"
-    command = "sh run | i boot.server|identd|finger|http|dns|tcp-small"
+    check.status = "NF"  # Not a Finding
+    check.comments = "V-215823 - CAT I - NAF - no unnecessary services configured"
+
+    command = (
+        "sh run | i boot.network|boot.server|bootp|dns|identd|finger|^ip.http|rcmd|service.config|"
+        "small-servers|service.pad|call-home"
+    )
     result = exec_command(command, device_name)
     check.finding = result
-    check.comments = "V-215823 - CAT I - NAF - no unnecessary services configured"
-    if (
-            result.find("boot network", len(device_name) + len(command)) > -1
-            or result.find("ip boot server", len(device_name) + len(command)) > -1
-            or result.find("ip dns server", len(device_name) + len(command)) > -1
-            or result.find("rcp-enable", len(device_name) + len(command)) > -1
-            or result.find("rsh-enable", len(device_name) + len(command)) > -1
-    ):
-        check.status = "OP"
-        check.comments = "V-215823 - CAT I - Open - unecessary services enabled."
+
+    # Ensure we only search the actual command output
+    output_lines = result.splitlines()
+
+    unnecessary_services = [
+        "boot network",
+        "ip boot server",
+        "ip bootp server",
+        "ip dns server",
+        "ip identd",
+        "ip finger",
+        "ip http server",
+        "ip http secure-server",
+        "rcp-enable",
+        "rsh-enable",
+        "service config",
+        "service finger",
+        "small-servers",
+        "service pad",
+        "service call-home"
+    ]
+
+    findings = []
+
+    for line in output_lines:
+        for service in unnecessary_services:
+            if re.fullmatch(service, line.strip()):
+                findings.append(service)
+
+    if findings:
+        check.status = "OP"  # Open
+        check.comments = "V-215823 - CAT I - OPEN - unnecessary services enabled.\n" + "\n".join(findings)
+
     return check
 
 
@@ -7129,36 +7216,47 @@ def V215832(device_type, device_name):
 
 def V215833(device_type, device_name):
     # Legacy IDs: V-96271; SV-105409
-    # V-215833 - CAT I -  The Cisco router must be configured to terminate all network connections associated with device management after 10 minutes of inactivity.
-    # The network element must timeout management connections for administrative access after 10 minutes or less of inactivity.
+    # V-215833 - CAT I - The Cisco router must be configured to terminate all network connections associated with device management after 5 minutes of inactivity.
+    # The network element must timeout management connections for administrative access after 5 minutes or less of inactivity.
     check = Stig()
     check.set_vulid()
-    command = "sh run all | i vty.0.4|exec-t"
-    if device_type == "NXOS":
-        command = "show run | i timeout prev 1"
-    # We're going to start with reverse logic, assume all config lines are good.  We'll look at every on and if it's > 10 min we'll fail this vuln
-    check.status = "NF"
+
+    # Execute the command and store the result
+    command = "show run | s ^line.(vty|con)"
     result = exec_command(command, device_name)
+
+    # Assume all config lines are good. If any line has a timeout > 5 min, set status to "OP"
+    check.status = "NF"
+    skip_next = False
     for line in result.splitlines():
-        # Look for exec-timeout operand in the string, then split the string into individual operands....
-        if str(line).find("exec-timeout", 0) > -1:
-            # we know we have a timeout config line.  split the operands via spaces
-            lstOperands = line.strip().split(" ")
-            # Lets check the second operans, it should hold the current timeout value
-            # MsgBox = crt.Dialog.MessageBox
-            if len(lstOperands) > 2:
-                # MsgBox(str(len(line.strip().split(" "))) + '\r' + (line))
-                strTimeout = lstOperands[1]
-            else:
-                # MsgBox(str(len(line.strip().split(" "))) + '\r' + (line))
-                strTimeout = lstOperands[1]
-            if int(strTimeout) > 10:
+        if "no exec" in line:
+            skip_next = True
+            continue
+        if skip_next and "line vty" in line:
+            skip_next = False
+            continue
+        # Look for session-timeout and exec-timeout operands in the string
+        match_session = re.search(r'session-timeout (\d+)', line)
+        match_exec = re.search(r'exec-timeout (\d+) (\d+)', line)
+        if match_session:
+            timeout_minutes = int(match_session.group(1))
+            if timeout_minutes > 5:
                 check.status = "OP"
+                break
+        if match_exec:
+            timeout_minutes = int(match_exec.group(1))
+            if timeout_minutes > 5:
+                check.status = "OP"
+                break
+
+    # Set comments based on the check status
     if check.status == "NF":
-        check.comments = "Not a finding.  Timeout less than or equal to 10"
+        check.comments = "Not a finding. Timeout less than or equal to 5 minutes."
     else:
-        check.comments = "Open issue - could not find matching configuration."
+        check.comments = "Open issue - found configuration with timeout greater than 5 minutes."
+
     check.finding = result
+
     return check
 
 
@@ -7273,17 +7371,52 @@ def V215841(device_type, device_name):
 def V215842(device_type, device_name):
     # Legacy IDs: V-96319; SV-105457
     # V-215842 - CAT II - The Cisco router must be configured to encrypt SNMP messages using a FIPS 140-2 approved algorithm.
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check = Stig()
     check.set_vulid()
-    check.status = "OP"
-    command = "sh run | i v3|version.3"
+
+    # Command to fetch SNMP users
+    command = "sh snmp user | in ^User|^Privacy"
     result = exec_command(command, device_name)
     check.finding = result
-    check.comments = "V-215842 - NAF - paste output"
-    if result.find("v3", len(device_name) + len(command)) > -1:
-        check.status = "NF"
-        check.comments = "V-215842 - SNMP v3 is in use."
+    line_count = 0
+    comments = []
+
+    # Regex patterns for matching lines
+    user_pattern = re.compile(r'User\s+(\S+)')
+    privacy_pattern = re.compile(r'Privacy\s+(\S+)')
+
+    for line in result.splitlines():
+        if "#" not in line:
+            match = user_pattern.search(line)
+            if match:
+                snmp_user = match.group(1)
+                command = f"sh snmp user {snmp_user} | in Privacy"
+                snmp_result = exec_command(command, device_name)
+                check.finding += snmp_result
+
+                # Check for AES128 or AES256 encryption
+                encrypted = False
+                for snmp_user_line in snmp_result.splitlines():
+                    if "#" not in snmp_user_line:
+                        privacy_match = privacy_pattern.search(snmp_user_line)
+                        if privacy_match:
+                            encryption_type = privacy_match.group(1)
+                            if encryption_type in ["AES128", "AES256"]:
+                                encrypted = True
+                            comments.append(f"{snmp_user} is configured with {encryption_type}.")
+                if not encrypted:
+                    line_count += 1
+
+    if line_count > 0:
+        check.status = "OP"  # Open
+        comments.append(
+            "V-215842 - OPEN - Cisco router is not configured to encrypt SNMP messages using a FIPS 140-2 approved algorithm (AES128 and AES256).")
+    else:
+        check.status = "NF"  # Not a finding
+        comments.append(
+            "V-215842 - NAF - Cisco router is configured to encrypt SNMP messages using a FIPS 140-2 approved algorithm, AES128 and AES256.")
+
+    check.comments = "\n".join(comments)
     return check
 
 
@@ -7419,23 +7552,29 @@ def V215850(device_type, device_name):
 
 def V215854(device_type, device_name):
     # Legacy IDs: V-96351; SV-105489
-    # V-215854 - CAT I - The Cisco router must be configured to use an authentication server for the purpose of authenticating users prior to granting administrative access.
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
+    # V-215854 - CAT I - The Cisco router must be configured to use at least two authentication servers for the purpose of authenticating users prior to granting administrative access.
     check = Stig()
     check.set_vulid()
-    check.status = "OP"
-    command = "sh run | i aaa.group|server-private"
+
+    # Initialize the count of authentication servers
+    auth_server_count = 0
+
+    # Command to fetch the relevant configuration lines
+    command = "sh run | i server-private"
     result = exec_command(command, device_name)
     check.finding = result
-    check.comments = "V-215854 - NAF - paste output"
-    if (
-            result.find("aaa group", len(device_name) + len(command)) > -1
-            and result.find("server-private", len(device_name) + len(command)) > -1
-    ):
-        check.status = "NF"
-        check.comments = (
-            "V-215854 - CAT II - NAF - Authentication server(s) is configured."
-        )
+
+    # Use regex to count the number of 'server-private' entries
+    auth_server_count = len(re.findall(r'^.*server-private.*$', result, re.MULTILINE))
+
+    # Determine the status and comments based on the count of authentication servers
+    if auth_server_count > 1:
+        check.status = "NF"  # Not a finding
+        check.comments = "V-215854 - NAF - Two or more authentication servers are configured."
+    else:
+        check.status = "OP"  # Open
+        check.comments = "V-215854 - OPEN - Two or more authentication servers are not configured."
+
     return check
 
 
@@ -7476,22 +7615,27 @@ def V215856(device_type, device_name):
 
 def V220139(device_type, device_name):
     # Legacy IDs: V-96365; SV-105503
-    # V-220139 - CAT I - The Cisco router must be configured to send log data to a syslog server for the purpose of forwarding alerts to the administrators and the ISSO.
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
+    # V-220139 - CAT I - The Cisco router must be configured to send log data to at least two syslog servers
+    # for the purpose of forwarding alerts to the administrators and the information system security officer (ISSO).
     check = Stig()
     check.set_vulid()
-    check.status = "OP"
-    command = "sh run | i logging.host|logging.trap.no"
+
+    # Command to fetch the relevant configuration lines
+    command = "sh run | i logging.host"
     result = exec_command(command, device_name)
     check.finding = result
-    check.comments = (
-        "V-220139 - NOTE: AS OF 11/1/19 THIS IS A FINDING!!! PLEASE REMEDIATE"
-    )
-    if result.find("logging host", len(device_name) + len(command)) > -1:
-        check.status = "NF"
-        check.comments = (
-            "V-220139 - CAT I - NAF - Remote system logging server(s) in place.."
-        )
+
+    # Count the number of 'logging host' entries using regex
+    log_server_count = len(re.findall(r'^logging host', result, re.MULTILINE))
+
+    # Determine the status and comments based on the count of logging servers
+    if log_server_count >= 2:
+        check.status = "NF"  # Not a finding
+        check.comments = "V-220139 - NAF - At least two logging servers are configured."
+    else:
+        check.status = "OP"  # Open
+        check.comments = "V-220139 - OPEN - At least two logging servers are not configured."
+
     return check
 
 
@@ -7522,16 +7666,16 @@ def V220140(device_type, device_name):
         intEnd = result.splitlines()[1].find("\r", intStart)
         ModelVersion = result.splitlines()[1][intStart:]
         # crt.Dialog.MessageBox("ModelVersion is: " + str(remove_char(ModelVersion)))
-        if remove_char(ModelVersion) >= remove_char("16.12.04"):
+        if remove_char(ModelVersion) >= remove_char("17.09.04a"):
             check.status = "NF"
             check.comments = (
-                    "NAF: As of 9/25/2020 ASR/ISR devices should have code level 16.12.04.  This device has "
+                    "NAF: As of 20-Oct-2023 ASR/ISR devices should have code level 17.09.04a.  This device has "
                     + ModelVersion
             )
         else:
             check.status = "OP"
             check.comments = (
-                    "OPEN: As of 9/25/2020 ASR/ISR devices should have code level 16.12.04.  This device has "
+                    "OPEN: As of 20-Oct-2023 ASR/ISR devices should have code level 17.09.04a.  This device has "
                     + ModelVersion
             )
 
@@ -7634,16 +7778,16 @@ def V220140(device_type, device_name):
             if len(result.splitlines()) > 2:
                 ModelVersion = result.splitlines()[3][32:46]
             if Model.find("3850") > -1 or Model.find("3650") > -1:
-                if remove_char(ModelVersion) >= remove_char("16.12.04"):
+                if remove_char(ModelVersion) >= remove_char("16.12.10a"):
                     check.status = "NF"
                     check.comments = (
-                            "NAF: As of 1/16/2020 Cat 3850 and 3650 series switches should have code level 16.12.04.  This device has "
+                            "NAF: Cat 3850 and 3650 series switches should have code level 16.12.10a.  This device has "
                             + ModelVersion
                     )
                 else:
                     check.status = "OP"
                     check.comments = (
-                            "OPEN: As of 1/16/2020 Cat 3850 and 3650 series switches should have code level 16.12.04.  This device has "
+                            "OPEN: Cat 3850 and 3650 series switches should have code level 16.12.10a.  This device has "
                             + ModelVersion
                     )
             if (
@@ -7674,7 +7818,7 @@ def V220140(device_type, device_name):
 """
 --------------------------------------------------------------------------
 Cisco IOS XE Router RTR Security Technical Implementation Guide
-Version 2, Release: 8 Benchmark Date: 26 Jul 2023
+Version 2, Release: 9 Benchmark Date: 25 Oct 2023
 --------------------------------------------------------------------------
 """
 
@@ -7721,340 +7865,33 @@ def V216641(device_type, device_name):
     return check
 
 
-def V216644(device_type, device_name):
-    # V-216644 - CAT II - The Cisco router must be configured to use encryption for routing protocol authentication..
-    check = Stig()
-    MsgBox = crt.Dialog.MessageBox
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.set_vulid()
-    check.status = "NF"
-    strEIGRP_AS = "0"
-    strOSPF_PID = "0"
-    strISIS_PID = "0"
-    strBGP_AS = "0"
-    check.comments = ""
-    # Lets find out which routing protocols are in use
-    command = "show ip proto | i Routing.Protoc"
-    result = exec_command(command, device_name)
-    # Identify which routing protocols are in use and save applicable AS or PID
-    for line in result.splitlines():
-        line = line.replace('"', "")
-        if line.find("eigrp") > -1:
-            strEIGRP_AS = line.split()[-1]
-        if line.find("ospf") > -1:
-            strOSPF_PID = line.split()[-1]
-        if line.find("bgp") > -1:
-            strBGP_AS = line.split()[-1]
-    # Time to verify all EIGRP neighbors are using authentication
-    strEIGRP_Interfaces = []
-    strEIGRP_Findings = ""
-    strEIGRP_status = "NF"
-    strEIGRP_VRF = ""
-    # crt.Dialog.MessageBox("EIGRP AS is: " + strEIGRP_AS)
-    if strEIGRP_AS == "eigrp":
-        # Identify the VRF for the EIGRP Named Mode address-family
-        command = "sh run | in autonomous-system"
-        result = exec_command(command, device_name)
-        for line in result.splitlines():
-            # crt.Dialog.MessageBox("VRF is: " + line.split()[0])
-            if line.find("vrf") > -1 and line.find("#") == -1:
-                # crt.Dialog.MessageBox("VRF is: " + line.split()[4])
-                strEIGRP_VRF = line.split()[4]
-                command = (
-                        "show ip eigrp vrf " + strEIGRP_VRF + " interfaces | begin Peers"
-                )
-                result = exec_command(command, device_name)
-                strEIGRP_Findings = result
-                # crt.Dialog.MessageBox("Line Count is: " + str(result.splitlines()))
-                # crt.Dialog.MessageBox("Line 3 is: " + str(result.splitlines()[2]))
-                if len(result.splitlines()) >= 4 and result.splitlines()[2] != "":
-                    for line in result.splitlines():
-                        # Output of the command shows all active EIGRP Peer interfaces if any exist.  We're going to extract the interfaces for verification.
-                        if (
-                                line.find("Peers") == -1
-                                and line.find("#") == -1
-                                and line.find("Xmit") == -1
-                                and line.find("EIGRP") == -1
-                        ):
-                            strEIGRP_Interfaces.append(line.split()[0])
-                    for interface in strEIGRP_Interfaces:
-                        command = (
-                                "show ip eigrp vrf "
-                                + strEIGRP_VRF
-                                + " interfaces detail "
-                                + interface
-                                + " | i Authentication"
-                        )
-                        result = exec_command(command, device_name)
-                        strEIGRP_Findings = strEIGRP_Findings + result + "\n"
-                        # Output of the command shows all active EIGRP interfaces and authentication used.
-                        if result.find("md5") == -1 and result.find("sha") == -1:
-                            strEIGRP_status = "OP"
-                            check.comments = (
-                                    check.comments
-                                    + "EIGRP Missing authentication on "
-                                    + interface
-                                    + " in VRF "
-                                    + strEIGRP_VRF
-                                    + ".\n"
-                            )
-                        else:
-                            check.comments = (
-                                    check.comments
-                                    + "EIGRP Authentication found for "
-                                    + interface
-                                    + " in VRF "
-                                    + strEIGRP_VRF
-                                    + ".\n"
-                            )
-                else:
-                    check.comments = (
-                            check.comments
-                            + "There are no EIGRP Peers in VRF "
-                            + strEIGRP_VRF
-                            + ".\n"
-                    )
-    else:
-        if int(strEIGRP_AS) > 0:
-            command = "show ip eigrp interfaces | begin Peers"
-            result = exec_command(command, device_name)
-            strEIGRP_Findings = result
-            for line in result.splitlines():
-                # Output of the command shows all active EIGRP interfaces.  We're going to extract the interfaces for verification.
-                if (
-                        line.find("Peers") == -1
-                        and line.find("#") == -1
-                        and line.find("Xmit") == -1
-                        and line.find("EIGRP") == -1
-                ):
-                    strEIGRP_Interfaces.append(line.split()[0])
-            for interface in strEIGRP_Interfaces:
-                command = "show run int " + interface + " | i authen.*.eigrp"
-                result = exec_command(command, device_name)
-                strEIGRP_Findings = strEIGRP_Findings + result + "\n"
-                if result.find("md5") == -1 and result.find("sha") == -1:
-                    # If MD5 or SHA is not configured on the interface we might be running named mode.  Have to check that now.
-                    command = "show run | sec af-interface.*." + interface[2:]
-                    result = exec_command(command, device_name)
-                    strEIGRP_Findings = strEIGRP_Findings + result + "\n"
-                    if result.find("sha") == -1:
-                        strEIGRP_status = "OP"
-                        check.comments = (
-                                check.comments
-                                + "EIGRP Missing authentication on "
-                                + interface
-                                + ".\n"
-                        )
-                    else:
-                        check.comments = (
-                                check.comments
-                                + "EIGRP authentication found for "
-                                + interface
-                                + ".\n"
-                        )
-
-    # Time to verify all OSPF neighbors are using authentication authentication
-    strOSPF_Interfaces = []
-    strOSPF_Findings = ""
-    strOSPF_status = "NF"
-    if int(strOSPF_PID) > 0:
-        command = "show ip ospf interface | i line.protocol.is.up"
-        result = exec_command(command, device_name)
-        for line in result.splitlines():
-            # Output of the command shows all active EIGRP interfaces.  We're going to extract the interfaces for verification.
-            if line.find("Loopback") == -1 and line.find("#") == -1:
-                strOSPF_Interfaces.append(line.split()[0])
-        for interface in strOSPF_Interfaces:
-            command = "show ip ospf interface " + interface + " | i authen"
-            result = exec_command(command, device_name)
-            strOSPF_Findings = strOSPF_Findings + result + "\n"
-            if result.find("authentication enabled") == -1:
-                # If MD5 or SHA is not configured on the interface this is a finding.
-                strOSPF_status = "OP"
-                check.comments = (
-                        check.comments
-                        + "OSPF Missing authentication on "
-                        + interface
-                        + ".\n"
-                )
-            else:
-                check.comments = (
-                        check.comments
-                        + "OSPF authentication configured on interface "
-                        + interface
-                        + ".\n"
-                )
-
-    # Time to verify all ISIS neighbors are using authentication authentication
-    strISIS_Interfaces = []
-    strISIS_Findings = ""
-    strISIS_status = "NF"
-    if int(strISIS_PID) > 0:
-        command = "show clns neighbors"
-        result = exec_command(command, device_name)
-        for line in result.splitlines():
-            # Output of the command shows all active ISIS Neighbors.  We're going to extract the interfaces for verification.
-            if (
-                    line.find("System") == -1
-                    and line.find("#") == -1
-                    and line.find("Tag") == -1
-                    and line.find("") == -1
-            ):
-                strISIS_Interfaces.append(line.split()[2])
-        for interface in strISIS_Interfaces:
-            command = "show run int " + interface + " | i authen"
-            result = exec_command(command, device_name)
-            strISIS_Findings = strISIS_Findings + result + "\n"
-            if result.find("md5") == -1:
-                # If MD5 or SHA is not configured on the interface this is a finding.
-                strOSPF_status = "OP"
-                check.comments = (
-                        check.comments
-                        + "ISIS Missing authentication on "
-                        + interface
-                        + ".\n"
-                )
-            else:
-                check.comments = (
-                        check.comments
-                        + "ISIS authentication configured on interface "
-                        + interface
-                        + ".\n"
-                )
-
-    # Time to verify all BGP neighbors are using authentication authentication
-    strBGP_Neighbors = []
-    strBGP_sessions = []
-    strBGP_Findings = ""
-    strBGP_status = "NF"
-    if int(strBGP_AS) > 0:
-        # Look at all the peer session templates and save the ones that contain a password
-        command = "show run | i template peer-ses"
-        result = exec_command(command, device_name)
-        strBGP_Findings = strBGP_Findings + result + "\n"
-        for session in result.splitlines():
-            if session.find("peer-session") > -1:
-                command = "show run | sec " + session
-                #
-                # Replace password with ***REMOVED***
-                strClean = ""
-                result = ""
-                temp = exec_command(command, device_name)
-                for line in temp.splitlines():
-                    if line.find("password") > 1:
-                        strClean = (
-                                line[0: line.find("password")]
-                                + "password <-----***REMOVED***----->"
-                        )
-                        bolPassword = 1
-                    else:
-                        strClean = line
-                    result = result + "\n" + strClean
-                #
-                strBGP_Findings = strBGP_Findings + result + "\n"
-                if result.find("password") > -1:
-                    strBGP_sessions.append(session.split()[-1])
-        # Get all the bgp Neighbors
-        command = "show run | i neigh.*.remote|neigh.*.peer-sess"
-        result = exec_command(command, device_name)
-        strBGP_Findings = strBGP_Findings + result + "\n"
-        strBGP_neighbor_status = "OP"
-        for neighbor in result.splitlines():
-            strBGP_neighbor_status = "OP"
-            if neighbor.find("#") == -1:
-                if neighbor.find("remote-as") > -1:
-                    # If a host is not covered by a peer session, make sure there is a password configured for neighbor.
-                    command = (
-                            "show run | i neighbor.*." + neighbor.split()[1] + ".*.password"
-                    )
-                    # Replace password with ***REMOVED***
-                    strClean = ""
-                    result = ""
-                    temp = exec_command(command, device_name)
-                    for line in temp.splitlines():
-                        if line.find("password 7") > 1:
-                            strClean = (
-                                    line[0: line.find("password")]
-                                    + "password <-----***REMOVED***----->"
-                            )
-                            bolPassword = 1
-                        else:
-                            strClean = line
-                        result = result + "\n" + strClean
-                    strBGP_Findings = strBGP_Findings + result + "\n"
-                    # If there's a password defined then we can cler this neighbor
-                    if result.find("password") > -1:
-                        strBGP_neighbor_status = "NF"
-                        check.comments = (
-                                check.comments
-                                + "BGP neighbor "
-                                + neighbor.split()[1]
-                                + " is configured to use a password.\n"
-                        )
-
-                if neighbor.find("inherit peer-session") > -1:
-                    # If a neighbor has a peer session, check if the session has a password configured.
-                    # Loop through the peer sessions that have passwords
-                    for peersession in strBGP_sessions:
-                        if neighbor.split()[-1].find(peersession) > -1:
-                            strBGP_neighbor_status = "NF"
-                            check.comments = (
-                                    check.comments
-                                    + "BGP neighbor "
-                                    + neighbor.split()[1]
-                                    + " uses a password via peer-session "
-                                    + peersession
-                                    + "\n"
-                            )
-                if strBGP_neighbor_status == "OP":
-                    strBGP_status = "OP"
-                    check.comments = (
-                            check.comments
-                            + "Could not match a password for neighbor "
-                            + neighbor.split()[-1]
-                            + ".\n"
-                    )
-
-        if (
-                strBGP_status != "NF"
-                or strOSPF_status != "NF"
-                or strISIS_status != "NF"
-                or strEIGRP_status != "NF"
-        ):
-            check.status = "OP"
-        check.finding = (
-                strEIGRP_Findings + strOSPF_Findings + strISIS_Findings + strBGP_Findings
-        )
-        # check.comments = "V-216644 - CAT II - The Cisco router must be configured to use encryption for routing protocol authentication."
-    return check
-
-
 def V216645(device_type, device_name):
     # V-216645 - The Cisco router must be configured to authenticate all routing protocol messages using NIST-validated FIPS 198-1 message authentication code algorithm.
     check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check.set_vulid()
     check.status = "NF"
-    strEIGRP_AS = "0"
-    strOSPF_PID = "0"
-    strBGP_AS = "0"
     check.comments = ""
+
     # Lets find out which routing protocols are in use
     command = "show ip proto | i Routing.Protoc"
     result = exec_command(command, device_name)
     check.finding = result
+
+    strEIGRP_AS = "0"
+    strOSPF_PID = "0"
+    strBGP_AS = "0"
+
     # Identify which routing protocols are in use and save applicable AS or PID
     for line in result.splitlines():
         line = line.replace('"', "")
-        if line.find("eigrp") > -1:
+        if "eigrp" in line:
             strEIGRP_AS = line.split()[-1]
-        if line.find("ospf") > -1:
+        if "ospf" in line:
             strOSPF_PID = line.split()[-1]
-        if line.find("bgp") > -1:
+        if "bgp" in line:
             strBGP_AS = line.split()[-1]
 
     strOSPF_Interfaces = []
-    strOSPF_Keychains = []
     strOSPF_Findings = ""
     strOSPF_status = "NF"
     if int(strOSPF_PID) > 0:
@@ -8062,117 +7899,153 @@ def V216645(device_type, device_name):
         result = exec_command(command, device_name)
         strOSPF_Findings = result
         for line in result.splitlines():
-            # Output of the command shows all active OSPF interfaces.  We're going to extract the interfaces for verification.
-            if line.find("Loopback") == -1 and line.find("#") == -1:
+            if "Loopback" not in line and "#" not in line:
                 strOSPF_Interfaces.append(line.split()[0])
         for interface in strOSPF_Interfaces:
-            command = "show run interface " + interface + " | i ospf"
+            command = f"show run interface {interface} | i ospf"
             result = exec_command(command, device_name)
-            strOSPF_Findings = strOSPF_Findings + result + "\n"
-            if result.find("key-chain") == -1:
+            strOSPF_Findings += result + "\n"
+            if "key-chain" not in result:
                 strOSPF_status = "OP"
-                if result.find("md5") > -1:
-                    check.comments = (
-                            check.comments
-                            + "OSPF is using the weak MD5 auth hash on "
-                            + interface
-                            + ".\n"
-                    )
+                if "md5" in result:
+                    check.comments += f"OSPF is using the weak MD5 auth hash on {interface}.\n"
                 else:
-                    check.comments = (
-                            check.comments
-                            + "Could not find any authentication on "
-                            + interface
-                            + ".\n"
-                    )
+                    check.comments += f"Could not find any authentication on {interface}.\n"
             else:
-                check.comments = (
-                        check.comments + "OSPF key chain configured on " + interface + ".\n"
-                )
-                # need to add code here in the future to add the specified key chain that is in use.
-                # Right now we assume that if we have a key chain then OSPF is configured correctly.
+                keychains = re.findall(r'key-chain (\S+)', result)
+                for keychain in keychains:
+                    if "md5" in result:
+                        check.comments += f"OSPF is using the weak MD5 auth hash on {interface}.\n"
+                        strOSPF_status = "OP"
+                    else:
+                        command = f"sh key chain {keychain} | in sha"
+                        strKeyChain = exec_command(command, device_name)
+                        strOSPF_Findings += strKeyChain + "\n"
+                        if len(strKeyChain.splitlines()) > 3:
+                            check.comments += f"OSPF key chain {keychain} is configured to use SHA on {interface}.\n"
 
     strEIGRP_Interfaces = []
     strEIGRP_Findings = ""
     strEIGRP_status = "NF"
     strEIGRP_VRF = ""
-    # crt.Dialog.MessageBox("EIGRP AS is: " + strEIGRP_AS)
     if strEIGRP_AS == "eigrp":
-        # Identify the VRF for the EIGRP Named Mode address-family
         command = "sh run | in autonomous-system"
         result = exec_command(command, device_name)
         for line in result.splitlines():
-            # crt.Dialog.MessageBox("VRF is: " + line.split()[0])
-            if line.find("vrf") > -1 and line.find("#") == -1:
-                # crt.Dialog.MessageBox("VRF is: " + line.split()[4])
+            if "vrf" in line and "#" not in line:
                 strEIGRP_VRF = line.split()[4]
-                command = (
-                        "show ip eigrp vrf " + strEIGRP_VRF + " interfaces | begin Peers"
-                )
+                command = f"show ip eigrp vrf {strEIGRP_VRF} interfaces | begin Peers"
                 result = exec_command(command, device_name)
                 strEIGRP_Findings = result
                 if len(result.splitlines()) >= 4 and result.splitlines()[2] != "":
                     for line in result.splitlines():
-                        # Output of the command shows all active EIGRP interfaces.  We're going to extract the interfaces for verification.
-                        if (
-                                line.find("Peers") == -1
-                                and line.find("#") == -1
-                                and line.find("Xmit") == -1
-                                and line.find("EIGRP") == -1
-                        ):
+                        if all(x not in line for x in ["Peers", "#", "Xmit", "EIGRP"]):
                             strEIGRP_Interfaces.append(line.split()[0])
                     for interface in strEIGRP_Interfaces:
-                        command = (
-                                "show ip eigrp vrf "
-                                + strEIGRP_VRF
-                                + " interfaces detail "
-                                + interface
-                                + " | i Authentication"
-                        )
+                        command = f"show ip eigrp vrf {strEIGRP_VRF} interfaces detail {interface} | i Authentication"
                         result = exec_command(command, device_name)
-                        strEIGRP_Findings = strEIGRP_Findings + result + "\n"
-                        # Output of the command shows all active EIGRP interfaces and authentication used.
-                        if result.find("sha") == -1:
+                        strEIGRP_Findings += result + "\n"
+                        if "sha" not in result:
                             strEIGRP_status = "OP"
-                            check.comments = (
-                                    check.comments
-                                    + "EIGRP does not appear to be using FIPS 198-1 compliant authentication within VRF "
-                                    + strEIGRP_VRF
-                                    + ".\n"
-                            )
+                            check.comments += f"EIGRP does not appear to be using FIPS 198-1 compliant authentication within VRF {strEIGRP_VRF}.\n"
                         else:
-                            check.comments = (
-                                    check.comments
-                                    + "EIGRP appears to be using hmac-sha-256 for authentication within VRF "
-                                    + strEIGRP_VRF
-                                    + ".\n"
-                            )
+                            check.comments += f"EIGRP appears to be using hmac-sha-256 for authentication within VRF {strEIGRP_VRF}.\n"
                 else:
-                    check.comments = (
-                            check.comments
-                            + "There are no EIGRP Peers in VRF "
-                            + strEIGRP_VRF
-                            + ".\n"
-                    )
+                    check.comments += f"There are no EIGRP Peers in VRF {strEIGRP_VRF}.\n"
     else:
         if int(strEIGRP_AS) > 0:
             command = "show run | i authentication mode hmac"
             result = exec_command(command, device_name)
             strEIGRP_Findings = result
-            if result.find("sha", len(device_name) + len(command)) == -1:
-                check.comments = (
-                        check.comments
-                        + "EIGRP does not appear to be using FIPS 198-1 compliant authentication.\n"
-                )
+            if "sha" not in result:
+                check.comments += "EIGRP does not appear to be using FIPS 198-1 compliant authentication.\n"
                 strEIGRP_status = "OP"
             else:
-                check.comments = (
-                        check.comments
-                        + "EIGRP appears to be using hmac-sha-256 for authentication."
-                )
-    if strOSPF_status != "NF" or strEIGRP_status != "NF":
+                check.comments += "EIGRP appears to be using hmac-sha-256 for authentication.\n"
+
+    strBGP_Findings = ""
+    strBGP_status = "NF"
+    command = "sh bgp ipv4 unicast summ | b Neighbor"
+    result = exec_command(command, device_name)
+    strBGP_Findings = result + "\n"
+    if len(result.splitlines()) >= 3:
+        for neighbor in result.splitlines():
+            if "#" not in neighbor and "Neighbor" not in neighbor and len(neighbor.split()) > 3:
+                neighbor_ip = neighbor.split()[0]
+                command = f"sh run | in ^_neighbor {neighbor_ip} password"
+                strTemp1 = exec_command(command, device_name)
+                if len(strTemp1.splitlines()) >= 3:
+                    check.comments += f"Neighbor {neighbor_ip} is not using FIPS 198-1 algorithms\n"
+                    strBGP_status = "OP"
+                else:
+                    command = f"sh run | in {neighbor_ip}.*.peer-session"
+                    strTemp2 = exec_command(command, device_name)
+                    if len(strTemp2.splitlines()) >= 3:
+                        for peerSession in strTemp2.splitlines():
+                            if "#" not in peerSession:
+                                command = f"sh run | sec template.*.{peerSession.split()[4]}"
+                                strTemp3 = exec_command(command, device_name)
+                                if "password" in strTemp3:
+                                    check.comments += f"Neighbor {neighbor_ip} in peer-session {peerSession.split()[4]} is not using FIPS 198-1 algorithms\n"
+                                    strBGP_status = "OP"
+                                elif "ao" in strTemp3:
+                                    check.comments += f"Neighbor {neighbor_ip} in peer-session {peerSession.split()[4]} is using FIPS 198-1 algorithms\n"
+                    else:
+                        command = f"sh run | in {neighbor_ip}.peer-group"
+                        strTemp3 = exec_command(command, device_name)
+                        if len(strTemp3.splitlines()) >= 3:
+                            for peerGroup in strTemp3.splitlines():
+                                if "#" not in peerGroup:
+                                    command = f"sh run | in {peerGroup.split()[3]}.password"
+                                    strTemp4 = exec_command(command, device_name)
+                                    if "password" in strTemp4:
+                                        check.comments += f"Neighbor {neighbor_ip} in peer-group {peerGroup.split()[3]} is not using FIPS 198-1 algorithms\n"
+                                        strBGP_status = "OP"
+                        else:
+                            check.comments += f"Neighbor {neighbor_ip} is not using FIPS 198-1 algorithms\n"
+
+    command = "sh bgp vpnv4 unicast all summ | b Neighbor"
+    result = exec_command(command, device_name)
+    strBGP_Findings += result + "\n"
+    if len(result.splitlines()) >= 3:
+        for neighbor in result.splitlines():
+            if "#" not in neighbor and "Neighbor" not in neighbor and len(neighbor.split()) > 3:
+                neighbor_ip = neighbor.split()[0]
+                command = f"sh run | in ^_neighbor {neighbor_ip} password"
+                strTemp1 = exec_command(command, device_name)
+                if len(strTemp1.splitlines()) >= 3:
+                    check.comments += f"Neighbor {neighbor_ip} is not using FIPS 198-1 algorithms\n"
+                    strBGP_status = "OP"
+                else:
+                    command = f"sh run | in ^_ neighbor {neighbor_ip} password"
+                    strTemp1 = exec_command(command, device_name)
+                    if len(strTemp1.splitlines()) >= 3:
+                        check.comments += f"Neighbor {neighbor_ip} is not using FIPS 198-1 algorithms\n"
+                        strBGP_status = "OP"
+                    else:
+                        command = f"sh run | in {neighbor_ip}.*.peer-session"
+                        strTemp2 = exec_command(command, device_name)
+                        if len(strTemp2.splitlines()) >= 3:
+                            for peerSession in strTemp2.splitlines():
+                                if "#" not in peerSession:
+                                    command = f"sh run | sec template.*.{peerSession.split()[4]}"
+                                    strTemp3 = exec_command(command, device_name)
+                                    if "password" in strTemp3:
+                                        check.comments += f"Neighbor {neighbor_ip} in peer-session {peerSession.split()[4]} is not using FIPS 198-1 algorithms\n"
+                                        strBGP_status = "OP"
+                                    elif "ao" in strTemp3:
+                                        check.comments += f"Neighbor {neighbor_ip} in peer-session {peerSession.split()[4]} is using FIPS 198-1 algorithms\n"
+                                    else:
+                                        check.comments += f"Neighbor {neighbor_ip} is not using FIPS 198-1 algorithms\n"
+                                        strBGP_status = "OP"
+
+    if strOSPF_status != "NF" or strEIGRP_status != "NF" or strBGP_status != "NF":
         check.status = "OP"
-    check.finding = check.finding + strOSPF_Findings + strEIGRP_Findings
+        check.comments += "V-216645 - OPEN - At least one routed interface is not configured with a FIPS 198-1 message authentication code algorithm.\n"
+    else:
+        check.comments += "V-216645 - NAF - All routing interfaces are configured with a FIPS 198-1 message authentication code algorithm.\n"
+
+    check.finding += strOSPF_Findings + strEIGRP_Findings + strBGP_Findings
     return check
 
 
@@ -8189,29 +8062,6 @@ def V216646(device_type, device_name):
     if result.find("down", len(device_name) + len(command)) > -1:
         check.status = "OP"
         check.comments = "V-216646 - OPEN - An interface is not being used but is configured or enabled"
-    return check
-
-    # def V216647(device_type, device_name):
-    # V-216647 - Cisco router must be configured to have all non-essential capabilities disabled
-    check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    MsgBox = crt.Dialog.MessageBox
-    check.set_vulid()
-    check.status = "NF"
-    check.comments = (
-        "The router does not have unnecessary or non-secure services enabled."
-    )
-    command = "sh run all | in boot.network|boot.server|bootp.server|ip.identd|ip.finger|http.server|rcmd.rsh-enable|service.config|service.finger|service.tcp-small-servers|service.udp-small-servers|service.pad"
-    result = exec_command(command, device_name)
-    # Find services that are not disabled
-    for line in result.splitlines():
-        if line.find("#") == -1:
-            if line.find("no") == -1:
-                check.status = "OP"
-                check.comments = (
-                    "The router has unnecessary or non-secure services enabled."
-                )
-    check.finding = result
     return check
 
 
@@ -8245,38 +8095,6 @@ def V216650(device_type, device_name):
     check.finding = result
     if result.find("CoPP") > -1:
         check.comments = "Control plane policing configured."
-        check.status = "NF"
-    return check
-
-
-def V216651(device_type, device_name):
-    # V-216651 - The Cisco router must be configured to restrict traffic destined to itself..
-    check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.set_vulid()
-    check.status = "OP"
-    check.comments = "V-216651 - The Cisco router must be configured to restrict traffic destined to itself.."
-    command = "sh policy-map control-plane | i Class-map"
-    result = exec_command(command, device_name)
-    check.finding = result
-    if result.find("CoPP") > -1:
-        check.comments = "Control plane policing is configured and restricts traffic destined to itself."
-        check.status = "NF"
-    return check
-
-
-def V216652(device_type, device_name):
-    # V-216652 -  The Cisco router must be configured to drop all fragmented Internet Control Message Protocol (ICMP) packets destined to itself.
-    check = Stig()
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.set_vulid()
-    check.status = "OP"
-    check.comments = "V-216652 -  The Cisco router must be configured to drop all fragmented Internet Control Message Protocol (ICMP) packets destined to itself."
-    command = "show ip access-lists | i icmp.any.*.fragments|Exten"
-    result = exec_command(command, device_name)
-    check.finding = result
-    if result.find("fragments", len(device_name) + len(command)) > -1:
-        check.comments = "ACLs in place to drop fragmented icmp traffic."
         check.status = "NF"
     return check
 
@@ -9846,7 +9664,7 @@ def V216696(device_type, device_name):
             else:
                 check.status = "NF"
             check.finding = strBGP_Findings
-            # check.comments = "V-216644 - CAT II - The Cisco router must be configured to use encryption for routing protocol authentication."
+            # check.comments = "V-216696 - CAT II - The Cisco router must be configured to use encryption for routing protocol authentication."
         else:
             check.status = "NF"
             check.comments = check.comments + "There are no iBGP neighbors."
@@ -11386,170 +11204,6 @@ def V216733(device_type, device_name):
     return check
 
 
-def V216994(device_type, device_name):
-    # V-216994 - The Cisco router must be configured to implement message authentication for all control plane protocols.
-    check = Stig()
-    check.set_vulid()
-    check.comments = ""
-    check.status = "OP"
-    bolEIGRP = False
-    bolOSPF = False
-    isEIGRP = False
-    isOSPF = False
-    isBGP = False
-    temp1 = temp2 = temp3 = temp4 = ""
-    command = "sh ip eigrp neighbors"
-    result = exec_command(command, device_name)
-    if len(result.splitlines()) > 3:
-        isEIGRP = True
-    temp1 = result
-    command = "sh ip ospf neighbor"
-    result = exec_command(command, device_name)
-    if len(result.splitlines()) > 3:
-        isOSPF = True
-    command = "sh bgp all summ"
-    result = exec_command(command, device_name)
-    if len(result.splitlines()) > 3:
-        isBGP = True
-    if (isEIGRP == False) and (isOSPF == False) and (isBGP == False):
-        check.status = "NA"
-        check.comments = " Neither EIGRP, OSPF, or BGP is is use.  No control plane protocol configured."
-    else:
-        if isEIGRP == True:
-            temp2 = result
-            command = "sh run | sec router.eigrp"
-            result = exec_command(command, device_name)
-            check.finding = result
-            if (
-                    result.find("authentication mode", len(device_name) + len(command))
-                    > -1
-            ):
-                check.comments = "V-216994 - NAF - EIGRP authentication is enabled"
-                bolEIGRP = False
-            else:
-                check.comments = "V-216994 - OPEN - EIGRP authentication is not enabled"
-                bolEIGRP = True
-        if isOSPF == True:
-            temp3 = result
-            command = "sh run | sec router.ospf "
-            result = exec_command(command, device_name)
-            if result.find("message-digest", len(device_name) + len(command)) > -1:
-                check.comments = "V-216994 - NAF - OSPF authentication is enabled"
-                bolOSPF = False
-            else:
-                check.comments = "V-216994 - OPEN - OSPF authentication is not enabled"
-                bolOSPF = True
-        if isBGP == True:
-            temp4 = result
-            command = "sh run | sec router.bgp"
-            # Replace password with ***REMOVED***
-            strClean = ""
-            result = ""
-            temp = exec_command(command, device_name)
-            for line in temp.splitlines():
-                if line.find("password") > 1:
-                    strClean = (
-                            line[0: line.find("password")]
-                            + "password <-----***REMOVED***----->"
-                    )
-                    bolPassword = 1
-                else:
-                    strClean = line
-                result = result + "\n" + strClean
-            check.finding = result
-            if result.find("password", len(device_name) + len(command)) == -1:
-                check.status = "OP"
-                check.comments = (
-                        check.comments + " and BGP authentication is not enabled"
-                )
-            else:
-                if isEIGRP == True:
-                    if bolEIGRP == False:
-                        check.comments = (
-                                check.comments + " and BGP authentication is enabled"
-                        )
-                        check.status = "NF"
-                    if bolEIGRP == True:
-                        check.comments = (
-                                check.comments + " and BGP authentication is enabled"
-                        )
-                        check.status = "OP"
-                if isOSPF == True:
-                    if bolOSPF == False:
-                        check.comments = (
-                                check.comments + " and BGP authentication is enabled"
-                        )
-                        check.status = "NF"
-                    if bolOSPF == True:
-                        check.comments = (
-                                check.comments + " and BGP authentication is enabled"
-                        )
-                        check.status = "OP"
-    result = temp1 + temp2 + temp3 + temp4 + result
-    check.finding = result
-    return check
-
-
-def V216995(device_type, device_name):
-    # V-216995 - The Cisco router must be configured to use keys with a duration not exceeding 180 days for authenticating routing protocol messages.
-    # create a list of active keychains
-    # Loop through each keychain, and show keys
-    # 2 keys = a return length of 9.  If greater, we have more than 2 keys
-    check = Stig()
-    check.set_vulid()
-    check.status = "OP"
-    check.comments = (
-        "V-216995 - OPEN - Router has keys with lifetime of more than 180 days"
-    )
-    KeyChain = []
-    numChains = 0
-    numTooManyKeys = 0
-    command = "sh key chain | i Key-"
-    result = exec_command(command, device_name)
-    temp = result
-    for line in result.splitlines():
-        if line.find("Key-chain") > -1:
-            KeyChain.append(line[line.find(" "): line.find(":")].strip())
-    for chain in KeyChain:
-        numChains = numChains + 1
-        command = "show key chain " + chain
-        result = exec_command(command, device_name)
-        temp = temp + "\r" + result
-        if len(result.splitlines()) > 11:
-            numTooManyKeys = numTooManyKeys + 1
-    check.finding = temp
-    check.comments = (
-            "Found "
-            + str(numChains)
-            + " keychains, of which "
-            + str(numTooManyKeys)
-            + " contained more than two keys."
-    )
-    numTooManyKeys = 0
-    if numTooManyKeys == 0:
-        check.status = "NF"
-        check.comments = (
-            "V-216995 - NAF - Router keys are within the lifetime of 180 days"
-        )
-    return check
-
-
-# def V216996(device_type, device_name):
-# V-216996 - A service or feature that calls home to the vendor must be disabled.
-# check = Stig()
-# The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-# check.set_vulid()
-# check.comments = "V-216996 - OPEN - Call-Home is not disbaled"
-# check.status = "OP"
-# command = "sh run all | i call-home"
-# result = exec_command(command, device_name)
-# check.finding = result
-# if result.find("no service call-home", len(device_name) + len(command)) > -1:
-# check.status = "NF"
-# check.comments = "V-216996 - NAF - Call-Home is disabled"
-# return check
-
-
 def V216997(device_type, device_name):
     # V-216997 -  The Cisco perimeter router must be configured to restrict it from accepting outbound IP packets that contain an illegitimate address in the source address field via egress filter or by enabling Unicast Reverse Path Forwarding (uRPF).
     check = Stig()
@@ -11682,21 +11336,108 @@ def V217000(device_type, device_name):
     # V-217000 - The Cisco BGP router must be configured to use a unique key for each autonomous system (AS) that it peers with.
     check = Stig()
     check.set_vulid()
-    check.status = "OP"  # Default to "OP" assuming that the check is not compliant unless proven otherwise.
-    check.comments = "V-217000 - The router is not using unique keys within the same or between autonomous systems (AS)."
+    check.vulid = "V-217000"
+    bolPassword = 0
+    strBGP_Findings = ""
 
-    # Command execution and findings
-    command = "show run | section bgp"
+    # Lets find out if the BGP routing protocols is in use
+    command = "show ip proto | i Routing.Protoc"
     result = exec_command(command, device_name)
-    check.finding = result  # Store the raw result from the command which is presumed to be sanitized by exec_command.
 
-    # The actual analysis is presumed to be conducted outside of this function using the result data.
-    # The comments and status should be set based on the analysis of 'result'.
-    # For simplicity, the following code assumes an analysis is performed with a placeholder comment.
-    # You would replace this with the actual logic based on 'result'.
-    if result:  # Check if the 'result' is not empty and analyze it to set the check status and comments appropriately.
-        check.status = "NF"  # Presumed 'Not a Finding' after analysis for the sake of example.
-        check.comments = "V-217000 - NAF - The router is using unique keys for peering AS."
+    # Identify if BGP routing protocols is in use
+    if "bgp" not in result:
+        check.comments = "V-217000 - NAF - BGP not running."
+        check.status = "NF"
+    else:
+        # Look for BGP IPv4 neighbors first
+        command = "sh bgp ipv4 unicast summ | b Neighbor"
+        result = exec_command(command, device_name)
+        strBGP_Findings += result + "\n"
+
+        if len(result.splitlines()) >= 3:
+            for neighbor in result.splitlines():
+                if "#" not in neighbor and "Neighbor" not in neighbor and len(neighbor.split()) > 3:
+                    neighbor_ip = neighbor.split()[0]
+                    command = f"sh run | in ^_neighbor {neighbor_ip} password"
+                    temp_result = exec_command(command, device_name)
+
+                    if len(temp_result.splitlines()) >= 3:
+                        strBGP_Findings += f"Neighbor {neighbor_ip} is using a unique key\n"
+                    else:
+                        command = f"sh run | in {neighbor_ip}.*.peer-session"
+                        temp_result = exec_command(command, device_name)
+
+                        if len(temp_result.splitlines()) >= 3:
+                            for peerSession in temp_result.splitlines():
+                                if "#" not in peerSession:
+                                    command = f"sh run | sec template.*.{peerSession.split()[4]}"
+                                    temp_result_2 = exec_command(command, device_name)
+
+                                    if "password" in temp_result_2:
+                                        strBGP_Findings += f"Neighbor {neighbor_ip} in peer-session {peerSession.split()[4]} is using a unique key\n"
+                        else:
+                            command = f"sh run | in {neighbor_ip}.peer-group"
+                            temp_result = exec_command(command, device_name)
+
+                            if len(temp_result.splitlines()) >= 3:
+                                for peerGroup in temp_result.splitlines():
+                                    if "#" not in peerGroup:
+                                        command = f"sh run | in {peerGroup.split()[3]}.password"
+                                        temp_result_2 = exec_command(command, device_name)
+
+                                        if "password" in temp_result_2:
+                                            strBGP_Findings += f"Neighbor {neighbor_ip} in peer-group {peerGroup.split()[3]} is using a unique key\n"
+                            else:
+                                bolPassword += 1
+                                strBGP_Findings += f"Neighbor {neighbor_ip} is not using a unique key\n"
+
+        # Look for BGP VPNv4 neighbors
+        command = "sh bgp vpnv4 unicast all summ | b Neighbor"
+        result = exec_command(command, device_name)
+        strBGP_Findings += result + "\n"
+
+        if len(result.splitlines()) >= 3:
+            for neighbor in result.splitlines():
+                if "#" not in neighbor and "Neighbor" not in neighbor and len(neighbor.split()) > 3:
+                    neighbor_ip = neighbor.split()[0]
+
+                    command = f"sh run | in ^_neighbor {neighbor_ip} password"
+                    temp_result = exec_command(command, device_name)
+
+                    if len(temp_result.splitlines()) >= 3:
+                        strBGP_Findings += f"Neighbor {neighbor_ip} is using a unique key\n"
+                    else:
+                        command = f"sh run | in ^_ neighbor {neighbor_ip} password"
+                        temp_result = exec_command(command, device_name)
+
+                        if len(temp_result.splitlines()) >= 3:
+                            strBGP_Findings += f"Neighbor {neighbor_ip} is using a unique key\n"
+                        else:
+                            command = f"sh run | in {neighbor_ip}.*.peer-session"
+                            temp_result = exec_command(command, device_name)
+
+                            if len(temp_result.splitlines()) >= 3:
+                                for peerSession in temp_result.splitlines():
+                                    if "#" not in peerSession:
+                                        command = f"sh run | sec template.*.{peerSession.split()[4]}"
+                                        temp_result_2 = exec_command(command, device_name)
+
+                                        if "password" in temp_result_2:
+                                            strBGP_Findings += f"Neighbor {neighbor_ip} in peer-session {peerSession.split()[4]} is using a unique key\n"
+                                        elif "ao" in temp_result_2:
+                                            strBGP_Findings += f"Neighbor {neighbor_ip} in peer-session {peerSession.split()[4]} is using a unique key\n"
+                                        else:
+                                            bolPassword += 1
+                                            strBGP_Findings += f"Neighbor {neighbor_ip} is not using a unique key\n"
+
+        if bolPassword == 0:
+            check.comments += "V-217000 - NAF - The router is using unique keys within the same or between autonomous systems (AS)."
+            check.status = "NF"
+        else:
+            check.comments += "V-217000 - OPEN - The router is not using unique keys within the same or between autonomous systems (AS)."
+            check.status = "OP"
+
+        check.finding = strBGP_Findings
 
     return check
 
