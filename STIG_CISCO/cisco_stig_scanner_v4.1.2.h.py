@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.g
+# Version:4.1.2.h
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
 Creator: Johnathan A. Greeley
@@ -1261,20 +1261,18 @@ def V220535(device_type, device_name):
     check = Stig()
     check.set_vulid()
     command = "sh run | i ^username"
-    check.comments = ""
-    result = exec_command(command, device_name)  # This will get the cleaned result now
-
+    result = exec_command(command, device_name)
     check.finding = result
-    check.status = "NF"
 
-    # Create a list of configured accounts
-    configured_accounts = [line.split()[1] for line in result.splitlines() if line.startswith("username ")]
+    # Use a regular expression to match lines that precisely start with 'username' followed by at least one whitespace
+    configured_accounts = re.findall(r'^username\s+\S+', result, re.MULTILINE)
 
     # Check if there's more than one user account
     if len(configured_accounts) > 1:
         check.status = "OP"
-        check.comments = "V220535: More than one local user account found. Please review finding details."
+        check.comments = f"V220535: More than one local user account found. Please review finding details."
     else:
+        check.status = "NF"
         check.comments = "Only one local account configured."
 
     return check
@@ -6992,13 +6990,15 @@ def V215824(device_type, device_name):
     result = exec_command(command, device_name)
     check.finding = result
 
-    # Count the number of user accounts configured
-    user_count = sum(1 for line in result.splitlines() if "username" in line)
+    # Use a regular expression to match lines that precisely start with 'username' followed by at least one whitespace
+    configured_accounts = re.findall(r'^username\s+\S+', result, re.MULTILINE)
+
+    user_count = len(configured_accounts)
 
     # Mark status based on user account count
     if user_count > 1:
         check.status = "OP"
-        check.comments = "V-215824: More than one local user account found. Please review finding details."
+        check.comments = f"V-215824: More than one local user account found. Please review finding details."
     else:
         check.status = "NF"
         check.comments = "V-215824: One or zero local user accounts configured, compliant with STIG requirement."
