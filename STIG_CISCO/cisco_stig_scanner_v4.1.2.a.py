@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.1
+# Version:4.1.2.a
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
 Creator: Johnathan A. Greeley
@@ -59,6 +59,7 @@ Version: cisco_stig_scanner_v4.1.2 (last update NOV-23-2023)
     Bug fix: Issue requiring the user to hit "X" if auth failed before it went to the next host
     used crt API call to ensure the pop up does not come up when a failed connection happens. ‘crt.Session.ConnectInTab(connect_string, False, True)’
     NOTE: Logging logic in place but need to fine tune the logs
+    NOTE: Pending move of connection logic into Class
 '''
 
 '''
@@ -130,7 +131,7 @@ if 'crt' in globals():
     os.chdir(script_dir)  # Use script_dir which contains the directory of the current script
 
 # Local application/library specific imports
-import SecureCRT  # Assuming this is a local import
+import SecureCRT
 
 
 class Stig:
@@ -140,7 +141,7 @@ class Stig:
         self.device_type = ""
         self.finding = ""
         self.status = "OP"  # Default status when a Stig instance is created
-        self.severity = "default"
+        self.severity = "default"  # Add mapping that can map the Vul ID to the CAT1, CAT2, CAT3.
         self.comments = ""
 
     def set_vulid(self, func_name=None):
@@ -176,6 +177,8 @@ class Stig:
         # Set the Stig object attributes to reflect the error
         self.set_vulid(func_name)
         self.status = "NR"
+        # Still trying to find a way to append the finding/results if the command is
+        # ran before the error
         existing_finding = self.finding if self.finding else ""
         self.finding = f"{existing_finding}\nError occurred during execution: {str(exception)}"
         self.comments = f"Error in {func_name}: {str(exception)}"
@@ -190,6 +193,7 @@ class Stig:
         self.comments = ""
 
 
+# Add a way of writing STIG data to a CKL & CKLB file for the same host
 class ChecklistManager:
     # Class-level mapping of short status codes to their full description for ckl/cklb
     STATUS_MAP_CKL = {
@@ -207,7 +211,6 @@ class ChecklistManager:
     }
 
     def __init__(self):
-        # Initialize any necessary attributes here, if required
         pass
 
     def read_function_names_from_ckl(self, checklist_file):
@@ -378,20 +381,40 @@ class Commandcache:
 # This would be in the part of the script where command outputs are processed
 # command_cache.add(device_name, command, raw_output)
 
+# place holder
+# class ConnectionManager:
+
 
 # Grouping global variables here
 
 # Cache for storing command outputs
+# Is this fine in Global or should it be moved into the Main?
 command_cache = Commandcache()
 
 # Stored username and password for authentication
+# Thinking of moving this into the Main or its own function
 stored_username = ""
 stored_password = ""
 
+# Thinking about moving this into either the Main function or proccess_host function
 t1 = time.perf_counter()
 
 
 # Helper Functions
+
+
+def remove_char(x):
+    """
+    Removes all non-digit characters from a string.
+
+    Args:
+    - x (str): The string from which to remove characters.
+
+    Returns:
+    - str: The modified string containing only digits.
+    """
+    Output = re.sub("\D", "", x)
+    return Output
 
 
 def read_function_names_from_checklist(checklist_file):
@@ -441,8 +464,7 @@ def read_function_names(checklist_file):
 def load_template(template_name):
     """
     Loads a template file from the file system and parses it according to its type.
-    Delegates to the specific function based on file extension and ensures the same level
-    of documentation for any refactored and/or new functions.
+    Delegates to the specific Class method based on file extension.
 
     Args:
     - template_name (str): The name of the template file.
@@ -482,11 +504,13 @@ def read_hosts_from_csv(filename):
     return host_data
 
 
+# Look into moving logic into a logging Class
 def get_daily_log_filename(script_name="cisco_stig_scanner_v4", file_extension=".csv"):
     date_str = datetime.datetime.now().strftime("%d-%b-%Y").upper()
     return f"{script_name}_{date_str}{file_extension}"
 
 
+# Look into moving logic into a logging Class
 def log_stig_results_to_csv(stig_list, host, device_name):
     log_filename = get_daily_log_filename()
     file_exists = os.path.isfile(log_filename)
@@ -510,6 +534,7 @@ def log_stig_results_to_csv(stig_list, host, device_name):
             ])
 
 
+# Look into moving logic into a logging Class
 def log_vuln_check_error(device_name, device_type, func_name, e):
     """
     Logs an error that occurred during a vulnerability check to a CSV file.
@@ -538,6 +563,7 @@ def log_vuln_check_error(device_name, device_type, func_name, e):
         ])
 
 
+# Look into moving logic into a logging Class
 def log_connection_error(host, auth_method, error_message):
     """
     Logs an error message for a failed connection attempt to a file, removing extra whitespace.
@@ -560,6 +586,8 @@ def log_connection_error(host, auth_method, error_message):
 
 # Commection Management
 
+
+# Look into moving crt logic out of this function in prep for creating connection Class
 def connect_to_host(strHost, connection_type, current_host_number, total_hosts_count):
     global stored_username, stored_password
 
@@ -591,6 +619,8 @@ def connect_to_host(strHost, connection_type, current_host_number, total_hosts_c
         return None, None
 
 
+# this may be turn into connection type and then move the crt logic into its own function
+# this would be needed in prep for the connection class
 def get_connection_string(strHost, connection_type, stored_username, stored_password):
     """
     Generates the connection string based on the connection type and credentials.
@@ -620,6 +650,8 @@ def get_connection_string(strHost, connection_type, stored_username, stored_pass
         return connect_string_default
 
 
+# need to move crt logic out of here in prep for connection Class
+# also some ssh clients may not need to set 'term len' or may do it already, will need to account for this
 def set_terminal_settings(strHost):
     """
     Sets terminal settings for the session.
@@ -637,6 +669,11 @@ def set_terminal_settings(strHost):
     exec_command(f"{term_width}\r", strHost)
 
 
+# write a function that gets device info like make/model/SN/OS
+# def get_device_info():
+
+# This may get turn into get prompt and the crt logic will be moved into its own function
+# This would be done to prep for the connection Class
 def get_device_name():
     """
     Retrieves the device name from the current screen in the terminal.
@@ -653,6 +690,8 @@ def get_device_name():
 
 # Command and Error Handling
 
+# Need to bust out the crt logic from this and turn this into a passthrough for
+# for ssh clients in prep of connection Class.
 def send_command(command, device_name):
     """
     Sends a command to the terminal and returns the output.
@@ -707,6 +746,7 @@ def exec_command(command, device_name):
     return output
 
 
+# Need to bust out the crt logic for prep of the connection Class
 def handle_errors(result, command, device_name):
     """
     Handles errors during command execution and logs them.
@@ -741,7 +781,7 @@ def handle_errors(result, command, device_name):
     return result
 
 
-# For latter use for 'connect_to_host'
+# For later use for 'connect_to_host'
 def handle_connection_failure(strHost, connection_type, additional_info=""):
     # SecureCRT specific error handling for authentication failure
     error_message = crt.GetLastErrorMessage()
@@ -755,7 +795,14 @@ def handle_connection_failure(strHost, connection_type, additional_info=""):
 
 
 # Vulnerability Check Functions
-# ----- NDM STIGS IOS XE SW ----------------------------------------------------------------------------------------
+
+
+"""
+--------------------------------------------------------------------------
+Cisco IOS XE Switch NDM Security Technical Implementation Guide
+Version 2, Release: 6 Benchmark Date: 07 Jun 2023
+--------------------------------------------------------------------------
+"""
 
 
 def V220518(device_type, device_name):
@@ -2187,7 +2234,12 @@ def V220569(device_type, device_name):
     return check
 
 
-# ----- L2S STIGS ----------------------------------------------------------------------------------------
+"""
+--------------------------------------------------------------------------
+Cisco IOS XE Switch L2S Security Technical Implementation Guide
+Version 2, Release: 4 Benchmark Date: 26 Jul 2023
+--------------------------------------------------------------------------
+"""
 
 
 def V220649(device_type, device_name):
@@ -2744,7 +2796,13 @@ def V220673(device_type, device_name):
     return check
 
 
-# ----- SW RTR STIGS ---------------------------------------------------------------------------------
+"""
+--------------------------------------------------------------------------
+Cisco IOS XE Switch RTR Security Technical Implementation Guide
+Version 2, Release: 4 Benchmark Date: 26 Jul 2023
+--------------------------------------------------------------------------
+"""
+
 
 def V220986(device_type, device_name):
     check = Stig()
@@ -5200,17 +5258,12 @@ def V237778(device_type, device_name):
     return check
 
 
-'''
-END IOS XE SWITCH CHECK
-'''
-
 """
-***************NXOS CHECK START************
+--------------------------------------------------------------------------
+Cisco NX OS Switch L2S Security Technical Implementation Guide
+Version 2, Release: 2 Benchmark Date: 26 Jul 2023
+--------------------------------------------------------------------------
 """
-'''
-Cisco NX OS Switch L2S Security Technical Implementation Guide :: Version 2, Release: 2 Benchmark Date: 26 Jul 2023
-Function name update only, need to reivew each one.
-'''
 
 
 def V220674(device_type, device_name):
@@ -5790,8 +5843,13 @@ def V220696(device_type, device_name):
     return check
 
 
-# Cisco NX-OS Switch NDM Security Technical Implementation Guide ::
-# Version 2, Release: 2 Benchmark Date: 23 Apr 2021
+"""
+--------------------------------------------------------------------------
+Cisco NX OS Switch NDM Security Technical Implementation Guide
+Version 2, Release: 5 Benchmark Date: 07 Jun 2023
+--------------------------------------------------------------------------
+"""
+
 
 def V220474(device_type, device_name):
     # V-220474 - The Cisco switch must be configured to limit the number of concurrent management sessions to an organization-defined number.
@@ -6597,16 +6655,12 @@ def V220517(device_type, device_name):
 
 
 """
-***************NXOS CHECK END************
+--------------------------------------------------------------------------
+Cisco IOS XE Router NDM Security Technical Implementation Guide
+Version 2, Release: 7 Benchmark Date: 07 Jun 2023
+--------------------------------------------------------------------------
 """
 
-"""
-***************IOS XE ROUTER CHECK START************
-"""
-
-
-# Cisco IOS Router NDM Security Technical Implementation Guide ::
-# Version 2, Release: 3 Benchmark Date: 27 Oct 2021
 
 def V215807(device_type, device_name):
     # Legacy IDs: V-96189; SV-105327
@@ -7618,10 +7672,13 @@ def V220140(device_type, device_name):
     return check
 
 
-#
-# Cisco IOS XE Router RTR Security Technical Implementation Guide ::
-# Version 2, Release: 4 Benchmark Date: 27 Apr 2022
-#
+"""
+--------------------------------------------------------------------------
+Cisco IOS XE Router RTR Security Technical Implementation Guide
+Version 2, Release: 8 Benchmark Date: 26 Jul 2023
+--------------------------------------------------------------------------
+"""
+
 
 def V216641(device_type, device_name):
     # V-216641 - CAT II - The Cisco router must be configured to enforce approved authorizations for controlling the flow of information within the network based on organization-defined information flow control policies..
@@ -11849,17 +11906,14 @@ def Vtemplate(device_type, device_name):
     return check
 
 
-"""
-***************IOS XE ROUTER CHECK END************
-"""
-
-
 # ----------------------------------------------------------------------------------------
+
+
 # Main Processing Functions
 def process_host(host, checklist_file, auth_method, current_host_number, total_hosts_count, stig_instance,
                  command_cache_instance):
     """
-    Connects to a host device, executes STIG checks, logs the results, and updates the CKL file.
+    Connects to a host device, executes STIG checks, logs the results, and updates the checklist file.
 
     Args:
     - host (str): The hostname or IP of the target device.
@@ -11897,7 +11951,7 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
         update_and_write_checklist(stig_list, device_name, host, checklist_file)
         process_success = True  # Set the flag to True if all steps are successful
     except Exception as e:
-        # Exception handling (you might want to include more detailed logging or handling here)
+        # Exception handling (might want to include more detailed logging or handling here)
         exc_type, exc_value, exc_traceback = sys.exc_info()
         tb_info = traceback.extract_tb(exc_traceback)[-1]
         line_number, function_name = tb_info[1], tb_info[2]
@@ -11911,6 +11965,9 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
         return process_success
 
 
+# Here may want to add a lookup/call to map the Vul number to the severity of Vul
+# This way it can be used in logs and other looks up, maybe even a setting for Scans to scan for
+# CATI, CATII, CATIII or mix there of
 def create_stig_list_from_host(device_name, checklist_file, device_type):
     """
     Creates a list of STIG objects for the given host device, handling any exceptions.
@@ -11942,6 +11999,8 @@ def create_stig_list_from_host(device_name, checklist_file, device_type):
     return stig_list
 
 
+# Once ChecklistManager class is updated to write SITG data to CKL & CKLB at the same time
+# Will need to add the call to class in this function to support that.
 def update_and_write_checklist(stig_list, device_name, host, checklist_file):
     """
     Updates and writes the checklist based on the file extension.
@@ -11965,6 +12024,11 @@ def update_and_write_checklist(stig_list, device_name, host, checklist_file):
         raise ValueError("Unsupported checklist file format. Provide a .ckl or .cklb file.")
 
 
+# noticed an issue with this on if you try to 'x' of the auth it loops and keeps asking.
+# Need to find a way to stop the looping, this is likely do to it being called in a loop in another function
+# Need to add support that allows a user to provide other username/password per device if they mark it
+# in the CSV file, this will help with device that may not be on TACACS or is using another auth source
+# Maybe use getpass here to get the password?
 def prompt_for_un_authentication():
     """
     Prompts the user for 'un' authentication only once and stores it globally.
