@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-
+#version:4.rc1
 '''
 This is a fork of the autostig scripts
 Starting with Version 4
