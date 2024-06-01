@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.a
+# Version:4.1.2.b
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
 Creator: Johnathan A. Greeley
@@ -393,8 +393,9 @@ command_cache = Commandcache()
 
 # Stored username and password for authentication
 # Thinking of moving this into the Main or its own function
-stored_username = ""
-stored_password = ""
+# stored_username = ""
+# stored_password = ""
+
 
 # Thinking about moving this into either the Main function or proccess_host function
 t1 = time.perf_counter()
