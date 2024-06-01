@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.e
+# Version:4.1.2.f
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
 Creator: Johnathan A. Greeley
@@ -294,15 +294,21 @@ class ChecklistManager:
     def update_and_write_cklb(self, stig_list, device_name, host, checklist_file):
         date_str = datetime.datetime.now().strftime("%d-%b-%Y").upper()
         cklb_content = self.load_cklb_template(checklist_file)
+
+        # Generate a new UUID and assign it to the id field
+        cklb_content['id'] = str(uuid.uuid4())
+
         for obj in stig_list:
             cklb_content = self.update_cklb_template(obj, cklb_content)
         cklb_content['target_data']['host_name'] = device_name
         cklb_content['target_data']['ip_address'] = host
         cklb_content['title'] = f"{device_name}_{date_str}"
+
         template_part = checklist_file.split(".")[0]
         name_parts = template_part.split("-")
         name_prefix = "-".join(name_parts[:-1])
         new_cklb_filename = f"{device_name}_{name_prefix}_{date_str}.cklb"
+
         with open(new_cklb_filename, 'w', encoding='utf-8') as file:
             json.dump(cklb_content, file, indent=4)
 
