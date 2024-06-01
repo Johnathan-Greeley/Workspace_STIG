@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.h
+# Version:4.1.2.j
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
 Creator: Johnathan A. Greeley
@@ -368,25 +368,27 @@ class Commandcache:
         return self.cache.get((device_name, command))
 
     def clear(self):
-        """Clears the cache."""
+        """ Clears the cache. """
         self.cache.clear()
 
     def clean_output(self, output):
-        # Regex patterns to match sensitive data patterns
+        # Regex patterns to match sensitive data patterns with multiline and dotall flags
         hash_patterns = [
-            re.compile(r'(server-private.*key\s+\d+\s+)(\S+)'),
-            re.compile(r'(mpls ldp neighbor.*password\s+\d\s+)(\S+)'),
-            re.compile(r'(username.*secret\s+\d+\s+)(\S+)'),
-            re.compile(r'(crypto isakmp key\s+\d+\s+)(\S+)(?=\s+address)'),
-            re.compile(r'(password\s+\d\s+)(\S+)'),
-            re.compile(r'(ntp authentication-key\s+\d+\s+md5\s+)(\S+)(?=\s+\d$)'),
-            re.compile(r'(ip ospf message-digest-key\s+\d+\s+md5\s+\d\s+)(\S+)'),
-            re.compile(r'(authentication mode hmac-sha-256\s+\d\s+)(\S+)'),
-            re.compile(r'(key-string\s+\d+\s+)(\S+)'),
-            re.compile(r'(authentication mode hmac-sha-256 7\s+)(\S+)'),
-            re.compile(r'(snmp-server user.*auth sha\s+\S+\s+priv aes-128\s+)\S+.*'),
-            re.compile(r'(ntp authentication-key \d+ md5\s+)(\S+)(?=\s+\d+\s*$)'),
-
+            re.compile(r'(server-private\s+\S+\s+key\s+\d+\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(mpls ldp neighbor\s+\S+\s+password\s+\d+\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(username\s+\S+\s+.*?secret\s+\d+\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(crypto isakmp key\s+\d+\s+)(\S+)(?=\s+address)', re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(password\s+\d+\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(ip ospf message-digest-key\s+\d+\s+md5\s+\d+\s+)(\S+)',
+                       re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(authentication mode hmac-sha-256\s+\d\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(key-string\s+\d+\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(authentication mode hmac-sha-256 7\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(snmp-server user\s+\S+\s+auth sha\s+\S+\s+priv aes-128\s+)(\S+).*',
+                       re.VERBOSE | re.MULTILINE | re.DOTALL),
+            # Updated NTP regex to sanitize until the optional space and digit
+            re.compile(r'(ntp authentication-key\s+\d+\s+(hmac-sha2-256|md5)\s+).*',
+                       re.VERBOSE | re.MULTILINE | re.DOTALL),
         ]
 
         # Clean the output
