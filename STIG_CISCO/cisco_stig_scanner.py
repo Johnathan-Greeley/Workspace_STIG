@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.M.5
+# Version:4.1.2.M.6
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -6337,13 +6337,9 @@ def V220493(device_type, device_name):
         if str(line).find("exec-timeout", 0) > -1:
             # we know we have a timeout config line.  split the operands via spaces
             lstOperands = line.strip().split(" ")
-            # Lets check the second operans, it should hold the current timeout value
-            # MsgBox = crt.Dialog.MessageBox
             if len(lstOperands) > 2:
-                # MsgBox(str(len(line.strip().split(" "))) + '\r' + (line))
                 strTimeout = lstOperands[1]
             else:
-                # MsgBox(str(len(line.strip().split(" "))) + '\r' + (line))
                 strTimeout = lstOperands[1]
             if int(strTimeout) > 10:
                 check.status = "OP"
@@ -7756,7 +7752,6 @@ def V220140(device_type, device_name):
         )
         intEnd = result.splitlines()[1].find("\r", intStart)
         ModelVersion = result.splitlines()[1][intStart:]
-        #crt.Dialog.MessageBox("ModelVersion is: " + str(remove_char(ModelVersion)))
         if remove_char(ModelVersion) >= remove_char("17.09.04a"):
             check.status = "NF"
             check.comments = (
@@ -8160,7 +8155,6 @@ def V216649(device_type, device_name):
     # V-216649 - The Cisco router must not be configured to have any zero-touch deployment feature enabled when connected to an operational network.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    MsgBox = crt.Dialog.MessageBox
     check.set_vulid()
     check.status = "OP"
     check.comments = "The router does not have zero-touch deployment feature disabled."
@@ -11345,7 +11339,6 @@ def V216998(device_type, device_name):
 def V216999(device_type, device_name):
     # V-216999-  The Cisco BGP router must be configured to enable the Generalized TTL Security Mechanism (GTSM).
     check = Stig()
-    MsgBox = crt.Dialog.MessageBox
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check.set_vulid()
     check.status = "NF"
@@ -11537,7 +11530,6 @@ def V217001(device_type, device_name):
     # V-217001 - The Cisco PE router must be configured to ignore or drop all packets with any IP options.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    MsgBox = crt.Dialog.MessageBox
     check.set_vulid()
     check.status = "OP"
     check.comments = "V-217001 - OPEN - The router is not configured to drop or block all packets with IP options"
@@ -11558,7 +11550,6 @@ def V229031(device_type, device_name):
     # V-229031 - The Cisco router must be configured to have Cisco Express Forwarding enabled.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    MsgBox = crt.Dialog.MessageBox
     check.set_vulid()
     check.status = "OP"
     check.comments = "V-229031 - OPEN - The router does not have CEF enabled."
@@ -11576,7 +11567,6 @@ def V230039(device_type, device_name):
     # V-230039 - The Cisco router must be configured to advertise a hop limit of at least 32 in Router Advertisement messages for IPv6 stateless auto-configuration deployments.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    MsgBox = crt.Dialog.MessageBox
     check.set_vulid()
     check.status = "OP"
     check.comments = "V-230039 - OPEN - The router has not been configured and has not been set to at least 32."
@@ -11594,7 +11584,6 @@ def V230042(device_type, device_name):
     # V-230042 - The Cisco router must not be configured to use IPv6 Site Local Unicast addresses.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    MsgBox = crt.Dialog.MessageBox
     check.set_vulid()
     check.status = "OP"
     check.comments = "V-230042 - OPEN -  IPv6 Site Local Unicast addresses are defined"
