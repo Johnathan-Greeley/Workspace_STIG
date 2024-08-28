@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.23
+# Version:4.1.2.P.24
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -175,11 +175,11 @@ class EnvironmentManager:
         self.prompt = None
 
     def connect_to_host(self, strHost, connection_type, current_host_number, total_hosts_count):
-        print(f"Connecting to {strHost} ({current_host_number} of {total_hosts_count})...")
         if self.running_in_securecrt:
             return self.crt_connect_to_host(strHost, connection_type, current_host_number, total_hosts_count)
         else:
             return self.paramiko_connect_to_host(strHost, connection_type)
+
 
     def crt_connect_to_host(self, strHost, connection_type, current_host_number, total_hosts_count):
         connect_string = self.get_connection_method(strHost, connection_type)
@@ -283,9 +283,13 @@ class EnvironmentManager:
             prompt = "#"
         else:
             prompt = device_name + "#"
+        
         crt.Screen.WaitForStrings([prompt], 1)
         crt.Screen.Send(command + "\r")
-        return crt.Screen.ReadString(prompt, 30)
+        
+        # Ensure the prompt is included at the start and end
+        output = crt.Screen.ReadString(prompt, 30)
+        return f"{prompt}{output.strip()}\n{prompt}"
 
     def paramiko_send_command(self, command, device_name):
         if self.session:
@@ -333,7 +337,6 @@ class EnvironmentManager:
         return self.prompt.replace("#", "").strip()
 
     def disconnect_from_host(self):
-        print("Disconnecting from host...")
         if self.running_in_securecrt:
             self.crt_disconnect_from_host()
         else:
@@ -1018,30 +1021,25 @@ def log_connection_error(host, auth_method, error_message):
 def exec_command(command, device_name):
     """
     Executes a command on a device, cleans, and caches the output.
-   
+
     Args:
     - command (str): The command to execute.
     - device_name (str): The name of the device.
-   
+
     Returns:
-    - str: The cleaned output from the command execution, with the correct prompt included at the end.
+    - str: The cleaned output from the command execution, with the correct prompt included.
     """
-    # Try to retrieve the cleaned output from the cache first
     output = command_cache.get(device_name, command)
 
-    # If the output is not in the cache, execute the command
     if output is None:
         result = env_manager.send_command(command, device_name)
         result = env_manager.handle_errors(result, command, device_name)
 
-        # Since paramiko_send_command/crt_send_command now correctly handles prompts, we do not modify the result
-        cleaned_output = command_cache.clean_output(result)
+        # Cache the cleaned output, no need to modify the result
+        command_cache.add(device_name, command, result)
 
-        # Cache the cleaned output
-        command_cache.add(device_name, command, cleaned_output)
-
-        # Return the cleaned output, which now should include the correct prompt at the end
-        return cleaned_output
+        # Return the result directly, including the correct prompt
+        return result
     
     return output
 
@@ -11934,27 +11932,17 @@ def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
     processed_hosts_count = 0
     int_total_hosts = len(hosts_data)
 
-    print(f"Starting processing of {int_total_hosts} hosts...")
-
     for host_info in hosts_data:
         processed_hosts_count += 1
         host = host_info['host']
         checklist_file = host_info['checklist']
         auth_method = host_info['auth']
 
-        print(f"Processing host {processed_hosts_count} of {int_total_hosts}: {host} using {auth_method} authentication...")
-
         # Use the preloaded checklist information
         if not process_host(host, checklist_file, auth_method, processed_hosts_count, int_total_hosts, stig_instance, command_cache_instance):
             int_failed_hosts += 1
-            print(f"Host {host} failed to process.")
-        else:
-            print(f"Host {host} processed successfully.")
-
-    print(f"Finished processing all hosts. Total processed: {processed_hosts_count}, Total failed: {int_failed_hosts}")
 
     return int_failed_hosts, processed_hosts_count
-
 
 #Main Execution
 def Main():
@@ -11972,30 +11960,23 @@ def Main():
     stored_username = ""
     stored_password = ""
 
-    print("Loading host data from CSV file...")
-
+    # Load host data from CSV file
     csv_filename = "host.csv"
     hosts_data = read_hosts_and_templates_from_csv(csv_filename)
 
-    print(f"Loaded {len(hosts_data)} hosts from CSV file.")
-
     # Check if 'un' authentication is needed and prompt for it once
     if any(host_info['auth'] == 'un' for host_info in hosts_data):
-        print("Prompting for 'un' authentication credentials...")
         env_manager.get_credentials()
 
     stig_instance = Stig()
     command_cache_instance = Commandcache()
 
-    print("Starting to process all hosts...")
-
+    # Process all hosts
     int_failed_hosts, processed_hosts_count = process_all_hosts(hosts_data, stig_instance, command_cache_instance)
 
-    print(f"Processing complete. Processed hosts: {processed_hosts_count}, Failed hosts: {int_failed_hosts}")
-
+    # Display summary
     env_manager.display_summary(processed_hosts_count, int_failed_hosts)
-
-    print("Summary displayed. Script execution completed.")
+Main()
 
 if __name__ == '__main__':
-     Main()
+    Main()
