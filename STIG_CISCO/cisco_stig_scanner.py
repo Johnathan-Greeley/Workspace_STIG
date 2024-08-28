@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.19
+# Version:4.1.2.P.20
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -297,30 +297,33 @@ class EnvironmentManager:
             self.session.send(command + "\n")
 
             # Capture the raw output until the prompt appears again
-            raw_output = self.wait_for_prompt([self.prompt])
+            raw_output = ""
+            while True:
+                if self.session.recv_ready():
+                    chunk = self.session.recv(65535).decode('utf-8')
+                    raw_output += chunk
+
+                    # Check if we've encountered the prompt twice (start and end)
+                    if raw_output.count(self.prompt) >= 2:
+                        break
+
             print(f"[DEBUG] Raw output after capturing from session:\n{raw_output}")
 
-            # Remove the prompt at the beginning if it exists
-            if raw_output.startswith(self.prompt):
-                raw_output = raw_output[len(self.prompt):].strip()
-
-            # Remove the duplicated prompt at the end if it exists
-            if raw_output.endswith(self.prompt):
-                raw_output = raw_output[:-len(self.prompt)].strip()
-
-            # Log the output after prompt removal
-            print(f"[DEBUG] Output after processing prompt removal:\n{raw_output}")
+            # Process the raw output to clean up any duplicate prompts
+            parts = raw_output.split(self.prompt)
+            processed_output = parts[1].strip() if len(parts) > 1 else raw_output.strip()
 
             # Append device name to the output (following CRT logic)
             if "." in device_name:
-                processed_output = raw_output.strip()
+                processed_output = processed_output.strip()
             else:
-                processed_output = f"{device_name}#{raw_output}{device_name}#"
+                processed_output = f"{device_name}#{processed_output}{device_name}#"
 
             # Log the final processed output
             print(f"[DEBUG] Final processed output:\n{processed_output}")
 
             return processed_output
+
 
 
 
@@ -453,11 +456,12 @@ class EnvironmentManager:
         # Center the window on the screen
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
-        window_width = 300  # Adjust the width and height as needed
-        window_height = 150
+        summary_window.update_idletasks()  # Ensure the window dimensions are updated before setting position
+        window_width = summary_window.winfo_reqwidth()
+        window_height = summary_window.winfo_reqheight()
         x_cordinate = int((screen_width / 2) - (window_width / 2))
         y_cordinate = int((screen_height / 2) - (window_height / 2))
-        summary_window.geometry(f"{window_width}x{window_height}+{x_cordinate}+{y_cordinate}")
+        summary_window.geometry(f"+{x_cordinate}+{y_cordinate}")  # Center the window without setting a fixed size
 
         # Display the message in a label
         tk.Label(summary_window, text=summary_message, wraplength=280).pack(pady=20)
@@ -475,6 +479,7 @@ class EnvironmentManager:
         # Start the event loop
         summary_window.deiconify()  # Show the summary window
         root.mainloop()
+
 
 
                 
