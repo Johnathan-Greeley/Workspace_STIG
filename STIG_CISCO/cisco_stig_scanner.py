@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.M.0
+# Version:4.1.2.M.1
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -791,8 +791,14 @@ def pass_get_device_name():
 #Need to bust out the crt logic from this and turn this into a passthrough for
 #for ssh clients in prep of connection Class.
 def send_command(command, device_name):
+    if RUNNING_IN_SECURECRT:
+        return crt_send_command(command, device_name)
+    else:
+        return pass_send_command(command, device_name)
+
+def crt_send_command(command, device_name):
     """
-    Sends a command to the terminal and returns the output.
+    Sends a command to the terminal in SecureCRT and returns the output.
    
     Args:
     - command (str): The command to send.
@@ -805,9 +811,23 @@ def send_command(command, device_name):
         prompt = "#"
     else:
         prompt = device_name + "#"
+    
     crt.Screen.WaitForStrings([prompt], 1)
     crt.Screen.Send(command + "\r")
     return crt.Screen.ReadString(prompt, 30)
+
+def pass_send_command(command, device_name):
+    """
+    Placeholder function for sending commands to non-SecureCRT environments.
+   
+    Args:
+    - command (str): The command to send.
+    - device_name (str): The name of the device to send the command to.
+   
+    Raises:
+    - NotImplementedError: This function is a placeholder for future integration with other SSH clients.
+    """
+    raise NotImplementedError("Command sending is not implemented for this connection method.")
 
 
 def exec_command(command, device_name):
