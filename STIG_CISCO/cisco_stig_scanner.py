@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.M.1
+# Version:4.1.2.M.2
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -866,8 +866,14 @@ def exec_command(command, device_name):
 
 #Need to bust out the crt logic for prep of the connection Class
 def handle_errors(result, command, device_name):
+    if RUNNING_IN_SECURECRT:
+        return crt_handle_errors(result, command, device_name)
+    else:
+        return pass_handle_errors(result, command, device_name)
+
+def crt_handle_errors(result, command, device_name):
     """
-    Handles errors during command execution and logs them.
+    Handles errors during command execution in SecureCRT and logs them.
    
     Args:
     - result (str): The result from the command execution.
@@ -877,10 +883,8 @@ def handle_errors(result, command, device_name):
     Returns:
     - str: The processed result, taking into account any errors.
     """
-    # Determine the prompt based on the device name
     prompt = "#" if "." in device_name else f"{device_name}#"
 
-    # If the result is shorter than the device name, an error likely occurred
     if len(result) < len(device_name):
         crt.Screen.WaitForStrings([prompt], 1)
         crt.Screen.Send("\x03\r")
@@ -889,18 +893,39 @@ def handle_errors(result, command, device_name):
         crt.Screen.Send(f"{command}\r")
         result = crt.Screen.ReadString(prompt, 110)
 
-    # Additional error handling for connection failures
-    # if "Failed to connect" in result:
-        # log_error(result)
-        # print(f"Error: {result}")
-        # Continue with the next host or operation
-        # return result
-
     return result
+
+def pass_handle_errors(result, command, device_name):
+    """
+    Placeholder function for handling errors in non-SecureCRT environments.
+   
+    Args:
+    - result (str): The result from the command execution.
+    - command (str): The command that was executed.
+    - device_name (str): The name of the device.
+   
+    Raises:
+    - NotImplementedError: This function is a placeholder for future error handling integration.
+    """
+    raise NotImplementedError("Error handling is not implemented for this connection method.")
+
     
     
 def handle_connection_failure(strHost, connection_type, additional_info=""):
-    # SecureCRT specific error handling for authentication failure
+    if RUNNING_IN_SECURECRT:
+        crt_handle_connection_failure(strHost, connection_type, additional_info)
+    else:
+        pass_handle_connection_failure(strHost, connection_type, additional_info)
+
+def crt_handle_connection_failure(strHost, connection_type, additional_info=""):
+    """
+    SecureCRT specific error handling for authentication failure.
+   
+    Args:
+    - strHost (str): The hostname.
+    - connection_type (str): The type of connection used.
+    - additional_info (str, optional): Additional information about the failure.
+    """
     error_message = crt.GetLastErrorMessage()
     if "Authentication failed" in error_message or "Login incorrect" in error_message:
         error_message = f"Authentication failed for {strHost} using {connection_type}: {error_message}"
@@ -909,6 +934,20 @@ def handle_connection_failure(strHost, connection_type, additional_info=""):
         error_message += f" Additional info: {additional_info}"
 
     log_connection_error(strHost, connection_type, error_message)
+
+def pass_handle_connection_failure(strHost, connection_type, additional_info=""):
+    """
+    Placeholder function for handling connection failures in non-SecureCRT environments.
+   
+    Args:
+    - strHost (str): The hostname.
+    - connection_type (str): The type of connection used.
+    - additional_info (str, optional): Additional information about the failure.
+   
+    Raises:
+    - NotImplementedError: This function is a placeholder for future connection failure handling integration.
+    """
+    raise NotImplementedError("Connection failure handling is not implemented for this connection method.")
 
 #Vulnerability Check Functions 
 
