@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.24
+# Version:4.1.2.P.25
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -140,6 +140,7 @@ import traceback
 import uuid #Needed for updating the CKLB templet.
 import xml.etree.ElementTree as ET #For working with CKL files
 import xml.sax.saxutils # For working with CKL files
+import getpass
 import tkinter as tk
 from tkinter import messagebox
 from collections import OrderedDict, namedtuple
@@ -424,7 +425,7 @@ class EnvironmentManager:
 
     def paramiko_get_credentials(self):
         self.stored_username = input("Enter your username: ").strip()
-        self.stored_password = input("Enter your password: ").strip()
+        self.stored_password = getpass.getpass("Enter your password: ").strip()
 
     def display_summary(self, processed_hosts_count, int_failed_hosts):
         end_time_stamp = time.perf_counter()
