@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.4
+# Version:4.1.2.P.5
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -291,10 +291,17 @@ class EnvironmentManager:
         if self.session:
             self.session.send(command + "\n")
             output = self.wait_for_prompt([self.prompt])
+
+            # Remove any duplicate prompt/device name
+            if output.startswith(self.prompt):
+                output = output.replace(self.prompt, "", 1).strip()
+
+            # Append device name to the output (following CRT logic)
             if "." in device_name:
                 output = output.strip()
             else:
-                output = f"{device_name}#{output.strip()}{device_name}#"
+                output = f"{device_name}#{output}{device_name}#"
+                
             return output
 
     def get_device_name(self):
@@ -378,8 +385,8 @@ class EnvironmentManager:
         self.exec_command(f"{term_width}", strHost)
 
     def paramiko_terminal_settings(self):
-        self.send_command("terminal length 0", self.prompt)
-        self.send_command("terminal width 400", self.prompt)
+        self.paramiko_send_command("terminal length 0", self.prompt)
+        self.paramiko_send_command("terminal width 400", self.prompt)
 
     def get_credentials(self):
         if self.running_in_securecrt:
