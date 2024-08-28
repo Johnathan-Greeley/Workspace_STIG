@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.L.8
+# Version:4.1.2.L.9
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -259,11 +259,6 @@ class ChecklistManager:
         self.template_cache = {}  # Cache for loaded checklist templates
         self.vuln_info_cache = {}  # Cache for parsed vulnerability data
 
-    def log_to_file(self, message):
-        """Logs messages to a debug file."""
-        with open("debug_log.txt", "a", encoding="utf-8") as log_file:
-            log_file.write(message + "\n")
-
     def read_vuln_info(self, checklist_file):
         if checklist_file in self.vuln_info_cache:
             return self.vuln_info_cache[checklist_file]
@@ -311,9 +306,6 @@ class ChecklistManager:
             if original_vuln_num and function_name and severity:
                 vuln_info[original_vuln_num] = (function_name, severity)
 
-        # Log the vuln_info for debugging
-        self.log_to_file(f"CKL Vulnerability Info: {vuln_info}")
-
         return vuln_info
 
     def read_vuln_info_from_cklb(self, checklist_file):
@@ -332,9 +324,6 @@ class ChecklistManager:
                 if group_id:
                     function_name = group_id.replace("-", "")
                     vuln_info[group_id] = (function_name, severity)
-
-        # Log the vuln_info for debugging
-        self.log_to_file(f"CKLB Vulnerability Info: {vuln_info}")
 
         return vuln_info
 
@@ -360,7 +349,7 @@ class ChecklistManager:
                 self.template_cache[template_name] = cklb_content
                 return cklb_content
         except json.JSONDecodeError as e:
-            raise json.JSONDecodeError(f"Error parsing JSON from CKLB template file {template_name}: {e}")
+            raise JSONDecodeError(f"Error parsing JSON from CKLB template file {template_name}: {e}")
 
     def update_and_write_ckl(self, stig_list, device_name, host, checklist_file):
         date_str = datetime.datetime.now().strftime("%d-%b-%Y").upper()
