@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.29
+# Version:4.1.2.P.30
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -441,8 +441,16 @@ class EnvironmentManager:
         end_time_stamp = time.perf_counter()
         elapsed_time = end_time_stamp - self.start_time
         elapsed_minutes, elapsed_seconds = divmod(elapsed_time, 60)
-        summary_message = f"The script finished executing in {int(elapsed_minutes)} minutes and {int(elapsed_seconds)} seconds with {processed_hosts_count - int_failed_hosts} hosts scanned and {int_failed_hosts} failed."
+        summary_message = (f"The script finished executing in {int(elapsed_minutes)} minutes and "
+                           f"{int(elapsed_seconds)} seconds with "
+                           f"{processed_hosts_count - int_failed_hosts} hosts scanned and "
+                           f"{int_failed_hosts} failed.")
         
+        # Print the summary to the command line if not running in SecureCRT
+        if not self.running_in_securecrt:
+            print(summary_message)
+
+        # Show the summary in the Tkinter message box
         if self.running_in_securecrt:
             self.crt_display_summary(summary_message)
         else:
