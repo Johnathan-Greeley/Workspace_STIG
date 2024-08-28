@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.L.11
+# Version:4.1.2.L.12
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -262,16 +262,15 @@ class ChecklistManager:
 
     def read_vuln_info(self, checklist_file):
         base_name = os.path.splitext(checklist_file)[0]
-        
+        file_extension = os.path.splitext(checklist_file)[1].lower()
+
         # Check if vulnerability data has already been loaded
         if self.vuln_info_key and self.vuln_info_key == base_name:
             return self.vuln_info_cache[self.vuln_info_key]
 
-        file_extension = os.path.splitext(checklist_file)[1].lower()
-        
         # Load the template files into cache
         if file_extension == '.ckl':
-            if base_name not in self.template_cache:
+            if base_name + '.ckl' not in self.template_cache:
                 self.template_cache[base_name + '.ckl'] = self.load_ckl_template(checklist_file)
             if self.vuln_info_key is None:  # If no vuln info has been loaded yet
                 vuln_info = self.read_vuln_info_from_ckl(checklist_file)
@@ -279,7 +278,7 @@ class ChecklistManager:
                 self.vuln_info_key = base_name
 
         elif file_extension == '.cklb':
-            if base_name not in self.template_cache:
+            if base_name + '.cklb' not in self.template_cache:
                 self.template_cache[base_name + '.cklb'] = self.load_cklb_template(checklist_file)
             if self.vuln_info_key is None:  # If no vuln info has been loaded yet
                 vuln_info = self.read_vuln_info_from_cklb(checklist_file)
@@ -297,6 +296,10 @@ class ChecklistManager:
                 vuln_info_ckl = self.read_vuln_info_from_ckl(base_name + '.ckl')
                 self.vuln_info_cache[base_name] = vuln_info_ckl
                 self.vuln_info_key = base_name
+            else:
+                # Ensure both templates are loaded into the cache, even if vuln info is already loaded
+                self.template_cache[base_name + '.ckl'] = self.load_ckl_template(base_name + '.ckl')
+                self.template_cache[base_name + '.cklb'] = self.load_cklb_template(base_name + '.cklb')
 
         else:
             raise ValueError("Unsupported checklist file format. Provide a .ckl, .cklb, or no extension for both.")
@@ -335,7 +338,7 @@ class ChecklistManager:
         cklb_content = self.template_cache[checklist_file]  # Assumes the template is already loaded
         vuln_info = {}
         for stig in cklb_content.get('stigs', []):
-            for rule in stig.get('rules'):
+            for rule in stig['rules']:
                 group_id = rule.get('group_id')
                 severity = rule.get('severity')
                 
