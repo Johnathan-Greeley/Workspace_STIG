@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.N.1
+# Version:4.1.2.N.2
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -11730,7 +11730,7 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
         # Handle the exception as needed
     finally:
         # Disconnect session, regardless of success or failure
-        disconnect_from_host()
+        env_manager.disconnect_from_host()
         # Clear the Stig and Commandcache instances for the next host
         stig_instance.clear()
         command_cache_instance.clear()
