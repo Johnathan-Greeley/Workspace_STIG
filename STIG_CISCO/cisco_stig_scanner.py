@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.7
+# Version:4.1.2.P.8
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -327,8 +327,12 @@ class EnvironmentManager:
         crt.Session.Disconnect()
 
     def paramiko_disconnect_from_host(self):
-        self.ssh_client.close()
-        print("Disconnected from host.")
+        if self.session is not None:
+            self.session.close()  # Close the session
+            self.session = None  # Reset session to None
+        if self.ssh_client is not None:
+            self.ssh_client.close()  # Close the SSH client
+            self.ssh_client = None  # Reset ssh_client to None
 
     def handle_errors(self, result, command, device_name):
         if self.running_in_securecrt:
