@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.10
+# Version:4.1.2.P.11
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -289,11 +289,8 @@ class EnvironmentManager:
 
     def paramiko_send_command(self, command, device_name):
         if self.session:
-            # Determine the prompt to wait for based on the device name
-            if device_name.find(".") > -1:
-                prompt = "#"
-            else:
-                prompt = device_name + "#"
+            # Use a more relaxed prompt detection method
+            prompt = "#"
 
             # Wait for the initial prompt to ensure the device is ready
             self.wait_for_prompt([prompt])
@@ -308,7 +305,11 @@ class EnvironmentManager:
             if output.startswith(prompt):
                 output = output.replace(prompt, "", 1).strip()
 
+            # Further clean the output, if needed
+            output = output.replace("\r\n", "\n").strip()
+
             return output
+
 
     def get_device_name(self):
         if self.running_in_securecrt:
@@ -432,6 +433,8 @@ class EnvironmentManager:
         root.withdraw()  # Hide the root window
         messagebox.showinfo("Script Summary", summary_message)
         root.destroy()
+        root.mainloop()  # Ensure the event loop runs properly
+
                 
     def exec_command(self, command, device_name):
         output = command_cache.get(device_name, command)
