@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.26
+# Version:4.1.2.P.27
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -475,9 +475,24 @@ class EnvironmentManager:
         summary_window.deiconify()  # Show the summary window
         root.mainloop()
 
+    def track_progress(self, current, total):
+        """
+        Tracks and displays progress as a percentage with a progress bar.
 
+        Args:
+        - current (int): The current step in the process.
+        - total (int): The total number of steps in the process.
+        """
+        percentage = (current / total) * 100
+        progress_bar = "#" * int(percentage / 5) + "." * (20 - int(percentage / 5))
+        sys.stdout.write(f"\r{int(percentage)}% [{progress_bar}]")
+        sys.stdout.flush()
 
-                
+        # Final update to 100% once done
+        if current == total:
+            sys.stdout.write("\r100% [####################]\n")
+            sys.stdout.flush()
+
     def exec_command(self, command, device_name):
         output = command_cache.get(device_name, command)
         if output is None:
@@ -11857,9 +11872,6 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
         return process_success
 
 
-#Here may want to add a lookup/call to map the Vul number to the severity of Vul
-#This way it can be used in logs and other looks up, maybe even a setting for Scans to scan for
-#CATI, CATII, CATIII or mix there of
 def create_stig_list_from_host(device_name, checklist_file, device_type):
     """
     Creates a list of STIG objects for the given host device, handling any exceptions.
@@ -11878,6 +11890,9 @@ def create_stig_list_from_host(device_name, checklist_file, device_type):
     vuln_info = checklist_manager.read_vuln_info(checklist_file)
     stig_list = []
 
+    total_vulns = len(vuln_info)
+    completed_vulns = 0
+
     for original_vuln_num, (function_name, severity) in vuln_info.items():
         try:
             func = globals()[function_name]
@@ -11890,6 +11905,10 @@ def create_stig_list_from_host(device_name, checklist_file, device_type):
             error_stig.device_type = device_type
             error_stig.handle_error(function_name, e)
             stig_list.append(error_stig)
+
+        # Update progress using the EnvironmentManager's method
+        env_manager.track_progress(completed_vulns, total_vulns)
+        completed_vulns += 1
 
     return stig_list
 
