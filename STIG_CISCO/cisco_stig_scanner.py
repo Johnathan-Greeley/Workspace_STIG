@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.16
+# Version:4.1.2.P.18
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -291,23 +291,23 @@ class EnvironmentManager:
         if self.session:
             # Send the command
             self.session.send(command + "\n")
-            
+
             # Capture the raw output until the prompt appears again
             raw_output = self.wait_for_prompt([self.prompt])
             print(f"[DEBUG] Raw output after capturing from session:\n{raw_output}")
-            
-            # Remove the prompt at the beginning if it exists
+
+            # Remove the initial prompt if it exists
             if raw_output.startswith(self.prompt):
                 raw_output = raw_output[len(self.prompt):].strip()
 
             # Remove the duplicated prompt at the end if it exists
             if raw_output.endswith(self.prompt):
-                raw_output = raw_output[:-len(self.prompt)].strip()
-            
+                raw_output = raw_output[:raw_output.rfind(self.prompt)].strip()
+
             # Log the output after prompt removal
             print(f"[DEBUG] Output after processing prompt removal:\n{raw_output}")
-            
-            # Append device name to the output (following CRT logic)
+
+            # Format the output according to CRT logic
             if "." in device_name:
                 processed_output = raw_output.strip()
             else:
@@ -315,8 +315,9 @@ class EnvironmentManager:
 
             # Log the final processed output
             print(f"[DEBUG] Final processed output:\n{processed_output}")
-            
+
             return processed_output
+
 
 
     def get_device_name(self):
@@ -439,9 +440,41 @@ class EnvironmentManager:
     def tk_display_summary(self, summary_message):
         root = tk.Tk()
         root.withdraw()  # Hide the root window
-        messagebox.showinfo("Script Summary", summary_message)
+        
+        # Create a new top-level window to display the message box
+        summary_window = tk.Toplevel(root)
+        summary_window.title("Script Summary")
+
+        # Center the window on the screen
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        window_width = 300  # You can adjust the width and height as needed
+        window_height = 150
+        x_cordinate = int((screen_width/2) - (window_width/2))
+        y_cordinate = int((screen_height/2) - (window_height/2))
+        summary_window.geometry(f"{window_width}x{window_height}+{x_cordinate}+{y_cordinate}")
+
+        # Display the message in a label
+        tk.Label(summary_window, text=summary_message, wraplength=280).pack(pady=20)
+
+        # Set up the automatic closure after 5 minutes (300000 milliseconds)
+        def close_summary_window():
+            summary_window.destroy()
+            root.quit()  # Ensure the Tkinter main loop stops
+
+        summary_window.after(300000, close_summary_window)  # 300000 ms = 5 minutes
+
+        # Add an "OK" button to allow the user to close the window manually
+        tk.Button(summary_window, text="OK", command=close_summary_window).pack(pady=10)
+
+        # Start the event loop
+        root.deiconify()  # Show the root window if necessary
+        root.mainloop()
+
+        # Destroy the root window once done to avoid ghost windows
         root.destroy()
-        root.mainloop()  # Ensure the event loop runs properly
+
+
 
                 
     def exec_command(self, command, device_name):
@@ -1003,6 +1036,10 @@ def exec_command(command, device_name):
 
         # Cleaning the output
         cleaned_output = command_cache.clean_output(result)
+
+        # Ensure no prompt duplication at the end of the output
+        if cleaned_output.endswith(device_name + "#"):
+            cleaned_output = cleaned_output[:cleaned_output.rfind(device_name + "#")].strip()
 
         # Cache the cleaned output
         command_cache.add(device_name, command, cleaned_output)
