@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.M.2
+# Version:4.1.2.M.3
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -785,6 +785,28 @@ def crt_get_device_name():
 def pass_get_device_name():
     # Placeholder function for non-SecureCRT environments
     raise NotImplementedError("Device name retrieval is not implemented for this connection method.")
+
+def disconnect_from_host():
+    """
+    Disconnects from the host using the appropriate method based on the environment.
+    """
+    if RUNNING_IN_SECURECRT:
+        crt_disconnect_from_host()
+    else:
+        pass_disconnect_from_host()
+
+def crt_disconnect_from_host():
+    """
+    Disconnects from the host in SecureCRT.
+    """
+    crt.Session.Disconnect()
+
+def pass_disconnect_from_host():
+    """
+    Placeholder function for disconnecting from the host in other environments.
+    Raises NotImplementedError for now.
+    """
+    raise NotImplementedError("No other disconnect methods are configured at this time.")
 
 #Command and Error Handling
 
@@ -11766,13 +11788,11 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
         # Handle the exception as needed
     finally:
         # Disconnect session, regardless of success or failure
-        crt.Session.Disconnect()
+        disconnect_from_host()
         # Clear the Stig and Commandcache instances for the next host
         stig_instance.clear()
         command_cache_instance.clear()
         return process_success
-
-
 
 
 #Here may want to add a lookup/call to map the Vul number to the severity of Vul
