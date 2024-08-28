@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.20
+# Version:4.1.2.P.21
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -289,40 +289,39 @@ class EnvironmentManager:
 
     def paramiko_send_command(self, command, device_name):
         if self.session:
-            # Clear the session buffer before sending the command
+            # Clear any existing data from the session buffer
             while self.session.recv_ready():
                 self.session.recv(65535).decode('utf-8')
 
             # Send the command
             self.session.send(command + "\n")
 
-            # Capture the raw output until the prompt appears again
-            raw_output = ""
-            while True:
-                if self.session.recv_ready():
-                    chunk = self.session.recv(65535).decode('utf-8')
-                    raw_output += chunk
-
-                    # Check if we've encountered the prompt twice (start and end)
-                    if raw_output.count(self.prompt) >= 2:
-                        break
-
+            # Capture the output and ensure we only keep the necessary part
+            raw_output = self.wait_for_prompt([self.prompt])
             print(f"[DEBUG] Raw output after capturing from session:\n{raw_output}")
 
-            # Process the raw output to clean up any duplicate prompts
-            parts = raw_output.split(self.prompt)
-            processed_output = parts[1].strip() if len(parts) > 1 else raw_output.strip()
+            # Process the output to remove any duplicate or excess prompts
+            # Split lines and filter out exact prompt duplicates
+            output_lines = raw_output.splitlines()
+            filtered_output = []
+            for line in output_lines:
+                if line.strip() != self.prompt:
+                    filtered_output.append(line.strip())
 
-            # Append device name to the output (following CRT logic)
+            # Join the filtered lines back together
+            cleaned_output = "\n".join(filtered_output)
+            print(f"[DEBUG] Cleaned output after filtering:\n{cleaned_output}")
+
+            # Format the output to match CRT logic
             if "." in device_name:
-                processed_output = processed_output.strip()
+                processed_output = cleaned_output.strip()
             else:
-                processed_output = f"{device_name}#{processed_output}{device_name}#"
+                processed_output = f"{device_name}#{cleaned_output}{device_name}#"
 
-            # Log the final processed output
             print(f"[DEBUG] Final processed output:\n{processed_output}")
 
             return processed_output
+
 
 
 
