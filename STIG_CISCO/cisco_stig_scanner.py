@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.5
+# Version:4.1.2.P.6
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -175,6 +175,7 @@ class EnvironmentManager:
         self.prompt = None
 
     def connect_to_host(self, strHost, connection_type, current_host_number, total_hosts_count):
+        print(f"Connecting to {strHost} ({current_host_number} of {total_hosts_count})...")
         if self.running_in_securecrt:
             return self.crt_connect_to_host(strHost, connection_type, current_host_number, total_hosts_count)
         else:
@@ -252,7 +253,6 @@ class EnvironmentManager:
             return connect_string_default
 
     def paramiko_connection_string(self, strHost, connection_type):
-        # Paramiko connection strings are handled in the connect method itself.
         return None
 
     def wait_for_prompt(self, expected_prompts, timeout=15):
@@ -292,7 +292,7 @@ class EnvironmentManager:
             self.session.send(command + "\n")
             output = self.wait_for_prompt([self.prompt])
 
-            # Remove any duplicate prompt/device name
+            # Standardize the output format
             if output.startswith(self.prompt):
                 output = output.replace(self.prompt, "", 1).strip()
 
@@ -317,6 +317,7 @@ class EnvironmentManager:
         return self.prompt.replace("#", "").strip()
 
     def disconnect_from_host(self):
+        print("Disconnecting from host...")
         if self.running_in_securecrt:
             self.crt_disconnect_from_host()
         else:
@@ -369,7 +370,7 @@ class EnvironmentManager:
 
     def paramiko_handle_connection_failure(self, strHost, connection_type, additional_info=""):
         print(f"Failed to connect to {strHost} using {connection_type}. Info: {additional_info}")
-        log_connection_error(strHost, connection_type, additional_info)  # Log the failure
+        log_connection_error(strHost, connection_type, additional_info)
 
     def set_terminal_settings(self, strHost):
         if self.running_in_securecrt:
@@ -434,6 +435,7 @@ class EnvironmentManager:
                 output = f"{device_name}#{cleaned_output}{device_name}#"
             command_cache.add(device_name, command, output)
         return output
+
 
 class Stig:
     # Class-level mappings for status codes and severity
