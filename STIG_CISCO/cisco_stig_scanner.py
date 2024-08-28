@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.8
+# Version:4.1.2.P.9
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -11889,24 +11889,34 @@ def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
     processed_hosts_count = 0
     int_total_hosts = len(hosts_data)
 
+    print(f"Starting processing of {int_total_hosts} hosts...")
+
     for host_info in hosts_data:
-        # Increment only for hosts that will be processed
         processed_hosts_count += 1
         host = host_info['host']
         checklist_file = host_info['checklist']
         auth_method = host_info['auth']
 
+        print(f"Processing host {processed_hosts_count} of {int_total_hosts}: {host} using {auth_method} authentication...")
+
         # Use the preloaded checklist information
         if not process_host(host, checklist_file, auth_method, processed_hosts_count, int_total_hosts, stig_instance, command_cache_instance):
             int_failed_hosts += 1
+            print(f"Host {host} failed to process.")
+        else:
+            print(f"Host {host} processed successfully.")
+
+    print(f"Finished processing all hosts. Total processed: {processed_hosts_count}, Total failed: {int_failed_hosts}")
+
     return int_failed_hosts, processed_hosts_count
+
 
 #Main Execution
 def Main():
     """
     The main function that orchestrates the entire script.
     """
-    global start_time_stamp, stored_username, stored_password, command_cache, env_manager  # Added env_manager to the global statement
+    global start_time_stamp, stored_username, stored_password, command_cache, env_manager
     start_time_stamp = time.perf_counter()
     command_cache = Commandcache()
     
@@ -11916,22 +11926,31 @@ def Main():
     # Initialize credentials with default values
     stored_username = ""
     stored_password = ""
-    # Add file select box for this file, it just needs to state host and end in csv
+
+    print("Loading host data from CSV file...")
+
     csv_filename = "host.csv"
-    hosts_data = read_hosts_and_templates_from_csv(csv_filename)  # Updated function call
+    hosts_data = read_hosts_and_templates_from_csv(csv_filename)
+
+    print(f"Loaded {len(hosts_data)} hosts from CSV file.")
 
     # Check if 'un' authentication is needed and prompt for it once
     if any(host_info['auth'] == 'un' for host_info in hosts_data):
+        print("Prompting for 'un' authentication credentials...")
         env_manager.get_credentials()
 
     stig_instance = Stig()
     command_cache_instance = Commandcache()
 
+    print("Starting to process all hosts...")
+
     int_failed_hosts, processed_hosts_count = process_all_hosts(hosts_data, stig_instance, command_cache_instance)
+
+    print(f"Processing complete. Processed hosts: {processed_hosts_count}, Failed hosts: {int_failed_hosts}")
 
     env_manager.display_summary(processed_hosts_count, int_failed_hosts)
 
-Main()
+    print("Summary displayed. Script execution completed.")
 
 if __name__ == '__main__':
      Main()
