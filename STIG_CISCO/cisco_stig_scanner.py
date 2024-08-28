@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.22
+# Version:4.1.2.P.23
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -298,19 +298,13 @@ class EnvironmentManager:
 
             # Capture the output and ensure we only keep the necessary part
             raw_output = self.wait_for_prompt([self.prompt])
-            print(f"[DEBUG] Raw output after capturing from session:\n{raw_output}")
 
             # Process the output to remove any duplicate or excess prompts
-            # Split lines and filter out exact prompt duplicates
             output_lines = raw_output.splitlines()
-            filtered_output = []
-            for line in output_lines:
-                if line.strip() != self.prompt:
-                    filtered_output.append(line.strip())
+            filtered_output = [line.strip() for line in output_lines if line.strip() != self.prompt]
 
             # Join the filtered lines back together
             cleaned_output = "\n".join(filtered_output)
-            print(f"[DEBUG] Cleaned output after filtering:\n{cleaned_output}")
 
             # Format the output to match CRT logic
             if "." in device_name:
@@ -318,9 +312,8 @@ class EnvironmentManager:
             else:
                 processed_output = f"{device_name}#{cleaned_output}{device_name}#"
 
-            print(f"[DEBUG] Final processed output:\n{processed_output}")
-
             return processed_output
+
 
 
 
