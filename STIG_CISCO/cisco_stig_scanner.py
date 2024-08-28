@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.N.4
+# Version:4.1.2.P.1
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -140,9 +140,12 @@ import traceback
 import uuid #Needed for updating the CKLB templet.
 import xml.etree.ElementTree as ET #For working with CKL files
 import xml.sax.saxutils # For working with CKL files
+import tkinter as tk
+from tkinter import messagebox
 from collections import OrderedDict, namedtuple
 
 # Third-party imports
+import paramiko
 from packaging import version
 
 # Check if 'crt' is a defined variable in the globals() dictionary
@@ -167,12 +170,15 @@ class EnvironmentManager:
         self.stored_username = ""
         self.stored_password = ""
         self.start_time = start_time_stamp
+        self.ssh_client = None
+        self.session = None
+        self.prompt = None
 
     def connect_to_host(self, strHost, connection_type, current_host_number, total_hosts_count):
         if self.running_in_securecrt:
             return self.crt_connect_to_host(strHost, connection_type, current_host_number, total_hosts_count)
         else:
-            return self.pass_connect_to_host(strHost, connection_type)
+            return self.paramiko_connect_to_host(strHost, connection_type)
 
     def crt_connect_to_host(self, strHost, connection_type, current_host_number, total_hosts_count):
         connect_string = self.get_connection_method(strHost, connection_type)
@@ -192,118 +198,96 @@ class EnvironmentManager:
             self.handle_connection_failure(strHost, connection_type, f"ScriptError: {e}")
             return None, None
 
-    def pass_connect_to_host(self, strHost, connection_type):
-        raise NotImplementedError("No other connection methods are configured at this time.")
+    def paramiko_connect_to_host(self, strHost, connection_type):
+        try:
+            self.ssh_client = paramiko.SSHClient()
+            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    def get_connection_method(self, strHost, connection_type):
-        if self.running_in_securecrt:
-            return self.crt_connection_string(strHost, connection_type)
-        else:
-            return self.pass_connection_method()
+            # Assuming connection_type includes 'username' and 'password'
+            self.ssh_client.connect(
+                strHost,
+                username=self.stored_username,
+                password=self.stored_password,
+                allow_agent=False,
+                look_for_keys=False
+            )
 
-    def crt_connection_string(self, strHost, connection_type):
-        connect_string_default = f"/SSH2 /ACCEPTHOSTKEYS /Z 0 {strHost}"
-        connect_string_pki = f"/SSH2 /AUTH publickey /ACCEPTHOSTKEYS /Z 0 {strHost}"
+            self.session = self.ssh_client.invoke_shell()
+            self.prompt = self.wait_for_prompt(["#", ">"]).splitlines()[-1].strip()
+            self.set_terminal_settings(strHost)
+            device_name = self.paramiko_get_device_name()
+            return device_name, device_name
 
-        if connection_type == 'user_pass':
-            if not self.stored_username:
-                self.stored_username = crt.Dialog.Prompt("Enter your username:", "Login", "", False).strip()
-            if not self.stored_password:
-                self.stored_password = crt.Dialog.Prompt("Enter your password:", "Login", "", True).strip()
-            return f"/SSH2 /L {self.stored_username} /PASSWORD {self.stored_password} /AUTH keyboard-interactive /ACCEPTHOSTKEYS /Z 0 {strHost}"
-        if connection_type == 'pki':
-            return connect_string_pki
-        else:
-            return connect_string_default
+        except paramiko.AuthenticationException:
+            self.handle_connection_failure(strHost, connection_type, "Authentication failed")
+            return None, None
 
-    def pass_connection_method(self):
-        raise NotImplementedError("No other connection methods are configured at this time.")
+        except paramiko.SSHException as sshException:
+            self.handle_connection_failure(strHost, connection_type, str(sshException))
+            return None, None
 
-    def set_terminal_settings(self, strHost):
-        if self.running_in_securecrt:
-            self.crt_terminal_settings(strHost)
-        else:
-            self.pass_terminal_settings()
+        except Exception as e:
+            self.handle_connection_failure(strHost, connection_type, str(e))
+            return None, None
 
-    def crt_terminal_settings(self, strHost):
-        crt.Screen.WaitForStrings(["#", ">"], 15)
-        term_len = "term len 0"
-        term_width = "term width 400"
-        self.exec_command(f"{term_len}", strHost)
-        self.exec_command(f"{term_width}", strHost)
+    def wait_for_prompt(self, expected_prompts, timeout=15):
+        output = ""
+        start_time = time.time()
 
-    def pass_terminal_settings(self):
-        raise NotImplementedError("Terminal settings configuration is not implemented for this connection method.")
+        while True:
+            if self.session.recv_ready():
+                output += self.session.recv(65535).decode('utf-8')
 
-    def get_device_name(self):
-        if self.running_in_securecrt:
-            return self.crt_get_device_name()
-        else:
-            return self.pass_get_device_name()
+                for prompt in expected_prompts:
+                    if prompt in output:
+                        return output
 
-    def crt_get_device_name(self):
-        return crt.Screen.Get(crt.Screen.CurrentRow, 0, crt.Screen.CurrentRow, crt.Screen.CurrentColumn - 2).replace("#", "")
+            if time.time() - start_time > timeout:
+                raise TimeoutError("Timed out waiting for prompt.")
 
-    def pass_get_device_name(self):
-        raise NotImplementedError("Device name retrieval is not implemented for this connection method.")
-
-    def disconnect_from_host(self):
-        if self.running_in_securecrt:
-            self.crt_disconnect_from_host()
-        else:
-            self.pass_disconnect_from_host()
-
-    def crt_disconnect_from_host(self):
-        crt.Session.Disconnect()
-
-    def pass_disconnect_from_host(self):
-        raise NotImplementedError("No other disconnect methods are configured at this time.")
+            time.sleep(0.1)
 
     def send_command(self, command, device_name):
         if self.running_in_securecrt:
             return self.crt_send_command(command, device_name)
         else:
-            return self.pass_send_command(command, device_name)
+            return self.paramiko_send_command(command, device_name)
 
-    def crt_send_command(self, command, device_name):
-        if device_name.find(".") > -1:
-            prompt = "#"
-        else:
-            prompt = device_name + "#"
-        crt.Screen.WaitForStrings([prompt], 1)
-        crt.Screen.Send(command + "\r")
-        return crt.Screen.ReadString(prompt, 30)
+    def paramiko_send_command(self, command, device_name):
+        if self.session:
+            self.session.send(command + "\n")
+            output = self.wait_for_prompt([self.prompt])
+            if "." in device_name:
+                output = output.strip()
+            else:
+                output = f"{device_name}#{output.strip()}{device_name}#"
+            return output
 
-    def pass_send_command(self, command, device_name):
-        raise NotImplementedError("Command sending is not implemented for this connection method.")
-
-    def handle_errors(self, result, command, device_name):
+    def get_device_name(self):
         if self.running_in_securecrt:
-            return self.crt_handle_errors(result, command, device_name)
+            return self.crt_get_device_name()
         else:
-            return self.pass_handle_errors(result, command, device_name)
+            return self.paramiko_get_device_name()
 
-    def crt_handle_errors(self, result, command, device_name):
-        prompt = "#" if "." in device_name else f"{device_name}#"
+    def paramiko_get_device_name(self):
+        return self.prompt.replace("#", "").strip()
 
-        if len(result) < len(device_name):
-            crt.Screen.WaitForStrings([prompt], 1)
-            crt.Screen.Send("\x03\r")
-            result = crt.Screen.ReadString(prompt, 10)
-            crt.Screen.WaitForStrings([prompt], 5)
-            crt.Screen.Send(f"{command}\r")
-            result = crt.Screen.ReadString(prompt, 110)
+    def disconnect_from_host(self):
+        if self.running_in_securecrt:
+            self.crt_disconnect_from_host()
+        else:
+            self.paramiko_disconnect_from_host()
 
-        return result
-
-    def pass_handle_errors(self, result, command, device_name):
-        raise NotImplementedError("Error handling is not implemented for this connection method.")
+    def paramiko_disconnect_from_host(self):
+        if self.ssh_client:
+            self.ssh_client.close()
 
     def handle_connection_failure(self, strHost, connection_type, additional_info=""):
         if self.running_in_securecrt:
             self.crt_handle_connection_failure(strHost, connection_type, additional_info)
         else:
-            self.pass_handle_connection_failure(strHost, connection_type, additional_info)
+            print(f"Failed to connect to {strHost} using {connection_type}. Info: {additional_info}")
+            log_connection_error(strHost, connection_type, additional_info)  # Log the failure
 
     def crt_handle_connection_failure(self, strHost, connection_type, additional_info=""):
         error_message = crt.GetLastErrorMessage()
@@ -313,41 +297,51 @@ class EnvironmentManager:
             error_message += f" Additional info: {additional_info}"
         log_connection_error(strHost, connection_type, error_message)
 
-    def pass_handle_connection_failure(self, strHost, connection_type, additional_info=""):
-        raise NotImplementedError("Connection failure handling is not implemented for this connection method.")
-
-    def get_credentials(self):
+    def set_terminal_settings(self, strHost):
         if self.running_in_securecrt:
-            return self.crt_get_credentials()
+            self.crt_terminal_settings(strHost)
         else:
-            return self.pass_get_credentials()
+            self.paramiko_terminal_settings()
 
-    def crt_get_credentials(self):
-        self.stored_username = crt.Dialog.Prompt("Enter your username for 'un' authentication:", "Login", "", False).strip()
-        self.stored_password = crt.Dialog.Prompt("Enter your password for 'un' authentication:", "Login", "", True).strip()
-
-    def pass_get_credentials(self):
-        raise NotImplementedError("No other credential methods are configured at this time.")
+    def paramiko_terminal_settings(self):
+        self.send_command("terminal length 0", self.prompt)
+        self.send_command("terminal width 400", self.prompt)
 
     def display_summary(self, processed_hosts_count, int_failed_hosts):
-        """
-        Displays the summary of the script's execution.
-        """
         end_time_stamp = time.perf_counter()
-        elapsed_time = end_time_stamp - self.start_time  # Use the stored start_time
+        elapsed_time = end_time_stamp - self.start_time
         elapsed_minutes, elapsed_seconds = divmod(elapsed_time, 60)
         summary_message = f"The script finished executing in {int(elapsed_minutes)} minutes and {int(elapsed_seconds)} seconds with {processed_hosts_count - int_failed_hosts} hosts scanned and {int_failed_hosts} failed."
         
         if self.running_in_securecrt:
             self.crt_display_summary(summary_message)
         else:
-            self.pass_display_summary(summary_message)
+            self.tk_display_summary(summary_message)
 
     def crt_display_summary(self, summary_message):
         crt.Dialog.MessageBox(summary_message)
 
-    def pass_display_summary(self, summary_message):
-        print(summary_message)  # You can also raise NotImplementedError if you prefer
+    def tk_display_summary(self, summary_message):
+        root = tk.Tk()
+        root.withdraw()  # Hide the root window
+        messagebox.showinfo("Summary", summary_message)
+        root.destroy()
+
+    def get_credentials(self):
+        if self.running_in_securecrt:
+            return self.crt_get_credentials()
+        else:
+            return self.paramiko_get_credentials()
+
+    def crt_get_credentials(self):
+        self.stored_username = crt.Dialog.Prompt("Enter your username for 'un' authentication:", "Login", "", False).strip()
+        self.stored_password = crt.Dialog.Prompt("Enter your password for 'un' authentication:", "Login", "", True).strip()
+
+    def paramiko_get_credentials(self):
+        # You can prompt for credentials here, or use any method that suits your environment.
+        self.stored_username = input("Enter your username: ").strip()
+        self.stored_password = input("Enter your password: ").strip()
+                
 #place holder to use this once a review/refactor of all VUL functions are done
     # def exec_command(self, command, device_name):
         # output = command_cache.get(device_name, command)
