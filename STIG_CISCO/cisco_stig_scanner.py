@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.M.4
+# Version:4.1.2.M.5
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -11917,13 +11917,30 @@ def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
 def display_summary(processed_hosts_count, int_failed_hosts):
     """
     Displays the summary of the script's execution.
+    Calls the appropriate method based on the environment.
     """
     t2 = time.perf_counter()
     elapsed_time = t2 - t1
     elapsed_minutes, elapsed_seconds = divmod(elapsed_time, 60)
     summary_message = f"The script finished executing in {int(elapsed_minutes)} minutes and {int(elapsed_seconds)} seconds with {processed_hosts_count - int_failed_hosts} hosts scanned and {int_failed_hosts} failed."
+    
+    if RUNNING_IN_SECURECRT:
+        crt_display_summary(summary_message)
+    else:
+        pass_display_summary(summary_message)
+
+def crt_display_summary(summary_message):
+    """
+    Displays the summary of the script's execution in SecureCRT.
+    """
     crt.Dialog.MessageBox(summary_message)
 
+def pass_display_summary(summary_message):
+    """
+    Placeholder function for displaying the summary in other environments.
+    Raises NotImplementedError for now.
+    """
+    raise NotImplementedError("No other display method is configured at this time.")
 
 #Main Execution
 def Main():
