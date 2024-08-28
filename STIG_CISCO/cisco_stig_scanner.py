@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.33
+# Version:4.1.2.P.34
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -178,7 +178,7 @@ class EnvironmentManager:
     def connect_to_host(self, strHost, connection_type, current_host_number, total_hosts_count):
         # Provide feedback for connection
         if not self.running_in_securecrt:
-            print(f"Connecting to host {strHost} ({current_host_number} of {total_hosts_count})...")
+            print(f"\nConnecting to host {strHost} ({current_host_number} of {total_hosts_count})...")
 
         if self.running_in_securecrt:
             return self.crt_connect_to_host(strHost, connection_type, current_host_number, total_hosts_count)
@@ -226,7 +226,7 @@ class EnvironmentManager:
 
             # Provide feedback on successful connection
             if not self.running_in_securecrt:
-                print(f"Successfully connected to {device_name}")
+                print(f"Successfully connected to {device_name}\n")
 
             return device_name, device_name
 
@@ -343,7 +343,7 @@ class EnvironmentManager:
 
     def disconnect_from_host(self):
         if not self.running_in_securecrt:
-            print(f"Disconnecting from host {self.prompt}...")
+            print(f"\nDisconnecting from host {self.prompt.replace}...")
 
         if self.running_in_securecrt:
             self.crt_disconnect_from_host()
@@ -351,7 +351,7 @@ class EnvironmentManager:
             self.paramiko_disconnect_from_host()
 
         if not self.running_in_securecrt:
-            print(f"Disconnected from host {self.prompt}")
+            print(f"Disconnected from host {self.prompt.replace}\n")
 
     def crt_disconnect_from_host(self):
         crt.Session.Disconnect()
@@ -975,9 +975,9 @@ def read_hosts_and_templates_from_csv(filename):
             checklist_file = row['checklist']
             
             if checklist_file not in loaded_checklists:
-                print(f"Loading checklist: {checklist_file}...")
+                print(f"\nLoading checklist: {checklist_file}...")
                 checklist_manager.read_vuln_info(checklist_file)  # Preload the checklist template
-                print(f"Checklist {checklist_file} loaded and cached.")
+                print(f"Checklist {checklist_file} loaded and cached.\n")
                 loaded_checklists.add(checklist_file)  # Add to set after loading
 
     # Sort the host data: 2FA first, then un, then others
@@ -11894,12 +11894,12 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
 
         # Log the STIG results to the CSV file
         if not env_manager.running_in_securecrt:
-            print("Writing results to CSV log...")
+            print("  Writing results to CSV log...")
         log_stig_results_to_csv(stig_list, host, device_name)
 
         # Update and write CKL/CKLB
         if not env_manager.running_in_securecrt:
-            print(f"Writing results to checklist file {checklist_file}...")
+            print(f"  Writing results to checklist file {checklist_file}...")
         update_and_write_checklist(stig_list, device_name, host, checklist_file)
         process_success = True  # Set the flag to True if all steps are successful
     except Exception as e:
@@ -12000,7 +12000,11 @@ def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
 
         # Provide feedback for host processing
         if not env_manager.running_in_securecrt:
-            print(f"Processing host {processed_hosts_count} of {int_total_hosts}: {host}...")
+            print(f"\nProcessing host {processed_hosts_count} of {int_total_hosts}: {host}...")
+        if not process_host(...):
+            print(f"Failed to process host {host}.")
+        else:
+            print(f"Successfully processed host {host}.")
 
         # Use the preloaded checklist information
         if not process_host(host, checklist_file, auth_method, processed_hosts_count, int_total_hosts, stig_instance, command_cache_instance):
@@ -12031,7 +12035,8 @@ def Main():
 
     # Provide feedback about CSV loading
     if not env_manager.running_in_securecrt:
-        print("Loading host data from CSV file...")
+        print("\nLoading host data from CSV file...")
+        print("\n-----------------------------------")
 
     # Load host data from CSV file
     csv_filename = "host.csv"
@@ -12039,7 +12044,7 @@ def Main():
 
     # Provide feedback on number of hosts loaded
     if not env_manager.running_in_securecrt:
-        print(f"Loaded {len(hosts_data)} hosts from CSV file.")
+        print(f"\nLoaded {len(hosts_data)} hosts from CSV file.\n")
 
     # Check if 'un' authentication is needed and prompt for it once
     if any(host_info['auth'] == 'un' for host_info in hosts_data):
