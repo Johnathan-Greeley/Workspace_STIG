@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.L.4
+# Version:4.1.2.L.5
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -163,16 +163,35 @@ else:
 
 
 class Stig:
+    # Class-level mappings for status codes and severity
+    STATUS_MAP_CKL = {
+        "NR": "Not_Reviewed",
+        "NF": "NotAFinding",
+        "NA": "Not_Applicable",
+        "OP": "Open"
+    }
+
+    STATUS_MAP_CKLB = {
+        "NR": "not_reviewed",
+        "NA": "not_applicable",
+        "OP": "open",
+        "NF": "not_a_finding"
+    }
+
+    SEVERITY_MAP = {
+        "low": "CAT III",
+        "medium": "CAT II",
+        "high": "CAT I"
+    }
 
     def __init__(self):
         self.vulid = ""
         self.device_type = ""
         self.finding = ""
         self.status = "OP"  # Default status when a Stig instance is created
-        self.severity = "default" #Add mapping that can map the Vul ID to the CAT1, CAT2, CAT3.
+        self.severity = "default"  # Severity level, can be updated later
         self.comments = ""
 
-#I think this is the inject point for mapping the Vul ID to CAT type, need to look into this
     def set_vulid(self, func_name=None):
         """
         Sets the formatted vulnerability ID based on the provided or calling function's name.
@@ -206,13 +225,10 @@ class Stig:
         # Set the Stig object attributes to reflect the error
         self.set_vulid(func_name)
         self.status = "NR"
-        #Still trying to find a way to append the finding/results if the command is
-        #ran before the error
         existing_finding = self.finding if self.finding else ""
         self.finding = f"{existing_finding}\nError occurred during execution: {str(exception)}"
         self.comments = f"Error in {func_name}: {str(exception)}"
 
-        
     def clear(self):
         """Resets all attributes to their default values."""
         self.vulid = ""
@@ -222,33 +238,28 @@ class Stig:
         self.severity = "default"
         self.comments = ""
 
+    @classmethod
+    def get_status(cls, checklist_type, short_code):
+        """Returns the full status description based on the checklist type and short code."""
+        if checklist_type == 'ckl':
+            return cls.STATUS_MAP_CKL.get(short_code, "OP")
+        elif checklist_type == 'cklb':
+            return cls.STATUS_MAP_CKLB.get(short_code, "open")
+        else:
+            raise ValueError("Unsupported checklist type.")
+
+    @classmethod
+    def get_severity(cls, severity_code):
+        """Returns the mapped severity level."""
+        return cls.SEVERITY_MAP.get(severity_code.lower(), "default")
+
 
 class ChecklistManager:
-    # Class-level mapping of short status codes to their full description for ckl/cklb
-    STATUS_MAP_CKL = {
-        "NR": "Not_Reviewed",
-        "NF": "NotAFinding",
-        "NA": "Not_Applicable",
-        "OP": "Open"
-    }
-
-    STATUS_MAP_CKLB = {
-        "NR": "not_reviewed",
-        "NA": "not_applicable",
-        "OP": "open",
-        "NF": "not_a_finding"
-    }
-
     def __init__(self):
         self.template_cache = {}  # Cache for loaded checklist templates
         self.vuln_info_cache = {}  # Cache for parsed vulnerability data
 
     def read_vuln_info(self, checklist_file):
-        """
-        Determines the checklist file type and reads the vulnerability information accordingly.
-        Returns a dictionary where keys are original Vuln_Num or group_id and values are tuples of 
-        (function_name, severity).
-        """
         if checklist_file in self.vuln_info_cache:
             return self.vuln_info_cache[checklist_file]
 
@@ -290,7 +301,7 @@ class ChecklistManager:
                 if vuln_attribute is not None and vuln_attribute.text == 'Severity':
                     severity_data = stig_data.find('ATTRIBUTE_DATA')
                     if severity_data is not None:
-                        severity = severity_data.text
+                        severity = Stig.get_severity(severity_data.text)
             
             if original_vuln_num and function_name and severity:
                 vuln_info[original_vuln_num] = (function_name, severity)
@@ -312,6 +323,7 @@ class ChecklistManager:
                 
                 if group_id:
                     function_name = group_id.replace("-", "")
+                    severity = Stig.get_severity(severity)
                     vuln_info[group_id] = (function_name, severity)
         
         return vuln_info
@@ -378,7 +390,7 @@ class ChecklistManager:
             json.dump(cklb_content, file, indent=4)
 
     def update_ckl_template(self, obj, ckl):
-        full_status_ckl = ChecklistManager.STATUS_MAP_CKL.get(obj.status, "OP")
+        full_status_ckl = Stig.get_status('ckl', obj.status)
         root = ET.fromstring(ckl)
         for vuln in root.iter('VULN'):
             for stig_data in vuln.findall('STIG_DATA'):
@@ -392,7 +404,7 @@ class ChecklistManager:
         return ET.tostring(root, encoding='utf-8').decode('utf-8')
 
     def update_cklb_template(self, obj, cklb):
-        full_status_cklb = ChecklistManager.STATUS_MAP_CKLB.get(obj.status, "open")
+        full_status_cklb = Stig.get_status('cklb', obj.status)
         for stig in cklb['stigs']:
             for rule in stig['rules']:
                 if rule['group_id'] == obj.vulid:
