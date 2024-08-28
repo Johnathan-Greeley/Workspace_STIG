@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.11
+# Version:4.1.2.P.12
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -291,24 +291,35 @@ class EnvironmentManager:
         if self.session:
             # Use a more relaxed prompt detection method
             prompt = "#"
+            print(f"[DEBUG] Expected prompt: {prompt}")
 
             # Wait for the initial prompt to ensure the device is ready
-            self.wait_for_prompt([prompt])
+            print("[DEBUG] Waiting for the initial prompt...")
+            initial_prompt_output = self.wait_for_prompt([prompt])
+            print(f"[DEBUG] Initial prompt detected: {initial_prompt_output}")
 
             # Send the command
+            print(f"[DEBUG] Sending command: {command}")
             self.session.send(command + "\n")
 
             # Capture the output until the prompt appears again
+            print("[DEBUG] Waiting for command output...")
             output = self.wait_for_prompt([prompt])
+            print(f"[DEBUG] Command output received: {output}")
 
             # Clean and format the output to match CRT's behavior
             if output.startswith(prompt):
+                print(f"[DEBUG] Cleaning output by removing prompt: {prompt}")
                 output = output.replace(prompt, "", 1).strip()
 
             # Further clean the output, if needed
             output = output.replace("\r\n", "\n").strip()
+            print(f"[DEBUG] Final cleaned output: {output}")
 
             return output
+
+        print("[DEBUG] Session is not active.")
+        return ""
 
 
     def get_device_name(self):
@@ -11959,7 +11970,7 @@ def Main():
 
     env_manager.display_summary(processed_hosts_count, int_failed_hosts)
 
-    #print("Summary displayed. Script execution completed.")
+    print("Summary displayed. Script execution completed.")
 
 if __name__ == '__main__':
      Main()
