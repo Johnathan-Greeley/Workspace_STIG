@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.L.1
+# Version:4.1.2.L.2
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -245,7 +245,7 @@ class ChecklistManager:
     def read_vuln_info(self, checklist_file):
         """
         Determines the checklist file type and reads the vulnerability information accordingly.
-        Returns a dictionary where keys are original Vuln_Num and values are tuples of 
+        Returns a dictionary where keys are original Vuln_Num or group_id and values are tuples of 
         (function_name, severity).
         """
         file_extension = os.path.splitext(checklist_file)[1].lower()
@@ -253,8 +253,7 @@ class ChecklistManager:
         if file_extension == '.ckl':
             return self.read_vuln_info_from_ckl(checklist_file)
         elif file_extension == '.cklb':
-            function_names = self.read_function_names_from_cklb(checklist_file)
-            return {vuln_num: (vuln_num.replace("-", ""), None) for vuln_num in function_names}
+            return self.read_vuln_info_from_cklb(checklist_file)
         else:
             raise ValueError("Unsupported checklist file format. Provide a .ckl, .cklb, or no extension for both.")
 
@@ -287,20 +286,22 @@ class ChecklistManager:
         
         return vuln_info
 
-    def read_function_names_from_cklb(self, checklist_file):
+    def read_vuln_info_from_cklb(self, checklist_file):
+        vuln_info = {}
+        
         with open(checklist_file, 'r', encoding='utf-8') as file:
             cklb_data = json.load(file)
-        function_names = []
-        for stig in cklb_data['stigs']:
-            for rule in stig['rules']:
-                group_id_src = rule['group_id']
-                if group_id_src.startswith('V-'):
-                    function_name = 'V' + group_id_src[2:].replace("-", "")
-                    function_names.append(function_name)
-                elif group_id_src.startswith('V'):
-                    function_name = group_id_src.replace("-", "")
-                    function_names.append(function_name)
-        return function_names
+
+        for stig in cklb_data.get('stigs', []):
+            for rule in stig.get('rules', []):
+                group_id = rule.get('group_id')
+                severity = rule.get('severity')
+                
+                if group_id:
+                    function_name = group_id.replace("-", "")
+                    vuln_info[group_id] = (function_name, severity)
+        
+        return vuln_info
 
     def load_ckl_template(self, template_name):
         try:
