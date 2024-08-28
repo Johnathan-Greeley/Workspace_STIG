@@ -1,6 +1,7 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.k
+# Version:4.1.2.L.1
+
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
 Creator: Johnathan A. Greeley
@@ -77,7 +78,11 @@ Version: cisco_stig_scanner_v4.1.2.k (last update: 2024-MAY-24)
 -Updated Vuls for IOS XE Switch, IOS XE RTR, NXOS.
 -Updated CKLB/CKL(Emass export) files
 -Note: Pending update of Switch RTR Vuls.
--Note: Still working on "clean_output" its not cleaning all know yet.
+-Note: Still working on "clean_output" its not cleaning 100% of the keys at this time.
+Version: cisco_stig_scanner_v4.1.2.k.3 (last update: 2024-AUG-06)
+Updated CKLB/CKL(Emass export) files to V3R1
+-Note: added flag to show script running in CRT
+-Updated header info above each section of VUL checks to reflect current versions.
 '''
 
 '''
@@ -117,6 +122,7 @@ TODO LIST
    - Aim to expedite the process of updating and validating vulnerability functions.
 '''
 
+
 # Standard library imports
 import os
 import datetime
@@ -125,15 +131,15 @@ import sys
 import re
 import string
 import csv
-import html
-import json
+import html #for wirtinig escapes when saving some output to files.
+import json #To support CKLB files
 import inspect
 import time
 import array
 import traceback
-import uuid
-import xml.etree.ElementTree as ET
-import xml.sax.saxutils
+import uuid #Needed for updating the CKLB templet.
+import xml.etree.ElementTree as ET #For working with CKL files
+import xml.sax.saxutils # For working with CKL files
 from collections import OrderedDict, namedtuple
 
 # Third-party imports
@@ -141,6 +147,7 @@ from packaging import version
 
 # Check if 'crt' is a defined variable in the globals() dictionary
 if 'crt' in globals():
+    RUNNING_IN_SECURECRT = True
     # Use SecureCRT's scripting API to get the full path of the current script
     script_dir, script_name = os.path.split(crt.ScriptFullName)
     # If the script directory is not already in sys.path, add it at the beginning
@@ -148,9 +155,11 @@ if 'crt' in globals():
         sys.path.insert(0, script_dir)
     # Set the current working directory to the script's directory
     os.chdir(script_dir)  # Use script_dir which contains the directory of the current script
+else:
+    RUNNING_IN_SECURECRT = False
 
 # Local application/library specific imports
-import SecureCRT
+#import SecureCRT  
 
 
 class Stig:
@@ -160,10 +169,10 @@ class Stig:
         self.device_type = ""
         self.finding = ""
         self.status = "OP"  # Default status when a Stig instance is created
-        self.severity = "default"  # Add mapping that can map the Vul ID to the CAT1, CAT2, CAT3.
+        self.severity = "default" #Add mapping that can map the Vul ID to the CAT1, CAT2, CAT3.
         self.comments = ""
 
-    # I think this is the inject point for mapping the Vul ID to CAT type, need to look into this
+#I think this is the inject point for mapping the Vul ID to CAT type, need to look into this
     def set_vulid(self, func_name=None):
         """
         Sets the formatted vulnerability ID based on the provided or calling function's name.
@@ -197,12 +206,13 @@ class Stig:
         # Set the Stig object attributes to reflect the error
         self.set_vulid(func_name)
         self.status = "NR"
-        # Still trying to find a way to append the finding/results if the command is
-        # ran before the error
+        #Still trying to find a way to append the finding/results if the command is
+        #ran before the error
         existing_finding = self.finding if self.finding else ""
         self.finding = f"{existing_finding}\nError occurred during execution: {str(exception)}"
         self.comments = f"Error in {func_name}: {str(exception)}"
 
+        
     def clear(self):
         """Resets all attributes to their default values."""
         self.vulid = ""
@@ -232,19 +242,50 @@ class ChecklistManager:
     def __init__(self):
         pass
 
-    def read_function_names_from_ckl(self, checklist_file):
-        function_names = []
+    def read_vuln_info(self, checklist_file):
+        """
+        Determines the checklist file type and reads the vulnerability information accordingly.
+        Returns a dictionary where keys are original Vuln_Num and values are tuples of 
+        (function_name, severity).
+        """
+        file_extension = os.path.splitext(checklist_file)[1].lower()
+        
+        if file_extension == '.ckl':
+            return self.read_vuln_info_from_ckl(checklist_file)
+        elif file_extension == '.cklb':
+            function_names = self.read_function_names_from_cklb(checklist_file)
+            return {vuln_num: (vuln_num.replace("-", ""), None) for vuln_num in function_names}
+        else:
+            raise ValueError("Unsupported checklist file format. Provide a .ckl, .cklb, or no extension for both.")
+
+    def read_vuln_info_from_ckl(self, checklist_file):
+        vuln_info = {}
         tree = ET.parse(checklist_file)
         root = tree.getroot()
+        
         for vuln in root.iter('VULN'):
+            original_vuln_num = None
+            function_name = None
+            severity = None
+            
             for stig_data in vuln.findall('STIG_DATA'):
                 vuln_attribute = stig_data.find('VULN_ATTRIBUTE')
-                if vuln_attribute is not None and vuln_attribute.text == 'Vuln_Num':
-                    attribute_data = stig_data.find('ATTRIBUTE_DATA')
-                    if attribute_data is not None:
-                        function_name = attribute_data.text.replace("-", "")
-                        function_names.append(function_name)
-        return function_names
+                if vuln_attribute is not None:
+                    if vuln_attribute.text == 'Vuln_Num':
+                        attribute_data = stig_data.find('ATTRIBUTE_DATA')
+                        if attribute_data is not None:
+                            original_vuln_num = attribute_data.text
+                            function_name = original_vuln_num.replace("-", "")
+                    
+                    if vuln_attribute.text == 'Severity':
+                        severity_data = stig_data.find('ATTRIBUTE_DATA')
+                        if severity_data is not None:
+                            severity = severity_data.text
+            
+            if original_vuln_num and function_name and severity:
+                vuln_info[original_vuln_num] = (function_name, severity)
+        
+        return vuln_info
 
     def read_function_names_from_cklb(self, checklist_file):
         with open(checklist_file, 'r', encoding='utf-8') as file:
@@ -260,12 +301,6 @@ class ChecklistManager:
                     function_name = group_id_src.replace("-", "")
                     function_names.append(function_name)
         return function_names
-
-    def read_function_names_from_csv(self, filename):
-        with open(filename, "r") as file:
-            reader = csv.reader(file)
-            next(reader, None)
-            return [row[0] for row in reader if row]
 
     def load_ckl_template(self, template_name):
         try:
@@ -319,13 +354,12 @@ class ChecklistManager:
             json.dump(cklb_content, file, indent=4)
 
     def update_ckl_template(self, obj, ckl):
-        # Using class attribute for status map
         full_status_ckl = ChecklistManager.STATUS_MAP_CKL.get(obj.status, "OP")
         root = ET.fromstring(ckl)
         for vuln in root.iter('VULN'):
             for stig_data in vuln.findall('STIG_DATA'):
                 vuln_attribute = stig_data.find('VULN_ATTRIBUTE')
-                if vuln_attribute is not None and vuln_attribute.text == 'Vuln_Num':
+                if vuln_attribute is not None and vuln_attribute.text == obj.vulid:
                     attribute_data = stig_data.find('ATTRIBUTE_DATA')
                     if attribute_data is not None and attribute_data.text == obj.vulid:
                         vuln.find('STATUS').text = full_status_ckl
@@ -334,7 +368,6 @@ class ChecklistManager:
         return ET.tostring(root, encoding='utf-8').decode('utf-8')
 
     def update_cklb_template(self, obj, cklb):
-        # Using class attribute for status map
         full_status_cklb = ChecklistManager.STATUS_MAP_CKLB.get(obj.status, "open")
         for stig in cklb['stigs']:
             for rule in stig['rules']:
@@ -352,13 +385,11 @@ class IntStatus:
         self.description = "undefined"
         self.vlan = "undefined"
 
-
 class IntTrans:
     def __init__(self):
         self.interface = "undefined"
         self.transtype = "none"
         self.device_name = "undefined"
-
 
 class Commandcache:
     def __init__(self):
@@ -385,31 +416,29 @@ class Commandcache:
             re.compile(r'(username\s+\S+\s+.*?secret\s+\d+\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
             re.compile(r'(crypto isakmp key\s+\d+\s+)(\S+)(?=\s+address)', re.VERBOSE | re.MULTILINE | re.DOTALL),
             re.compile(r'(password\s+\d+\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
-            re.compile(r'(ip ospf message-digest-key\s+\d+\s+md5\s+\d+\s+)(\S+)',
-                       re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(ip ospf message-digest-key\s+\d+\s+md5\s+\d+\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
             re.compile(r'(authentication mode hmac-sha-256\s+\d\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
             re.compile(r'(key-string\s+\d+\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
             re.compile(r'(authentication mode hmac-sha-256 7\s+)(\S+)', re.VERBOSE | re.MULTILINE | re.DOTALL),
-            re.compile(r'(snmp-server user\s+\S+\s+auth sha\s+\S+\s+priv aes-128\s+)(\S+).*',
-                       re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(snmp-server user\s+\S+\s+auth sha\s+\S+\s+priv aes-128\s+)(\S+).*', re.VERBOSE | re.MULTILINE | re.DOTALL),
             # Updated NTP regex to sanitize until the optional space and digit
-            re.compile(r'(ntp authentication-key\s+\d+\s+(hmac-sha2-256|md5)\s+).*',
-                       re.VERBOSE | re.MULTILINE | re.DOTALL),
+            re.compile(r'(ntp authentication-key\s+\d+\s+(hmac-sha2-256|md5)\s+).*', re.VERBOSE | re.MULTILINE | re.DOTALL),
         ]
-
+        
         # Clean the output
         for pattern in hash_patterns:
             output = pattern.sub(r'\1***SANITISED***', output)
-
+        
         return output
+
 
 
 # Usage of cleaning when adding data to the cache
 # This would be in the part of the script where command outputs are processed
 # command_cache.add(device_name, command, raw_output)
 
-# place holder
-# class ConnectionManager:
+#place holder
+#class ConnectionManager:
 
 
 # Grouping global variables here
@@ -417,26 +446,26 @@ class Commandcache:
 # variable has been moved into a function.
 
 
-# Helper Functions
+#Helper Functions
 
 
 def remove_char(x):
     """
     Removes all non-digit characters from a string.
-
+    
     Args:
     - x (str): The string from which to remove characters.
-
+    
     Returns:
     - str: The modified string containing only digits.
     """
     Output = re.sub("\D", "", x)
     return Output
 
-
+  
 def read_function_names_from_checklist(checklist_file):
     """
-    Reads function names from the checklist file based on its format.
+    Reads function names from the checklist file based on its format. 
     Supports .ckl and .cklb formats. If no extension is provided, defaults to .ckl format.
 
     Args:
@@ -467,16 +496,16 @@ def read_function_names(checklist_file):
     Attempts to read function names from a STIG CSV file. If the CSV file is empty or not present,
     the function then reads from a provided CKL or CKLB checklist file based on its extension.
     If no extension is provided, defaults to .ckl format.
-
+    
     Args:
     - checklist_file (str): The name of the CKL or CKLB checklist file to read from if CSV is empty.
-
+    
     Returns:
     - list: A list of function names.
     """
     checklist_manager = ChecklistManager()
     function_names = checklist_manager.read_function_names_from_csv("stig_vul.csv")
-
+    
     if not function_names:
         file_extension = os.path.splitext(checklist_file)[1].lower()
 
@@ -495,10 +524,10 @@ def read_function_names(checklist_file):
 def read_hosts_from_csv(filename):
     """
     Reads host information from a CSV file.
-
+   
     Args:
     - filename (str): The name of the CSV file.
-
+   
     Returns:
     - list: A list of dictionaries, each containing host information.
     """
@@ -510,23 +539,22 @@ def read_hosts_from_csv(filename):
     return host_data
 
 
-# Look into moving logic into a logging Class
+#Look into moving logic into a logging Class
 def get_daily_log_filename(script_name="cisco_stig_scanner_v4", file_extension=".csv"):
     date_str = datetime.datetime.now().strftime("%d-%b-%Y").upper()
     return f"{script_name}_{date_str}{file_extension}"
 
 
-# Look into moving logic into a logging Class
+#Look into moving logic into a logging Class
 def log_stig_results_to_csv(stig_list, host, device_name):
     log_filename = get_daily_log_filename()
     file_exists = os.path.isfile(log_filename)
-
+    
     with open(log_filename, 'a', newline='', encoding='utf-8') as csvfile:
         csv_writer = csv.writer(csvfile)
         if not file_exists:
-            csv_writer.writerow(
-                ["Date", "Hostname", "CommonName", "DeviceName", "VulnID", "Status", "Finding", "Comments"])
-
+            csv_writer.writerow(["Date", "Hostname", "CommonName", "DeviceName", "VulnID", "Status", "Finding", "Comments"])
+        
         for stig in stig_list:
             csv_writer.writerow([
                 datetime.datetime.now().strftime("%b-%d-%Y"),
@@ -540,7 +568,7 @@ def log_stig_results_to_csv(stig_list, host, device_name):
             ])
 
 
-# Look into moving logic into a logging Class
+#Look into moving logic into a logging Class
 def log_vuln_check_error(device_name, device_type, func_name, e):
     """
     Logs an error that occurred during a vulnerability check to a CSV file.
@@ -568,8 +596,7 @@ def log_vuln_check_error(device_name, device_type, func_name, e):
             f"Line {line_number}: {error_message}"
         ])
 
-
-# Look into moving logic into a logging Class
+#Look into moving logic into a logging Class
 def log_connection_error(host, auth_method, error_message):
     """
     Logs an error message for a failed connection attempt to a file, removing extra whitespace.
@@ -590,10 +617,10 @@ def log_connection_error(host, auth_method, error_message):
         error_log.write(log_entry)
 
 
-# Commection Management
+#Commection Management
 
 
-# Look into moving crt logic out of this function in prep for creating connection Class
+#Look into moving crt logic out of this function in prep for creating connection Class
 def connect_to_host(strHost, connection_type, current_host_number, total_hosts_count):
     global stored_username, stored_password
 
@@ -621,89 +648,87 @@ def connect_to_host(strHost, connection_type, current_host_number, total_hosts_c
         # Handle the failed connection attempt using handle_connection_failure
         handle_connection_failure(strHost, connection_type, f"ScriptError: {e}")
         return None, None
+        
 
-
-# this may be turn into connection type and then move the crt logic into its own function
-# this would be needed in prep for the connection class
+#this may be turn into connection type and then move the crt logic into its own function
+#this would be needed in prep for the connection class
 def get_connection_string(strHost, connection_type, stored_username, stored_password):
     """
     Generates the connection string based on the connection type and credentials.
-
+   
     Args:
     - strHost (str): The hostname.
     - connection_type (str): The type of connection ('user_pass', 'pki', or 'default').
     - stored_username (str): The stored username for authentication.
     - stored_password (str): The stored password for authentication.
-
+   
     Returns:
     - str: The generated connection string.
     """
-    connect_string_default = f"/SSH2 /ACCEPTHOSTKEYS /Z 4 {strHost}"
-    connect_string_pki = f"/SSH2 /AUTH publickey /ACCEPTHOSTKEYS /Z 4 {strHost}"
-
+    connect_string_default = f"/SSH2 /ACCEPTHOSTKEYS /Z 0 {strHost}"
+    connect_string_pki = f"/SSH2 /AUTH publickey /ACCEPTHOSTKEYS /Z 0 {strHost}"
+   
     if connection_type == 'user_pass':
         if not stored_username:
             stored_username = crt.Dialog.Prompt("Enter your username:", "Login", "", False).strip()
         if not stored_password:
             stored_password = crt.Dialog.Prompt("Enter your password:", "Login", "", True).strip()
-        return f"/SSH2 /L {stored_username} /PASSWORD {stored_password} /AUTH keyboard-interactive /ACCEPTHOSTKEYS /Z 4 {strHost}"
-
+        return f"/SSH2 /L {stored_username} /PASSWORD {stored_password} /AUTH keyboard-interactive /ACCEPTHOSTKEYS /Z 0 {strHost}"
+   
     if connection_type == 'pki':
         return connect_string_pki
     else:
         return connect_string_default
 
-
-# need to move crt logic out of here in prep for connection Class
-# also some ssh clients may not need to set 'term len' or may do it already, will need to account for this
+#need to move crt logic out of here in prep for connection Class
+#also some ssh clients may not need to set 'term len' or may do it already, will need to account for this
 def set_terminal_settings(strHost):
     """
     Sets terminal settings for the session.
-
+   
     Args:
     - strHost (str): The hostname.
-
+   
     Returns:
     None
     """
     crt.Screen.WaitForStrings(["#", ">"], 15)
     term_len = "term len 0"
     term_width = "term width 400"
-    exec_command(f"{term_len}\r", strHost)
-    exec_command(f"{term_width}\r", strHost)
+    exec_command(f"{term_len}", strHost)
+    exec_command(f"{term_width}", strHost)
 
 
-# write a function that gets device info like make/model/SN/OS
-# def get_device_info():
+#write a function that gets device info like make/model/SN/OS
+#def get_device_info():
 
-# This may get turn into get prompt and the crt logic will be moved into its own function
-# This would be done to prep for the connection Class
+#This may get turn into get prompt and the crt logic will be moved into its own function
+#This would be done to prep for the connection Class
 def get_device_name():
     """
     Retrieves the device name from the current screen in the terminal.
-
+   
     Args:
     None
-
+   
     Returns:
     - str: The device name.
     """
-    return crt.Screen.Get(crt.Screen.CurrentRow, 0, crt.Screen.CurrentRow, crt.Screen.CurrentColumn - 2).replace("#",
-                                                                                                                 "")
+    return crt.Screen.Get(crt.Screen.CurrentRow, 0, crt.Screen.CurrentRow, crt.Screen.CurrentColumn - 2).replace("#", "")
 
 
-# Command and Error Handling
+#Command and Error Handling
 
-# Need to bust out the crt logic from this and turn this into a passthrough for
-# for ssh clients in prep of connection Class.
+#Need to bust out the crt logic from this and turn this into a passthrough for
+#for ssh clients in prep of connection Class.
 def send_command(command, device_name):
     """
     Sends a command to the terminal and returns the output.
-
+   
     Args:
     - command (str): The command to send.
     - device_name (str): The name of the device to send the command to.
-
+   
     Returns:
     - str: The output from the command execution.
     """
@@ -719,11 +744,11 @@ def send_command(command, device_name):
 def exec_command(command, device_name):
     """
     Executes a command on a device, cleans, and caches the output.
-
+   
     Args:
     - command (str): The command to execute.
     - device_name (str): The name of the device.
-
+   
     Returns:
     - str: The cleaned output from the command execution, with device name included.
     """
@@ -750,16 +775,16 @@ def exec_command(command, device_name):
     return output
 
 
-# Need to bust out the crt logic for prep of the connection Class
+#Need to bust out the crt logic for prep of the connection Class
 def handle_errors(result, command, device_name):
     """
     Handles errors during command execution and logs them.
-
+   
     Args:
     - result (str): The result from the command execution.
     - command (str): The command that was executed.
     - device_name (str): The name of the device.
-
+   
     Returns:
     - str: The processed result, taking into account any errors.
     """
@@ -777,14 +802,14 @@ def handle_errors(result, command, device_name):
 
     # Additional error handling for connection failures
     # if "Failed to connect" in result:
-    # log_error(result)
-    # print(f"Error: {result}")
-    # Continue with the next host or operation
-    # return result
+        # log_error(result)
+        # print(f"Error: {result}")
+        # Continue with the next host or operation
+        # return result
 
     return result
-
-
+    
+    
 def handle_connection_failure(strHost, connection_type, additional_info=""):
     # SecureCRT specific error handling for authentication failure
     error_message = crt.GetLastErrorMessage()
@@ -796,14 +821,13 @@ def handle_connection_failure(strHost, connection_type, additional_info=""):
 
     log_connection_error(strHost, connection_type, error_message)
 
-
-# Vulnerability Check Functions
+#Vulnerability Check Functions 
 
 
 """
 --------------------------------------------------------------------------
 Cisco IOS XE Switch NDM Security Technical Implementation Guide
-Version 2, Release: 9 Benchmark Date: 24 Apr 2024
+Version 3, Release: 1 Benchmark Date: 24 July 2024
 --------------------------------------------------------------------------
 """
 
@@ -858,6 +882,8 @@ def V220518(device_type, device_name):
             check.comments = "V-220518 - CAT II - VTY lines configuration is not as expected."
 
     return check
+
+
 
 
 def V220519(device_type, device_name):
@@ -999,8 +1025,8 @@ def V220523(device_type, device_name):
         check.finding = result
 
     return check
-
-
+    
+    
 def V220524(device_type, device_name):
     """
     V-220524 - CAT II - The Cisco switch must be configured to enforce the limit of three consecutive invalid logon attempts, after which time it must lock out the user account from accessing the device for 15 minutes.
@@ -1020,7 +1046,7 @@ def V220524(device_type, device_name):
         check.status = "NF"
         check.comments = "V-220524 - CAT II - NAF - Configured to limit the number of failed logon attempts"
 
-    return check
+    return check    
 
 
 def V220525(device_type, device_name):
@@ -1165,9 +1191,9 @@ def V220531(device_type, device_name):
 
     check.finding = result
 
-    return check
+    return check    
 
-
+    
 def V220532(device_type, device_name):
     """
     Legacy IDs: V-96233; SV-105371
@@ -1191,7 +1217,7 @@ def V220532(device_type, device_name):
         check.status = "NF"
         check.comments = "V-220532 - CAT II - NAF - file privilege 15 configured."
 
-    return check
+    return check    
 
 
 def V220533(device_type, device_name):
@@ -1217,7 +1243,6 @@ def V220533(device_type, device_name):
         check.comments = "V-220533 - CAT II - NAF - file privilege 15 configured."
 
     return check
-
 
 def V220534(device_type, device_name):
     """
@@ -1286,6 +1311,7 @@ def V220535(device_type, device_name):
     return check
 
 
+
 def V220537(device_type, device_name):
     """
     V-220537 - CAT II - The Cisco switch must be configured to enforce a minimum 15-character password length.
@@ -1313,11 +1339,11 @@ def V220537(device_type, device_name):
                 break
 
     return check
-
-
+    
+    
 def V220538(device_type, device_name):
     """
-    V-220538 - CAT II - The Cisco switch must be configured to enforce password complexity by requiring
+    V-220538 - CAT II - The Cisco switch must be configured to enforce password complexity by requiring 
     that at least one upper-case character be used.
     Updated by Johnathan Greeley 2023-SEP-05, check output for what VUL is asking for.
     """
@@ -1347,7 +1373,7 @@ def V220538(device_type, device_name):
 
     return check
 
-
+    
 def V220539(device_type, device_name):
     """
     V-220539 - CAT II - The Cisco switch must be configured to enforce password complexity by requiring that at least one lower-case character be used.
@@ -1380,6 +1406,7 @@ def V220539(device_type, device_name):
     return check
 
 
+
 def V220540(device_type, device_name):
     """
     V-220540 - CAT II - The Cisco switch must be configured to enforce password complexity by requiring that at least one numeric character be used.
@@ -1410,6 +1437,7 @@ def V220540(device_type, device_name):
             check.comments = f"V-220540 - Numeric Count is configured to {numeric_count} which is below the minimum requirement."
 
     return check
+
 
 
 def V220541(device_type, device_name):
@@ -1446,7 +1474,7 @@ def V220541(device_type, device_name):
 
 def V220542(device_type, device_name):
     """
-    V-220542 - CAT II - The Cisco switch must be configured to require that when a password is changed,
+    V-220542 - CAT II - The Cisco switch must be configured to require that when a password is changed, 
     the characters are changed in at least eight of the positions within the password.
     Updated by Johnathan Greeley 2023-SEP-05, check output for what VUL is asking for.
     """
@@ -1473,8 +1501,8 @@ def V220542(device_type, device_name):
             check.comments = f"V-220542 - NAF - common criteria policy configured. The Number of character changes is configured to {char_changes}."
 
     return check
-
-
+    
+    
 def V220543(device_type, device_name):
     """
     V-220543 - CAT I - The Cisco switch must only store cryptographic representations of passwords.
@@ -1498,7 +1526,6 @@ def V220543(device_type, device_name):
     check.finding = result
 
     return check
-
 
 def V220544(device_type, device_name):
     """
@@ -1631,6 +1658,7 @@ def V220547(device_type, device_name):
     return check
 
 
+
 def V220548(device_type, device_name):
     """
     V-220548 - CAT II - The Cisco switch must be configured to generate an alert for all audit failure events.
@@ -1678,8 +1706,7 @@ def V220549(device_type, device_name):
     ntp_servers = re.findall(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", result)
 
     # Count the number of valid peers
-    valid_peers = sum(
-        1 for line in result.splitlines() if ("'*' sys.peer" in line) or ("candidate" in line and "valid" in line))
+    valid_peers = sum(1 for line in result.splitlines() if ("'*' sys.peer" in line) or ("candidate" in line and "valid" in line))
 
     # Update the comments with the number of NTP servers and valid peers found
     check.comments = f"Found {len(ntp_servers)} configured NTP servers and {valid_peers} valid peers."
@@ -1694,6 +1721,7 @@ def V220549(device_type, device_name):
     check.finding = result
 
     return check
+
 
 
 def V220552(device_type, device_name):
@@ -1734,8 +1762,7 @@ def V220552(device_type, device_name):
     # Check for active users and their settings from the second command's result
     users = re.findall(r"User name: (\S+)", result2)
     for user in users:
-        user_data = re.search(rf"User name: {user}.*?Authentication Protocol: (\S+).*?Privacy Protocol: (\S+)", result2,
-                              re.DOTALL)
+        user_data = re.search(rf"User name: {user}.*?Authentication Protocol: (\S+).*?Privacy Protocol: (\S+)", result2, re.DOTALL)
         if user_data:
             auth_protocol, privacy_protocol = user_data.groups()
             if not (auth_protocol == "SHA" and privacy_protocol.startswith("AES")):
@@ -1856,7 +1883,6 @@ def V220555(device_type, device_name):
 
     return check
 
-
 def V220556(device_type, device_name):
     """
     V-220556 -  CAT I - The Cisco switch must be configured to implement cryptographic mechanisms to protect the confidentiality of remote maintenance sessions.
@@ -1876,15 +1902,11 @@ def V220556(device_type, device_name):
     check.comments = "V-220556 -  The Cisco switch must be configured to implement cryptographic mechanisms to protect the confidentiality of remote maintenance sessions."
 
     # Check if the result contains required strings using regex
-    if re.search(r"ip ssh version 2", result) and (
-            re.search(r"encryption aes128", result) or re.search(r"encryption aes192", result) or re.search(
-            r"encryption aes256", result)):
+    if re.search(r"ip ssh version 2", result) and (re.search(r"encryption aes128", result) or re.search(r"encryption aes192", result) or re.search(r"encryption aes256", result)):
         check.status = "NF"
         check.comments = "V-220556 - CAT II - NAF - Specified cryptographic mechanisms are being used."
 
     return check
-
-
 def V220558(device_type, device_name):
     """
     V-220558 - CAT II -The Cisco switch must be configured to generate log records when administrator privileges are modified.
@@ -2069,12 +2091,11 @@ def V220565(device_type, device_name):
 
     # Check for server name in command2 output
     if server_name:
-        if all(keyword in result2 for keyword in
-               [server_name, "aaa authentication login", "aaa authentication enable", "aaa group server"]):
+        if all(keyword in result2 for keyword in [server_name, "aaa authentication login", "aaa authentication enable", "aaa group server"]):
             check.status = "NF"
-            check.comments = f"V-220565 - CAT II - NAF - {server_name} is configured correctly."
+            check.comments = f"V-220565 - CAT I - NAF - {server_name} is configured correctly."
         else:
-            check.comments = f"V-220565 - CAT II - {server_name} is not configured correctly."
+            check.comments = f"V-220565 - CAT I - {server_name} is not configured correctly."
 
     # Check for login authentication value
     login_auth_matches = re.findall(r"aaa authentication login (\S+) group", result2)
@@ -2094,11 +2115,12 @@ def V220565(device_type, device_name):
 
     # Clean up the result2 output
     result2_cleaned = re.sub(r"(server-private \d+\.\d+\.\d+\.\d+ key) .*", r"\1 ***removed***", result2)
-
+    
     # Combine the results from both commands for the findings
     check.finding = f"{result1}\n\n{result2_cleaned}"
 
     return check
+
 
 
 def V220566(device_type, device_name):
@@ -2175,8 +2197,8 @@ def V220567(device_type, device_name):
     check.comments = "\n".join(comments)
 
     return check
-
-
+    
+    
 def V220568(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -2194,6 +2216,7 @@ def V220568(device_type, device_name):
         check.comments = "V-220568 - NOTE: AS OF 11/1/19 THIS IS A FINDING!!! PLEASE REMEDIATE"
 
     return check
+
 
 
 def V220569(device_type, device_name):
@@ -2221,14 +2244,14 @@ def V220569(device_type, device_name):
             if version.parse(model_version) >= version.parse(check_item["version"]):
                 check.status = "NF"
                 check.comments = (
-                        f"NAF: As of 1/16/2020 {check_item['device']} devices should have code level {check_item['version']}.  This device has "
-                        + model_version
+                    f"NAF: As of 1/16/2020 {check_item['device']} devices should have code level {check_item['version']}.  This device has "
+                    + model_version
                 )
             else:
                 check.status = "OP"
                 check.comments = (
-                        f"OPEN: As of 1/16/2020 {check_item['device']} devices should have code level {check_item['version']}.  This device has "
-                        + model_version
+                    f"OPEN: As of 1/16/2020 {check_item['device']} devices should have code level {check_item['version']}.  This device has "
+                    + model_version
                 )
 
     check.finding = result
@@ -2238,7 +2261,7 @@ def V220569(device_type, device_name):
 """
 --------------------------------------------------------------------------
 Cisco IOS XE Switch L2S Security Technical Implementation Guide
-Version 2, Release: 5 Benchmark Date: 25 Oct 2023
+Version 3, Release: 1 Benchmark Date: 24 July 2024
 --------------------------------------------------------------------------
 """
 
@@ -2252,7 +2275,7 @@ def V220649(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "V-220649 - Not applicable - There are no end-user devices in the datacenter."
-
+    
     return check
 
 
@@ -2326,8 +2349,7 @@ def V220655(device_type, device_name):
     result = exec_command(command, device_name)
     temp += "\r" + result
 
-    trunk_ports = [line.split()[0] for line in result.splitlines() if
-                   line.find("#") == -1 and line.find("show") == -1 and line.split()[0] not in root_ports]
+    trunk_ports = [line.split()[0] for line in result.splitlines() if line.find("#") == -1 and line.find("show") == -1 and line.split()[0] not in root_ports]
 
     if not trunk_ports:
         check.comments += "\rAll trunking ports are root ports."
@@ -2400,13 +2422,13 @@ def V220658(device_type, device_name):
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check.set_vulid()
     check.status = "NA"
-
+    
     command = "show run | i block.unicast|^interface|switchport.access"
     result = exec_command(command, device_name)
-
+    
     check.finding = result
     check.comments = "V-220658 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
-
+    
     return check
 
 
@@ -2418,14 +2440,15 @@ def V220659(device_type, device_name):
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check.set_vulid()
     check.status = "NA"
-
+    
     command = "show run | i ^ip.dhcp.snooping"
     result = exec_command(command, device_name)
-
+    
     check.finding = result
     check.comments = "V-220659 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
-
+    
     return check
+
 
 
 def V220660(device_type, device_name):
@@ -2436,15 +2459,14 @@ def V220660(device_type, device_name):
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check.set_vulid()
     check.status = "NA"
-
+    
     command = "show run | i ip.verify.source|^interface|switchport.access"
     result = exec_command(command, device_name)
-
+    
     check.finding = result
     check.comments = "V-220660 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
-
+    
     return check
-
 
 def V220661(device_type, device_name):
     """
@@ -2454,31 +2476,30 @@ def V220661(device_type, device_name):
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
     check.set_vulid()
     check.status = "NA"
-
+    
     command = "show run | i arp.inspection.vlan"
     result = exec_command(command, device_name)
-
+    
     check.finding = result
     check.comments = "V-220661 - Not Applicable - Datacenter switches only connect to trusted infrastructure devices."
-
+    
     return check
+
 
 
 def V220662(device_type, device_name):
     # V-220662 - The Cisco switch must have Storm Control configured on all host-facing switchports.
     check = Stig()
-    MsgBox = crt.Dialog.MessageBox
-    # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = "V-220662"
+    check.set_vulid()
     check.status = "NF"
     # Find all the root ports.
-    command = "show spanning-tree | i Root.FWD"
+    command= "show spanning-tree | i Root.FWD"
     rootPorts = []
     trunkPorts = []
-    result = exec_command(command, device_name)
-    temp = result
+    result= exec_command(command, device_name)
+    temp= result
     for line in result.splitlines():
-        port = line[0: line.find(" ")]
+        port = line[0 : line.find(" ")]
         isfound = False
         if line.find("#") == -1 and line.find("show") == -1:
             for portname in rootPorts:
@@ -2490,11 +2511,11 @@ def V220662(device_type, device_name):
     for port in rootPorts:
         check.comments = check.comments + ", " + port
     # Find all trunk ports
-    command = "show int trunk | i trunking | exc not-trunking"
-    result = exec_command(command, device_name)
+    command= "show int trunk | i trunking | exc not-trunking"
+    result= exec_command(command, device_name)
     # Now lets find all trunking ports that aren't root ports
     for line in result.splitlines():
-        port = line[0: line.find(" ")]
+        port = line[0 : line.find(" ")]
         isfound = False
         for portname in rootPorts:
             if portname == port:
@@ -2502,7 +2523,7 @@ def V220662(device_type, device_name):
         if isfound == False:
             if line.find("#") == -1 and line.find("show") == -1:
                 trunkPorts.append(port)
-    temp = temp + "\r" + result
+    temp= temp + "\r" + result
     if len(trunkPorts) == 0:
         check.comments = check.comments + "\r" + "All trunking ports are root ports."
         check.status = "NF"
@@ -2510,32 +2531,32 @@ def V220662(device_type, device_name):
         result = ""
         # Check all non-root trunk ports for root guard
         for port in trunkPorts:
-            command = "show run int " + port
+            command= "show run int " + port
             portconfig = exec_command(command, device_name)
             if portconfig.find("UL") == -1 and portconfig.find("DL") == -1:
                 if portconfig.find("storm-control") == -1:
                     check.status = "OP"
                     check.comments = (
-                            check.comments
-                            + "\r Interface "
-                            + port
-                            + " is not configured with storm control.  This may not be a finding if this is facing infrastructure devices."
-                    )
-                else:
-                    check.comments = (
-                            check.comments
-                            + "\r Interface "
-                            + port
-                            + " is configured correctly."
-                    )
-            else:
-                check.comments = (
                         check.comments
                         + "\r Interface "
                         + port
-                        + " does not require storm control."
+                        + " is not configured with storm control.  This may not be a finding if this is facing infrastructure devices."
+                    )
+                else:
+                    check.comments = (
+                        check.comments
+                        + "\r Interface "
+                        + port
+                        + " is configured correctly."
+                    )
+            else:
+                check.comments = (
+                    check.comments
+                    + "\r Interface "
+                    + port
+                    + " does not require storm control."
                 )
-            temp = temp + portconfig
+            temp= temp + portconfig
     check.finding = temp
     return check
 
@@ -2592,6 +2613,7 @@ def V220665(device_type, device_name):
 
     check.finding = result
     return check
+
 
 
 def V220666(device_type, device_name):
@@ -2652,7 +2674,7 @@ def V220667(device_type, device_name):
             for vlan in vlans.split(','):
                 if '-' in vlan:
                     start, end = map(int, vlan.split('-'))
-                    allowed_vlans.extend(range(start, end + 1))
+                    allowed_vlans.extend(range(start, end+1))
                 else:
                     allowed_vlans.append(int(vlan))
             if int(unused_vlan) in allowed_vlans:
@@ -2664,6 +2686,8 @@ def V220667(device_type, device_name):
 
     check.finding = result1 + "\n" + result2
     return check
+
+
 
 
 def V220668(device_type, device_name):
@@ -2703,7 +2727,6 @@ def V220669(device_type, device_name):
     check.finding = result
     return check
 
-
 def V220670(device_type, device_name):
     # The Cisco switch must not use the default VLAN for management traffic.
     check = Stig()
@@ -2717,9 +2740,7 @@ def V220670(device_type, device_name):
     result = exec_command(command1, device_name) + "\r" + exec_command(command2, device_name)
 
     # Using regex to find the strings "does not exist" and "no ip address" in the result
-    if re.search("does not exist", result[len(device_name) + len(command2):]) and re.search("no ip address", result[
-                                                                                                             len(device_name) + len(
-                                                                                                                     command2):]):
+    if re.search("does not exist", result[len(device_name) + len(command2):]) and re.search("no ip address", result[len(device_name) + len(command2):]):
         check.status = "NF"
         check.comments = "V-220670 - NAF VLAN1 is not being used for management."
 
@@ -2803,7 +2824,7 @@ def V220673(device_type, device_name):
 """
 --------------------------------------------------------------------------
 Cisco IOS XE Switch RTR Security Technical Implementation Guide
-Version 2, Release: 4 Benchmark Date: 26 Jul 2023
+Version 3, Release: 1 Benchmark Date: 24 Jul 2024
 --------------------------------------------------------------------------
 """
 
@@ -2814,25 +2835,23 @@ def V220986(device_type, device_name):
     check.status = "OP"
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-
+    
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index(
-        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
     check.finding = result
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-
+    
     # Additional comments
     additional_comments = "The Core switch is below the Firewall/boundary for the site so some protection is in place. " \
                           "Servers and Workstations are running HBSS/AESS thus giving a layer of protection."
-
+    
     check.comments = f"Cpp is in place and adds some protection on the core switch: {is_cpp_in_place}. {additional_comments}"
-
+    
     return check
-
 
 def V220987(device_type, device_name):
     check = Stig()
@@ -2851,7 +2870,7 @@ def V220987(device_type, device_name):
             command = "show ip eigrp interfaces detail | i Authen|^(T|V|G|I)"
             result = exec_command(command, device_name)
             check.finding += result
-
+            
             if "Authentication mode is not set" in result:
                 check.status = "OP"
                 check.comments += "\nAuthentication mode is not set in EIGRP interfaces."
@@ -2866,8 +2885,7 @@ def V220987(device_type, device_name):
         check.comments += "\nRouting Protocol is not set."
 
     return check
-
-
+    
 def V220988(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -2885,7 +2903,7 @@ def V220988(device_type, device_name):
             command = "show ip eigrp interfaces detail | i Authen|^(T|V|G|I)"
             result = exec_command(command, device_name)
             check.finding += result
-
+            
             if "Authentication mode is not set" in result:
                 check.status = "OP"
                 check.comments += "\nAuthentication mode is not set in EIGRP interfaces."
@@ -2899,8 +2917,7 @@ def V220988(device_type, device_name):
         check.status = "NA"
         check.comments += "\nRouting Protocol is not set."
 
-    return check
-
+    return check    
 
 def V220989(device_type, device_name):
     check = Stig()
@@ -2919,7 +2936,7 @@ def V220989(device_type, device_name):
             command = "show ip eigrp interfaces detail | i Authen|^(T|V|G|I)"
             result = exec_command(command, device_name)
             check.finding += result
-
+            
             if "Authentication mode is not set" in result:
                 check.status = "OP"
                 check.comments += "\nAuthentication mode is not set in EIGRP interfaces."
@@ -2933,9 +2950,9 @@ def V220989(device_type, device_name):
         check.status = "NA"
         check.comments += "\nRouting Protocol is not set."
 
-    return check
-
-
+    return check    
+    
+    
 def V220990(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -2953,7 +2970,7 @@ def V220990(device_type, device_name):
             command = "show ip eigrp interfaces detail | i Authen|^(T|V|G|I)"
             result = exec_command(command, device_name)
             check.finding += result
-
+            
             if "Authentication mode is not set" in result:
                 check.status = "OP"
                 check.comments += "\nAuthentication mode is not set in EIGRP interfaces."
@@ -2968,7 +2985,6 @@ def V220990(device_type, device_name):
         check.comments += "\nRouting Protocol is not set."
 
     return check
-
 
 def V220991(device_type, device_name):
     check = Stig()
@@ -2989,7 +3005,6 @@ def V220991(device_type, device_name):
 
     check.finding = result
     return check
-
 
 def V220994(device_type, device_name):
     check = Stig()
@@ -3014,25 +3029,23 @@ def V220994(device_type, device_name):
     # Storing the complete result, including the device name and prompt
     check.finding = result
     return check
-
-
+    
 def V220995(device_type, device_name):
     check = Stig()
     check.set_vulid()
     check.status = "OP"  # Default status
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-
+    
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index(
-        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
-
+    
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-
+    
     if is_cpp_in_place:
         check.status = "NF"
         check.comments = "CPP is in place and configured correctly."
@@ -3041,24 +3054,22 @@ def V220995(device_type, device_name):
     check.finding = result
     return check
 
-
 def V220996(device_type, device_name):
     check = Stig()
     check.set_vulid()
     check.status = "OP"  # Default status
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-
+    
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index(
-        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
-
+    
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-
+    
     if is_cpp_in_place:
         check.status = "NF"
         check.comments = ("CPP is in place and configured correctly. \n"
@@ -3070,7 +3081,6 @@ def V220996(device_type, device_name):
         check.comments = "CPP does not appear to be configured correctly."
     check.finding = result
     return check
-
 
 def V220997(device_type, device_name):
     check = Stig()
@@ -3078,17 +3088,16 @@ def V220997(device_type, device_name):
     check.status = "OP"  # Default status
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-
+    
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index(
-        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
-
+    
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-
+    
     if is_cpp_in_place:
         check.status = "NF"
         check.comments = ("CPP is in place and configured correctly. \n"
@@ -3100,20 +3109,20 @@ def V220997(device_type, device_name):
         check.comments = "CPP does not appear to be configured correctly."
     check.finding = result
     return check
-
+    
 
 def V220998(device_type, device_name):
     # Create an object of the Stig class and set default values
     check = Stig()
     check.set_vulid()
-    check.status = "NF"
+    check.status = "NF"  
 
     # The command to execute
     command = "show run | i gratuitous-arps"
-
+    
     # Execute the command and store the result
     result = exec_command(command, device_name)
-
+    
     # Store the command output in check.finding
     check.finding = result
 
@@ -3193,22 +3202,20 @@ def V221000(device_type, device_name):
 
     # Generate the configuration needed for each interface
     for interface, settings in interface_data.items():
-        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if
-                            s not in settings]
+        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if s not in settings]
         if missing_settings:
             config_needed.append(f"{interface}\n\t" + "\n\t".join(missing_settings) + "\nexit\n!")
 
     # Update check.comments based on the findings
     if missing_unreachables:
-        check.comments = f"The following interfaces are missing 'no ip unreachables' command\n" + "\n".join(
-            missing_unreachables)
+        check.comments = f"The following interfaces are missing 'no ip unreachables' command\n" + "\n".join(missing_unreachables)
     else:
         check.comments = "'no ip unreachables' command found on all L3 interfaces"
 
     if config_needed:
         check.comments += "\n\nConfiguration needed:\n" + "\n".join(config_needed)
 
-    return check
+    return check    
 
 
 def V221001(device_type, device_name):
@@ -3277,15 +3284,13 @@ def V221002(device_type, device_name):
 
     # Generate the configuration needed for each interface
     for interface, settings in interface_data.items():
-        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if
-                            s not in settings]
+        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if s not in settings]
         if missing_settings:
             config_needed.append(f"{interface}\n\t" + "\n\t".join(missing_settings) + "\nexit\n!")
 
     # Update check.comments based on the findings
     if missing_redirects:
-        check.comments = f"The following interfaces are missing 'no ip redirects' command\n" + "\n".join(
-            missing_redirects)
+        check.comments = f"The following interfaces are missing 'no ip redirects' command\n" + "\n".join(missing_redirects)
     else:
         check.comments = "no ip redirects command found on all L3 interfaces"
 
@@ -3295,23 +3300,23 @@ def V221002(device_type, device_name):
     return check
 
 
+    
 def V221003(device_type, device_name):
     check = Stig()
     check.set_vulid()
     check.status = "OP"  # Default status
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-
+    
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index(
-        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
-
+    
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-
+    
     if is_cpp_in_place:
         check.status = "NF"
         check.comments = "CPP is in place and configured correctly."
@@ -3319,7 +3324,7 @@ def V221003(device_type, device_name):
         check.comments = "CPP does not appear to be configured correctly."
     check.finding = result
     return check
-
+    
 
 def V221004(device_type, device_name):
     check = Stig()
@@ -3366,8 +3371,7 @@ def V221004(device_type, device_name):
         check.comments = "All access lists have the appropriate logging as needed."
 
     # Add list of OS ACLs to comments
-    check.comments += "\nThe following access lists are a part of the IOS and can't be updated:\n" + '\n'.join(
-        set(os_acl_present))
+    check.comments += "\nThe following access lists are a part of the IOS and can't be updated:\n" + '\n'.join(set(os_acl_present))
     check.finding = result
     return check
 
@@ -3417,10 +3421,10 @@ def V221005(device_type, device_name):
         check.comments = "All access lists have the appropriate logging as needed."
 
     # Add list of OS ACLs to comments
-    check.comments += "\nThe following access lists are a part of the IOS and can't be updated:\n" + '\n'.join(
-        set(os_acl_present))
+    check.comments += "\nThe following access lists are a part of the IOS and can't be updated:\n" + '\n'.join(set(os_acl_present))
     check.finding = result
     return check
+
 
 
 def V221006(device_type, device_name):
@@ -3445,7 +3449,7 @@ def V221006(device_type, device_name):
     else:
         check.comments = "Line Aux is disabled"
 
-    return check
+    return check    
 
 
 def V221007(device_type, device_name):
@@ -3457,9 +3461,8 @@ def V221007(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
-
 
 def V221008(device_type, device_name):
     """
@@ -3470,9 +3473,8 @@ def V221008(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
-
 
 def V221009(device_type, device_name):
     """
@@ -3483,9 +3485,8 @@ def V221009(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
-
 
 def V221010(device_type, device_name):
     """
@@ -3496,9 +3497,8 @@ def V221010(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
-
 
 def V221011(device_type, device_name):
     """
@@ -3509,9 +3509,8 @@ def V221011(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
-
 
 def V221012(device_type, device_name):
     """
@@ -3522,9 +3521,8 @@ def V221012(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
-
 
 def V221013(device_type, device_name):
     """
@@ -3535,9 +3533,8 @@ def V221013(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
-
 
 def V221014(device_type, device_name):
     """
@@ -3548,9 +3545,8 @@ def V221014(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
-
 
 def V221015(device_type, device_name):
     """
@@ -3561,9 +3557,8 @@ def V221015(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
-
 
 def V221016(device_type, device_name):
     """
@@ -3574,9 +3569,8 @@ def V221016(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
-
 
 def V221017(device_type, device_name):
     """
@@ -3587,10 +3581,10 @@ def V221017(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
 
-
+    
 def V221018(device_type, device_name):
     # Create an object of the Stig class and set default values
     check = Stig()
@@ -3632,17 +3626,15 @@ def V221018(device_type, device_name):
 
     # Generate the configuration needed for each interface
     for interface, settings in interface_data.items():
-        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if
-                            s not in settings]
+        missing_settings = [s for s in ["no ip redirects", "no ip unreachables", "no ip proxy-arp"] if s not in settings]
         if missing_settings:
             config_needed.append(f"{interface}\n\t" + "\n\t".join(missing_settings) + "\nexit\n!")
 
     # Update check.comments based on the findings
     check.comments = "This is not a perimeter device; the FIREWALLS above are the perimeter.\n"
-
+    
     if missing_proxy_arp:
-        check.comments += f"The following interfaces are missing 'no ip proxy-arp' command\n" + "\n".join(
-            missing_proxy_arp)
+        check.comments += f"The following interfaces are missing 'no ip proxy-arp' command\n" + "\n".join(missing_proxy_arp)
     else:
         check.comments += "'no ip proxy-arp' command found on all L3 interfaces"
 
@@ -3661,26 +3653,27 @@ def V221019(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a perimeter device the FIREWALLS above are the perimeter."
-
+    
     return check
 
 
 def V221020(device_type, device_name):
+    
     check = Stig()
     # The vulnerability ID MUST match what the stig file has. We're going to search the .ckl for it.
     check.set_vulid()
     check.status = "NA"
     # The command to execute
     command = "show run | i ^line.vty|access-class*.*.SSH|access.list.*.SSH"
-
+    
     # Execute the command and store the result
     result = exec_command(command, device_name)
-
+    
     # Update the finding with the additional information
     check.finding = f"No out of band network but SSH to the device is locked down\r\n{result}"
-
+    
     check.comments = "There is no OOBM network in SWA nor any plans to stand one up at this time."
-
+    
     return check
 
 
@@ -3688,7 +3681,7 @@ def V221021(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3710,7 +3703,7 @@ def V221022(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3726,13 +3719,12 @@ def V221022(device_type, device_name):
     check.finding = result  # Store the result as the finding
 
     return check
-
 
 def V221023(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3748,13 +3740,12 @@ def V221023(device_type, device_name):
     check.finding = result  # Store the result as the finding
 
     return check
-
 
 def V221024(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3770,13 +3761,12 @@ def V221024(device_type, device_name):
     check.finding = result  # Store the result as the finding
 
     return check
-
 
 def V221025(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3792,13 +3782,12 @@ def V221025(device_type, device_name):
     check.finding = result  # Store the result as the finding
 
     return check
-
 
 def V221026(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3814,13 +3803,12 @@ def V221026(device_type, device_name):
     check.finding = result  # Store the result as the finding
 
     return check
-
 
 def V221027(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3836,13 +3824,12 @@ def V221027(device_type, device_name):
     check.finding = result  # Store the result as the finding
 
     return check
-
 
 def V221028(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3858,13 +3845,12 @@ def V221028(device_type, device_name):
     check.finding = result  # Store the result as the finding
 
     return check
-
 
 def V221029(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3880,13 +3866,12 @@ def V221029(device_type, device_name):
     check.finding = result  # Store the result as the finding
 
     return check
-
 
 def V221030(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3902,13 +3887,12 @@ def V221030(device_type, device_name):
     check.finding = result  # Store the result as the finding
 
     return check
-
 
 def V221031(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3924,13 +3908,12 @@ def V221031(device_type, device_name):
     check.finding = result  # Store the result as the finding
 
     return check
-
 
 def V221032(device_type, device_name):
     check = Stig()
     check.set_vulid()  # Automatically format the vulnerability ID
     check.status = "NA"  # Default status
-
+    
     # Send the command 'show ip bgp' to the device
     command = "show ip bgp"
     result = exec_command(command, device_name)
@@ -3946,9 +3929,10 @@ def V221032(device_type, device_name):
     check.finding = result  # Store the result as the finding
 
     return check
-
-
+    
+    
 def V221033(device_type, device_name):
+    
     check = Stig()
     check.set_vulid()
     check.status = "NA"  # Initialize as Not_Applicable, to be updated based on findings
@@ -4050,7 +4034,6 @@ def V221034(device_type, device_name):
 
     return check
 
-
 def V221035(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
@@ -4102,7 +4085,6 @@ def V221035(device_type, device_name):
         check.comments += "\nVRFs are not configured on this device."
 
     return check
-
 
 def V221036(device_type, device_name):
     """
@@ -4156,7 +4138,6 @@ def V221036(device_type, device_name):
 
     return check
 
-
 def V221037(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
@@ -4208,7 +4189,6 @@ def V221037(device_type, device_name):
         check.comments += "\nVRFs are not configured on this device."
 
     return check
-
 
 def V221038(device_type, device_name):
     """
@@ -4262,7 +4242,6 @@ def V221038(device_type, device_name):
 
     return check
 
-
 def V221039(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
@@ -4314,7 +4293,6 @@ def V221039(device_type, device_name):
         check.comments += "\nVRFs are not configured on this device."
 
     return check
-
 
 def V221040(device_type, device_name):
     """
@@ -4368,7 +4346,6 @@ def V221040(device_type, device_name):
 
     return check
 
-
 def V221041(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
@@ -4420,7 +4397,6 @@ def V221041(device_type, device_name):
         check.comments += "\nVRFs are not configured on this device."
 
     return check
-
 
 def V221042(device_type, device_name):
     """
@@ -4474,7 +4450,6 @@ def V221042(device_type, device_name):
 
     return check
 
-
 def V221043(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
@@ -4526,7 +4501,6 @@ def V221043(device_type, device_name):
         check.comments += "\nVRFs are not configured on this device."
 
     return check
-
 
 def V221044(device_type, device_name):
     """
@@ -4633,7 +4607,6 @@ def V221045(device_type, device_name):
 
     return check
 
-
 def V221046(device_type, device_name):
     """
     Checks MPLS and VRF configurations on the Cisco switch.
@@ -4686,7 +4659,6 @@ def V221046(device_type, device_name):
 
     return check
 
-
 def V221047(device_type, device_name):
     """
    Add a command or command to show its location based off configuration.
@@ -4696,9 +4668,8 @@ def V221047(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a PE Switch."
-
+    
     return check
-
 
 def V221048(device_type, device_name):
     """
@@ -4709,9 +4680,8 @@ def V221048(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a PE Switch."
-
+    
     return check
-
 
 def V221049(device_type, device_name):
     """
@@ -4722,9 +4692,8 @@ def V221049(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a PE Switch."
-
+    
     return check
-
 
 def V221050(device_type, device_name):
     """
@@ -4735,9 +4704,8 @@ def V221050(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a PE Switch."
-
+    
     return check
-
 
 def V221051(device_type, device_name):
     """
@@ -4748,8 +4716,9 @@ def V221051(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = "This is not a PE Switch."
-
+    
     return check
+
 
 
 def V221052(device_type, device_name):
@@ -4758,24 +4727,23 @@ def V221052(device_type, device_name):
     check.status = "OP"  # Default status
     command = "show platform hardware fed switch active qos queue stats internal cpu policer"
     result = exec_command(command, device_name)
-
+    
     # Extract lines between the start and end markers
     lines = result.split('\n')
-    start_idx = lines.index(
-        "QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
+    start_idx = lines.index("QId PlcIdx  Queue Name                Enabled   Rate     Rate      Drop(Bytes)  Drop(Frames)")
     end_idx = lines.index("* NOTE: CPU queue policer rates are configured to the closest hardware supported value")
     relevant_lines = lines[start_idx + 1:end_idx]
-
+    
     # Check if each line that starts with a number has "Yes" in it
     is_cpp_in_place = all('Yes' in line for line in relevant_lines if line.startswith(tuple('0123456789')))
-
+    
     if is_cpp_in_place:
         check.status = "NF"
         check.comments = "CPP is in place and configured correctly."
     else:
         check.comments = "CPP does not appear to be configured correctly."
     check.finding = result
-    return check
+    return check    
 
 
 def V221053(device_type, device_name):
@@ -4795,7 +4763,6 @@ def V221053(device_type, device_name):
     check.finding = result
     return check
 
-
 def V221054(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -4812,7 +4779,6 @@ def V221054(device_type, device_name):
 
     check.finding = result
     return check
-
 
 def V221055(device_type, device_name):
     check = Stig()
@@ -4831,7 +4797,6 @@ def V221055(device_type, device_name):
     check.finding = result
     return check
 
-
 def V221056(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -4848,7 +4813,6 @@ def V221056(device_type, device_name):
 
     check.finding = result
     return check
-
 
 def V221057(device_type, device_name):
     check = Stig()
@@ -4867,7 +4831,6 @@ def V221057(device_type, device_name):
     check.finding = result
     return check
 
-
 def V221058(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -4884,7 +4847,6 @@ def V221058(device_type, device_name):
 
     check.finding = result
     return check
-
 
 def V221059(device_type, device_name):
     check = Stig()
@@ -4903,7 +4865,6 @@ def V221059(device_type, device_name):
     check.finding = result
     return check
 
-
 def V221060(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -4920,7 +4881,6 @@ def V221060(device_type, device_name):
 
     check.finding = result
     return check
-
 
 def V221061(device_type, device_name):
     check = Stig()
@@ -4939,7 +4899,6 @@ def V221061(device_type, device_name):
     check.finding = result
     return check
 
-
 def V221062(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -4956,7 +4915,6 @@ def V221062(device_type, device_name):
 
     check.finding = result
     return check
-
 
 def V221063(device_type, device_name):
     check = Stig()
@@ -4975,7 +4933,6 @@ def V221063(device_type, device_name):
     check.finding = result
     return check
 
-
 def V221064(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -4992,7 +4949,6 @@ def V221064(device_type, device_name):
 
     check.finding = result
     return check
-
 
 def V221065(device_type, device_name):
     check = Stig()
@@ -5011,7 +4967,6 @@ def V221065(device_type, device_name):
     check.finding = result
     return check
 
-
 def V221066(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -5028,7 +4983,6 @@ def V221066(device_type, device_name):
 
     check.finding = result
     return check
-
 
 def V221067(device_type, device_name):
     check = Stig()
@@ -5047,7 +5001,6 @@ def V221067(device_type, device_name):
     check.finding = result
     return check
 
-
 def V221068(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -5065,7 +5018,6 @@ def V221068(device_type, device_name):
     check.finding = result
     return check
 
-
 def V221069(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -5082,6 +5034,7 @@ def V221069(device_type, device_name):
 
     check.finding = result
     return check
+
 
 
 def V237750(device_type, device_name):
@@ -5112,6 +5065,7 @@ def V237750(device_type, device_name):
     return check
 
 
+
 def V237752(device_type, device_name):
     # Create an object of the Stig class and set default values
     check = Stig()
@@ -5120,10 +5074,10 @@ def V237752(device_type, device_name):
 
     # The command to execute
     command = "show run | i ^ipv6"
-
+    
     # Execute the command and store the result
     result = exec_command(command, device_name)
-
+    
     # Store the command output in check.finding
     check.finding = result
 
@@ -5131,7 +5085,7 @@ def V237752(device_type, device_name):
     match = re.search(r'ipv6 hop-limit (\d+)', result)
     if match:
         hop_limit = int(match.group(1))
-
+        
         # Check if the hop limit is less than 32
         if hop_limit < 32:
             check.status = "OP"
@@ -5141,7 +5095,7 @@ def V237752(device_type, device_name):
     else:
         check.status = "OP"
         check.comments = f"No 'ipv6 hop-limit' configuration found on {device_name}"
-
+        
     return check
 
 
@@ -5156,8 +5110,7 @@ def V237756(device_type, device_name):
     check.finding = result
 
     return check
-
-
+    
 def V237759(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -5170,7 +5123,6 @@ def V237759(device_type, device_name):
 
     return check
 
-
 def V237762(device_type, device_name):
     check = Stig()
     check.set_vulid()
@@ -5182,7 +5134,6 @@ def V237762(device_type, device_name):
     check.finding = result
 
     return check
-
 
 def V237764(device_type, device_name):
     check = Stig()
@@ -5259,13 +5210,13 @@ def V237778(device_type, device_name):
     check.comments = "IPv6 is not configured on this device." if line_count == 2 else "Open - There is IPv6 configured on this device, please review configuration."
     check.finding = result
 
-    return check
+    return check    
 
 
 """
 --------------------------------------------------------------------------
 Cisco NX OS Switch L2S Security Technical Implementation Guide
-Version 2, Release: 3 Benchmark Date: 24 Jan 2024
+Version 3, Release: 1 Benchmark Date: 24 July 2024
 --------------------------------------------------------------------------
 """
 
@@ -5293,7 +5244,7 @@ def V220674(device_type, device_name):
 
     # Regex to find enabled services
     regex_enabled = re.compile(r"\b(enabled)\b")
-
+    
     # Check if any non-essential features are enabled
     for line in result.splitlines():
         if regex_enabled.search(line):
@@ -5306,7 +5257,7 @@ def V220674(device_type, device_name):
     else:
         check.status = "NF"
         check.comments = "V-220674 - NAF as no non-essential features are enabled"
-
+    
     check.finding = result
     return check
 
@@ -5370,26 +5321,25 @@ def V220677(device_type, device_name):
     check.comments = "V-220677 - NAF - Datacenter switches only connect to servers.  In addition, all NXOS switches are capable of this function."
     return check
 
-
-# leaving for testing as needed. VUL FAIL TEST
+#leaving for testing as needed. VUL FAIL TEST
 # def V220677(device_type, device_name):
-# V-220677 - The Cisco switch must be configured for authorized users to select a user session to capture.
-# check = Stig()
-# check.set_vulid()
-# check.status = "NF"
-# command = "show run | sec monitor.session"
+    # V-220677 - The Cisco switch must be configured for authorized users to select a user session to capture.
+    # check = Stig()
+    # check.set_vulid()
+    # check.status = "NF"
+    # command = "show run | sec monitor.session"
 
-# Executing the command and getting the result
-# result = exec_command(command, device_name)
+    # Executing the command and getting the result
+    # result = exec_command(command, device_name)
 
-# Intentional syntax error
-# For example, using an undefined variable
-# result = some_undefined_variable + result
+    # Intentional syntax error
+    # For example, using an undefined variable
+    # result = some_undefined_variable + result
 
-# check.finding = result
-# check.comments = "V-220677 - NAF - Datacenter switches only connect to servers. In addition, all NXOS switches are capable of this function."
+    # check.finding = result
+    # check.comments = "V-220677 - NAF - Datacenter switches only connect to servers. In addition, all NXOS switches are capable of this function."
 
-# return check
+    # return check
 
 
 def V220678(device_type, device_name):
@@ -5403,6 +5353,7 @@ def V220678(device_type, device_name):
     check.finding = result
     check.comments = "V-220678 - NAF - Datacenter switches only connect to servers.  In addition, all NXOS switches are capable of this function."
     return check
+
 
 
 def V220679(device_type, device_name):
@@ -5487,12 +5438,10 @@ def V220682(device_type, device_name):
     check.finding = result + "\r"
     return check
 
-
 """
 V220683
 I don't think this is NA it states all access ports, need to review
 """
-
 
 def V220683(device_type, device_name):
     # V-220683 - The Cisco switch must have Unknown Unicast Flood Blocking (UUFB) enabled.
@@ -5551,13 +5500,12 @@ def V220687(device_type, device_name):
     check.set_vulid()
     check.status = "OP"
 
-    command = exec_command(
-        "show run | sec ^interface|^port-profile | ex .access.vlan.666|ip|mtu|trunk.(native|allowed)", device_name)
+    command = exec_command("show run | sec ^interface|^port-profile | ex .access.vlan.666|ip|mtu|trunk.(native|allowed)", device_name)
     check.finding = command
 
     interfaces = command.split("interface ")
     port_profiles = command.split("port-profile type ethernet ")
-
+    
     port_profile_dict = {profile.split("\n")[0].strip(): "storm-control" in profile for profile in port_profiles[1:]}
     iface_states = {}
 
@@ -5578,8 +5526,7 @@ def V220687(device_type, device_name):
     non_compliant_ports = [k for k, v in iface_states.items() if v['is_access'] and not v['has_storm_control']]
 
     if non_compliant_ports:
-        check.comments = "V-220687 - Open - The following access ports do not have storm control:\n" + ",\n".join(
-            non_compliant_ports)
+        check.comments = "V-220687 - Open - The following access ports do not have storm control:\n" + ",\n".join(non_compliant_ports)
     else:
         check.status = "NF"
         check.comments = "V-220687 - NAF - All access ports have storm control or inherit a compliant port-profile."
@@ -5614,21 +5561,21 @@ def V220689(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = "V-220689 - NAF - The Cisco switch has UDLD feature enabled and running on all fiber attached ports.\r"
-
+    
     # Verify if the UDLD feature is enabled globally
     command = "show run | i feature.udld"
     result = exec_command(command, device_name)
     temp = result  # Store command results for later use
-
+    
     if "udld" not in result:
         check.status = "OP"
         check.comments = "V-220689 - Open - The Cisco switch must have the feature UDLD configured.\r"
-
+    
     # Collect information about interfaces with transceivers
     command = "show int trans | i Ether|type"
     result = exec_command(command, device_name)
     temp += result
-
+    
     # Initialize the Interfaces list
     Interfaces = []
     for line in result.splitlines():
@@ -5636,7 +5583,7 @@ def V220689(device_type, device_name):
             interface = IntTrans()
             interface.interface = line.strip()
             Interfaces.append(interface)
-
+            
     # Check configurations for each interface
     for Interface in Interfaces:
         if Interface.transtype not in ["none", "#"] and ("LH" in Interface.transtype or "SR" in Interface.transtype):
@@ -5646,7 +5593,7 @@ def V220689(device_type, device_name):
             if "disabled" in result:
                 check.status = "OP"
                 check.comments += f"V-220689 - OPEN because Interface {Interface.interface} has UDPD disabled.\r"
-
+                
     # Store all command results as the finding
     check.finding = temp
     return check
@@ -5657,40 +5604,40 @@ def V220690(device_type, device_name):
     Interfaces = []
     unused_vlans = set()
     temp = []
-
+    
     check.set_vulid()
     check.status = "NF"
     check.comments = "V-220690 - NAF - The Cisco switch has all disabled switch ports assigned to an unused VLAN."
-
+    
     # Initialize finding details as an empty string
     check.finding = ''
-
+    
     # Get a list of all disabled or unused ports
     command1 = "show interface status | inc sfpAbsent|disabled|xcvrAbsen"
     result1 = exec_command(command1, device_name)
-
+    
     # Append the first command output to finding details
     check.finding += f'{result1}\n\n'
-
+    
     for currentline in result1.splitlines():
         vlan_search = re.search(r'\b\d+\b', currentline[40:])
         if vlan_search:
             vlan = vlan_search.group()
             unused_vlans.add(int(vlan))
-
+    
     # Get trunk port configurations
     command2 = "show run | i ^interface|trunk"
     result2 = exec_command(command2, device_name)
-
+    
     # Append the second command output to finding details
     check.finding += f'{result2}\n'
-
+    
     trunk_config_lines = result2.splitlines()
-
+    
     for i, line in enumerate(trunk_config_lines):
         if "interface" in line and "Ethernet" in line:
             port = line.split()[-1]
-            for j in range(i + 1, len(trunk_config_lines)):
+            for j in range(i+1, len(trunk_config_lines)):
                 if "switchport trunk allowed vlan" in trunk_config_lines[j]:
                     allowed_vlans = trunk_config_lines[j].split()[-1]
                     for vlan_entry in allowed_vlans.split(","):
@@ -5698,16 +5645,15 @@ def V220690(device_type, device_name):
                             start_vlan, end_vlan = map(int, vlan_entry.split("-"))
                             if any(start_vlan <= unused_vlan <= end_vlan for unused_vlan in unused_vlans):
                                 check.status = "OP"
-                                temp.append(
-                                    f"{port} allows traffic from one of the unused VLANs in range {start_vlan}-{end_vlan};")
+                                temp.append(f"{port} allows traffic from one of the unused VLANs in range {start_vlan}-{end_vlan};")
                         elif int(vlan_entry) in unused_vlans:
                             check.status = "OP"
                             temp.append(f"{port} allows traffic from unused VLAN {vlan_entry};")
                     break
-
+    
     if check.status == "OP":
         check.comments = "V-220690 - OPEN because:\r\n" + "\r\n".join(temp)
-
+    
     return check
 
 
@@ -5715,26 +5661,26 @@ def V220691(device_type, device_name):
     # Initialize Stig object and set vulnerability ID
     check = Stig()
     check.set_vulid()
-
+    
     # Default status and comments
     check.status = "OP"
     check.comments = ("V-220691 - Open - The Cisco switch must not have the default VLAN "
                       "assigned to any host-facing switch ports.")
-
+    
     # Execute the command and store the result
     command = "show spanning-tree vlan 1"
     result = exec_command(command, device_name)
-
+    
     # Check if the result indicates that VLAN 1 does not exist
     search_str = "does not exist"
     search_start = len(device_name) + len(command)
     if result.find(search_str, search_start) > -1:
         check.status = "NF"
         check.comments = "V-220691 - NAF  No host-facing ports are assigned to VLAN1"
-
+    
     # Store the command result as the finding
     check.finding = result
-
+    
     return check
 
 
@@ -5766,8 +5712,8 @@ def V220693(device_type, device_name):
     command = "show run int vlan 1"
     result = result + "\r" + exec_command(command, device_name)
     if (
-            result.find("does not exist", len(device_name) + len(command)) > -1
-            and result.find("ip address", len(device_name) + len(command)) == -1
+        result.find("does not exist", len(device_name) + len(command)) > -1
+        and result.find("ip address", len(device_name) + len(command)) == -1
     ):
         check.status = "NF"
         check.comments = "V-220693 - NAF VLAN1 is not being used for management."
@@ -5792,17 +5738,16 @@ def V220695(device_type, device_name):
     check = Stig()
     check.set_vulid()
     check.status = "NF"
-    check.comments = (
-        "V220695 - NAF - The native VLAN on trunk links is other than the default VLAN for all 802.1q trunk links.")
-
+    check.comments = ("V220695 - NAF - The native VLAN on trunk links is other than the default VLAN for all 802.1q trunk links.")
+    
     interfaces = []
     temp = ""
     int_count = 0
-
+    
     # Get a list of all trunk ports
     command = "show int trunk"
     result = exec_command(command, device_name)
-
+    
     # Parse output to get port info
     for line in result.splitlines():
         if "--------" in line:
@@ -5812,17 +5757,17 @@ def V220695(device_type, device_name):
             intf_info.interface = line[0:12].strip()
             intf_info.vlan = line[14:22].strip()
             interfaces.append(intf_info)
-
+    
     # Check if any port is in VLAN 1
     for intf in interfaces:
         if "undefined" not in intf.interface:
             if intf.vlan == "1":
                 check.status = "OP"
                 temp += f" {intf.interface}'s native VLAN appears to be assigned to default vlan {intf.vlan}; "
-
+    
     if check.status == "OP":
         check.comments = f"V-220695 - OPEN because {temp}\r"
-
+    
     check.finding = result
     return check
 
@@ -5834,18 +5779,18 @@ def V220696(device_type, device_name):
     check.set_vulid()
     check.status = "OP"
     check.comments = f"V-220696 - Open - The Cisco switch must not have any switchports assigned to the native VLAN."
-
+    
     # Prepare the regex to capture native VLANs
     regex = r"Eth[^\n]+?(\d+)\s+trunking"
-
+    
     # Initialize an empty vlan_list
     vlan_list = []
-
+    
     # Command to get trunking information
     trunk_command = "show interface trunk"
     trunk_result = exec_command(trunk_command, device_name)
     check.finding += f"Command: {trunk_command}\nResult: {trunk_result}\n"
-
+    
     # Extract native VLANs
     native_vlan_match = re.search(regex, trunk_result)
     if native_vlan_match:
@@ -5854,28 +5799,28 @@ def V220696(device_type, device_name):
     else:
         check.comments = "Unable to determine native VLANs from the 'show interface trunk' command output."
         return check
-
+    
     # Command to check switchports
     # Populate vlan_list here, as needed.
     # vlan_list = [some, values, here]
-
+    
     vlan_str = "|".join(map(str, vlan_list))
     command = f"sh int status | in connected.({vlan_str})"
     result = exec_command(command, device_name)
     check.finding += f"Command: {command}\nResult: {result}\n"
-
+    
     if all(vlan not in native_vlans for vlan in vlan_list):
         check.status = "NF"
         clean_vlan_str = ", ".join(map(str, vlan_list))
         check.comments = f"V-220696 - NAF Native VLANs {clean_vlan_str} are not in use by access ports."
-
+        
     return check
 
 
 """
 --------------------------------------------------------------------------
 Cisco NX OS Switch NDM Security Technical Implementation Guide
-Version 2, Release: 8 Benchmark Date: 24 Apr 2024
+Version 3, Release: 1 Benchmark Date: 24 July 2024
 --------------------------------------------------------------------------
 """
 
@@ -6021,6 +5966,7 @@ def V220480(device_type, device_name):
     return check
 
 
+
 def V220481(device_type, device_name):
     # V-220481 - The Cisco router must be configured to display the Standard Mandatory DoD Notice and Consent Banner before granting access to the device.
     check = Stig()
@@ -6104,7 +6050,7 @@ def V220486(device_type, device_name):
     check.finding = result + "\r"
     return check
 
-
+    
 def V220487(device_type, device_name):
     # V-220487 - The Cisco router must be configured with only one local account to be used as the account of last resort.
     check = Stig()
@@ -6136,7 +6082,7 @@ def V220487(device_type, device_name):
         check.comments += "Account creation authorized by CS, created by WANSEC."
 
     check.finding = result  # Store the sanitized result as finding
-    return check
+    return check    
 
 
 def V220488(device_type, device_name):
@@ -6359,8 +6305,8 @@ def V220499(device_type, device_name):
     check.finding = result
     check.comments = "V-220499 - OPEN - Cisco switch not configured to record time stamps for log records."
     if (
-            result.find("clock timezone ZULU 0 0", len(device_name) + len(command))
-            > -1
+        result.find("clock timezone ZULU 0 0", len(device_name) + len(command))
+        > -1
     ):
         check.status = "NF"
         check.comments = "V-220499 - NAF - Cisco switch configured to record time stamps for log records."
@@ -6653,8 +6599,7 @@ def V220517(device_type, device_name):
             break
 
     if not model_str or not version_str:
-        check.comments = "Unable to determine the model or version from the output. Debug info:\n" + "\n".join(
-            debug_info)
+        check.comments = "Unable to determine the model or version from the output. Debug info:\n" + "\n".join(debug_info)
         return check
 
     # Map models to known series
@@ -6678,14 +6623,14 @@ def V220517(device_type, device_name):
             if version.parse(version_str) >= version.parse(check_item["version"]):
                 check.status = "NF"
                 check.comments = (
-                        f"NAF: As of 07/30/2023 {check_item['device']} devices should have code level {check_item['version']}. This device has "
-                        + version_str
+                    f"NAF: As of 07/30/2023 {check_item['device']} devices should have code level {check_item['version']}. This device has "
+                    + version_str
                 )
             else:
                 check.status = "OP"
                 check.comments = (
-                        f"OPEN: As of 07/30/2023 {check_item['device']} devices should have code level {check_item['version']}. This device has "
-                        + version_str
+                    f"OPEN: As of 07/30/2023 {check_item['device']} devices should have code level {check_item['version']}. This device has "
+                    + version_str
                 )
             break
         else:
@@ -6697,26 +6642,26 @@ def V220517(device_type, device_name):
     return check
 
 
-def V260464(devicetype, devicename):
+
+def V260464(device_type, device_name):
     # V-260464 - The router must have control plane protection enabled.
     check = Stig()
     # The vulnerability ID MUST match what the stig file has.  We're going to search the .ckl for it.
-    check.vulid = "V-260464"
-    check.status = "open"
+    check.set_vulid()
+    check.status = "OP"
     check.comments = "V-260464 - Cisco switch is not configured with a control plane policy."
-    strCommand = "sh run all | sec service-policy.input"
-    strResult = ExecCommand(strCommand, devicename)
-    check.finding = strResult
-    if strResult.find("copp") > -1:
+    command = "sh run all | sec service-policy.input"
+    result = exec_command(command, device_name)
+    check.finding = result
+    if result.find("copp") > -1:
         check.comments = "V-260464 - NAF - Cisco switch is configured with a control plane policy."
-        check.status = "not_a_finding"
+        check.status = "NF"
     return check
-
 
 """
 --------------------------------------------------------------------------
 Cisco IOS XE Router NDM Security Technical Implementation Guide
-Version 2, Release: 9 Benchmark Date: 24 Jan 2024
+Version 3, Release: 1 Benchmark Date: 24 July 2024
 --------------------------------------------------------------------------
 """
 
@@ -6826,9 +6771,9 @@ def V215812(device_type, device_name):
     result = str(exec_command(command, device_name))
     for line in result.splitlines():
         if (
-                line.find("access-class") > -1
-                and intCount > 0
-                and line.find("ip http") == -1
+            line.find("access-class") > -1
+            and intCount > 0
+            and line.find("ip http") == -1
         ):
             intStart = line.find(" ", line.find("access-class") + 1)
             intEnd = line.find(" ", intStart + 1)
@@ -6955,8 +6900,8 @@ def V215819(device_type, device_name):
     check.finding = result
     check.comments = "V-215819 - CAT II - OPEN - No Log config"
     if (
-            result.find("log config", len(device_name) + len(command)) > -1
-            and result.find("logging enable", len(device_name) + len(command)) > -1
+        result.find("log config", len(device_name) + len(command)) > -1
+        and result.find("logging enable", len(device_name) + len(command)) > -1
     ):
         check.status = "NF"
         check.comments = "V-215819 - CAT II - NAF - Logging configured."
@@ -7067,7 +7012,6 @@ def V215823(device_type, device_name):
 
     return check
 
-
 def V215824(device_type, device_name):
     """
     V-215824 - CAT II - The Cisco router must be configured with only one local account
@@ -7093,6 +7037,7 @@ def V215824(device_type, device_name):
         check.comments = "V-215824: One or zero local user accounts configured, compliant with STIG requirement."
 
     return check
+
 
 
 def V215826(device_type, device_name):
@@ -7272,9 +7217,9 @@ def V215834(device_type, device_name):
     check.finding = result
     check.comments = "V-215834 - Archive logging is required"
     if (
-            result.find("archive", len(device_name) + len(command)) > -1
-            and result.find("log config", len(device_name) + len(command)) > -1
-            and result.find("logging enable", len(device_name) + len(command)) > -1
+        result.find("archive", len(device_name) + len(command)) > -1
+        and result.find("log config", len(device_name) + len(command)) > -1
+        and result.find("logging enable", len(device_name) + len(command)) > -1
     ):
         check.status = "NF"
         check.comments = "V-215834 - CAT II - NAF - Archive logging configured"
@@ -7314,11 +7259,11 @@ def V215837(device_type, device_name):
         "V215837 - NOTE **** AS OF 11/1/19 THIS IS A FINDING!! PLEASE REMEDIATE"
     )
     if result.find("Logging to ", len(device_name) + len(command)) > -1 and (
-            result.find("debugging", len(device_name) + len(command)) > -1
-            or result.find("critical", len(device_name) + len(command)) > -1
-            or result.find("warnings", len(device_name) + len(command)) > -1
-            or result.find("notifications", len(device_name) + len(command)) > -1
-            or result.find("informational", len(device_name) + len(command)) > -1
+        result.find("debugging", len(device_name) + len(command)) > -1
+        or result.find("critical", len(device_name) + len(command)) > -1
+        or result.find("warnings", len(device_name) + len(command)) > -1
+        or result.find("notifications", len(device_name) + len(command)) > -1
+        or result.find("informational", len(device_name) + len(command)) > -1
     ):
         check.status = "NF"
         check.comments = "V-215837 - CAT II - NAF - ACS manages Authentication."
@@ -7409,12 +7354,10 @@ def V215842(device_type, device_name):
 
     if line_count > 0:
         check.status = "OP"  # Open
-        comments.append(
-            "V-215842 - OPEN - Cisco router is not configured to encrypt SNMP messages using a FIPS 140-2 approved algorithm (AES128 and AES256).")
+        comments.append("V-215842 - OPEN - Cisco router is not configured to encrypt SNMP messages using a FIPS 140-2 approved algorithm (AES128 and AES256).")
     else:
         check.status = "NF"  # Not a finding
-        comments.append(
-            "V-215842 - NAF - Cisco router is configured to encrypt SNMP messages using a FIPS 140-2 approved algorithm, AES128 and AES256.")
+        comments.append("V-215842 - NAF - Cisco router is configured to encrypt SNMP messages using a FIPS 140-2 approved algorithm, AES128 and AES256.")
 
     check.comments = "\n".join(comments)
     return check
@@ -7454,12 +7397,12 @@ def V215844(device_type, device_name):
     check.finding = result
     check.comments = "V-215844 - The Cisco router must be configured to use FIPS-validated Keyed-Hash Message Authentication Code (HMAC) to protect the integrity of remote maintenance sessions.\r Add the command ip ssh server algorithm mac hmac-sha1-96"
     if (
-            result.find("ip ssh version 2", len(device_name) + len(command)) > -1
-            and (
+        result.find("ip ssh version 2", len(device_name) + len(command)) > -1
+        and (
             result.find("hmac-sha1-96", len(device_name) + len(command)) > -1
             or result.find("hmac-sha2-256", len(device_name) + len(command))
-    )
-            > -1
+        )
+        > -1
     ):
         check.status = "NF"
         check.comments = (
@@ -7480,8 +7423,8 @@ def V215845(device_type, device_name):
     check.finding = result
     check.comments = "V-215845 -  The Cisco router must be configured to implement cryptographic mechanisms to protect the confidentiality of remote maintenance sessions."
     if (
-            result.find("ip ssh version 2", len(device_name) + len(command)) > -1
-            and result.find("encryption aes", len(device_name) + len(command)) > -1
+        result.find("ip ssh version 2", len(device_name) + len(command)) > -1
+        and result.find("encryption aes", len(device_name) + len(command)) > -1
     ):
         check.status = "NF"
         check.comments = "V-215845 - CAT II - NAF - Specified cryptographic mechanisms are being used."
@@ -7500,8 +7443,8 @@ def V215848(device_type, device_name):
     check.finding = result
     check.comments = "V-215848 - The Cisco router must be configured to generate log records when administrator privileges are deleted."
     if (
-            result.find("archive", len(device_name) + len(command)) > -1
-            and result.find("logging enable", len(device_name) + len(command)) > -1
+        result.find("archive", len(device_name) + len(command)) > -1
+        and result.find("logging enable", len(device_name) + len(command)) > -1
     ):
         check.status = "NF"
         check.comments = "V-215848 - CAT II - NAF - archive logging is enabled"
@@ -7522,8 +7465,8 @@ def V215849(device_type, device_name):
         "V-215849 - NOTE:  AS OF 11/1/19 THIS IS A FINDING - PLEASE REMEDIATE"
     )
     if (
-            result.find("on-failure", len(device_name) + len(command)) > -1
-            and result.find("on-success", len(device_name) + len(command)) > -1
+        result.find("on-failure", len(device_name) + len(command)) > -1
+        and result.find("on-success", len(device_name) + len(command)) > -1
     ):
         check.status = "NF"
         check.comments = "V-215849 - CAT II - NAF -  Audit records generated when successful/unsuccessful logon attempts occur"
@@ -7542,8 +7485,8 @@ def V215850(device_type, device_name):
     check.finding = result
     check.comments = "V-215850 - The Cisco router must be configured to generate log records for privileged activities"
     if (
-            result.find("archive", len(device_name) + len(command)) > -1
-            and result.find("logging enable", len(device_name) + len(command)) > -1
+        result.find("archive", len(device_name) + len(command)) > -1
+        and result.find("logging enable", len(device_name) + len(command)) > -1
     ):
         check.status = "NF"
         check.comments = "V-215850 - CAT II - NAF - archive logging is enabled"
@@ -7555,18 +7498,18 @@ def V215854(device_type, device_name):
     # V-215854 - CAT I - The Cisco router must be configured to use at least two authentication servers for the purpose of authenticating users prior to granting administrative access.
     check = Stig()
     check.set_vulid()
-
+    
     # Initialize the count of authentication servers
     auth_server_count = 0
-
+    
     # Command to fetch the relevant configuration lines
     command = "sh run | i server-private"
     result = exec_command(command, device_name)
     check.finding = result
-
+    
     # Use regex to count the number of 'server-private' entries
     auth_server_count = len(re.findall(r'^.*server-private.*$', result, re.MULTILINE))
-
+    
     # Determine the status and comments based on the count of authentication servers
     if auth_server_count > 1:
         check.status = "NF"  # Not a finding
@@ -7574,7 +7517,7 @@ def V215854(device_type, device_name):
     else:
         check.status = "OP"  # Open
         check.comments = "V-215854 - OPEN - Two or more authentication servers are not configured."
-
+    
     return check
 
 
@@ -7612,7 +7555,6 @@ def V215856(device_type, device_name):
     check.comments = "V-215856 - COMMENT:  RCC-SWA does not use PKI Authentication"
     return check
 
-
 def V220139(device_type, device_name):
     # Legacy IDs: V-96365; SV-105503
     # V-220139 - CAT I - The Cisco router must be configured to send log data to at least two syslog servers
@@ -7637,7 +7579,6 @@ def V220139(device_type, device_name):
         check.comments = "V-220139 - OPEN - At least two logging servers are not configured."
 
     return check
-
 
 def V220140(device_type, device_name):
     # Legacy IDs: V-96369; SV-105507
@@ -7665,18 +7606,18 @@ def V220140(device_type, device_name):
         )
         intEnd = result.splitlines()[1].find("\r", intStart)
         ModelVersion = result.splitlines()[1][intStart:]
-        # crt.Dialog.MessageBox("ModelVersion is: " + str(remove_char(ModelVersion)))
+        #crt.Dialog.MessageBox("ModelVersion is: " + str(remove_char(ModelVersion)))
         if remove_char(ModelVersion) >= remove_char("17.09.04a"):
             check.status = "NF"
             check.comments = (
-                    "NAF: As of 20-Oct-2023 ASR/ISR devices should have code level 17.09.04a.  This device has "
-                    + ModelVersion
+                "NAF: As of 20-Oct-2023 ASR/ISR devices should have code level 17.09.04a.  This device has "
+                + ModelVersion
             )
         else:
             check.status = "OP"
             check.comments = (
-                    "OPEN: As of 20-Oct-2023 ASR/ISR devices should have code level 17.09.04a.  This device has "
-                    + ModelVersion
+                "OPEN: As of 20-Oct-2023 ASR/ISR devices should have code level 17.09.04a.  This device has "
+                + ModelVersion
             )
 
     if Model.find("CISCO39") > -1:
@@ -7690,14 +7631,14 @@ def V220140(device_type, device_name):
         if remove_char(ModelVersion) >= remove_char("15.7(3)M5"):
             check.status = "NF"
             check.comments = (
-                    "NAF: As of 1/16/2020 ISRG2 devices should have code level 15.7(3)M5.  This device has "
-                    + ModelVersion
+                "NAF: As of 1/16/2020 ISRG2 devices should have code level 15.7(3)M5.  This device has "
+                + ModelVersion
             )
         else:
             check.status = "OP"
             check.comments = (
-                    "OPEN: As of 1/16/2020 ISRG2 devices should have code level 15.7(3)M5.  This device has "
-                    + ModelVersion
+                "OPEN: As of 1/16/2020 ISRG2 devices should have code level 15.7(3)M5.  This device has "
+                + ModelVersion
             )
 
     if Model.find("C650") > -1:
@@ -7711,14 +7652,14 @@ def V220140(device_type, device_name):
         if remove_char(ModelVersion) >= remove_char("15.1(2)SY14"):
             check.status = "NF"
             check.comments = (
-                    "NAF: As of 10/17/2019 Cisco recomends 6500 series devices should have code level 15.1(2)SY14.  This device has "
-                    + ModelVersion
+                "NAF: As of 10/17/2019 Cisco recomends 6500 series devices should have code level 15.1(2)SY14.  This device has "
+                + ModelVersion
             )
         else:
             check.status = "OP"
             check.comments = (
-                    "OPEN: As of 10/17/2019 Cisco recomends 6500 series devices should have code level 15.1(2)SY14.  This device has "
-                    + ModelVersion
+                "OPEN: As of 10/17/2019 Cisco recomends 6500 series devices should have code level 15.1(2)SY14.  This device has "
+                + ModelVersion
             )
     temp = temp + result
     if device_type == "NXOS":
@@ -7727,49 +7668,49 @@ def V220140(device_type, device_name):
         if len(result.splitlines()) > 2:
             if len(result.splitlines()[1]) > 8:
                 ModelVersion = result.splitlines()[1][
-                               result.splitlines()[1].find("version")
-                               + 8: len(result.splitlines()[1])
-                               ]
+                    result.splitlines()[1].find("version")
+                    + 8 : len(result.splitlines()[1])
+                ]
         if Model.find("N9K") > -1:
             if remove_char(ModelVersion) >= remove_char("70376"):
                 check.status = "NF"
                 check.comments = (
-                        "NAF: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(6).  This device has "
-                        + ModelVersion
+                    "NAF: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(6).  This device has "
+                    + ModelVersion
                 )
             else:
                 check.status = "OP"
                 check.comments = (
-                        "OPEN: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(6).  This device has "
-                        + ModelVersion
+                    "OPEN: As of 1/16/2020 Nexus 9K series switches should have code level 7.0(3)I7(6).  This device has "
+                    + ModelVersion
                 )
 
         if Model.find("N5K") > -1:
             if remove_char(ModelVersion) >= remove_char("73511"):
                 check.status = "NF"
                 check.comments = (
-                        "NAF: As of 1/16/2020 Nexus 5K series switches should have code level 7.3(5)N1(1).  This device has "
-                        + ModelVersion
+                    "NAF: As of 1/16/2020 Nexus 5K series switches should have code level 7.3(5)N1(1).  This device has "
+                    + ModelVersion
                 )
             else:
                 check.status = "OP"
                 check.comments = (
-                        "OPEN: As of 1/16/2020 Nexus 5K series switches should have code level 7.0(3)I7(6).  This device has "
-                        + ModelVersion
+                    "OPEN: As of 1/16/2020 Nexus 5K series switches should have code level 7.0(3)I7(6).  This device has "
+                    + ModelVersion
                 )
 
         if Model.find("N3K") > -1:
             if remove_char(ModelVersion) >= remove_char("70376"):
                 check.status = "NF"
                 check.comments = (
-                        "NAF: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(6).  This device has "
-                        + ModelVersion
+                    "NAF: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(6).  This device has "
+                    + ModelVersion
                 )
             else:
                 check.status = "OP"
                 check.comments = (
-                        "OPEN: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(6).  This device has "
-                        + ModelVersion
+                    "OPEN: As of 1/16/2020 Nexus 3K series switches should have code level 7.0(3)I7(6).  This device has "
+                    + ModelVersion
                 )
     else:
         if ModelVersion == "unknown":
@@ -7781,33 +7722,33 @@ def V220140(device_type, device_name):
                 if remove_char(ModelVersion) >= remove_char("16.12.10a"):
                     check.status = "NF"
                     check.comments = (
-                            "NAF: Cat 3850 and 3650 series switches should have code level 16.12.10a.  This device has "
-                            + ModelVersion
+                        "NAF: Cat 3850 and 3650 series switches should have code level 16.12.10a.  This device has "
+                        + ModelVersion
                     )
                 else:
                     check.status = "OP"
                     check.comments = (
-                            "OPEN: Cat 3850 and 3650 series switches should have code level 16.12.10a.  This device has "
-                            + ModelVersion
+                        "OPEN: Cat 3850 and 3650 series switches should have code level 16.12.10a.  This device has "
+                        + ModelVersion
                     )
             if (
-                    Model.find("3750") > -1
-                    or Model.find("3560") > -1
-                    or Model.find("2960") > -1
+                Model.find("3750") > -1
+                or Model.find("3560") > -1
+                or Model.find("2960") > -1
             ):
                 if remove_char(ModelVersion) >= remove_char("15.02(4)E09"):
                     check.status = "NF"
                     check.comments = (
-                            "NAF: As of 1/16/2020 Cat 3750, 3560, and 2960 series switches should have code level 15.02(4)E9.  This device has "
-                            + ModelVersion
+                        "NAF: As of 1/16/2020 Cat 3750, 3560, and 2960 series switches should have code level 15.02(4)E9.  This device has "
+                        + ModelVersion
                     )
                 else:
                     check.status = "OP"
                     check.comments = (
-                            "OPEN: As of 1/16/2020 Cat 3750, 3560, and 2960 series switches should have code level 15.02(4)E9.  This device has "
-                            + ModelVersion
+                        "OPEN: As of 1/16/2020 Cat 3750, 3560, and 2960 series switches should have code level 15.02(4)E9.  This device has "
+                        + ModelVersion
                     )
-
+    
         # if Model.find("ASR"):
         #    ModelVersion = result.splitlines()[1][result.splitlines()[1].find("version")+8:len(result.splitlines()[1])]
     result = temp + "\r" + result
@@ -7818,7 +7759,7 @@ def V220140(device_type, device_name):
 """
 --------------------------------------------------------------------------
 Cisco IOS XE Router RTR Security Technical Implementation Guide
-Version 2, Release: 9 Benchmark Date: 25 Oct 2023
+Version 3, Release: 1 Benchmark Date: 24 July 2024
 --------------------------------------------------------------------------
 """
 
@@ -7842,17 +7783,17 @@ def V216641(device_type, device_name):
         temp = ""
         for count in range(3, len(strACL)):
             if (
-                    strACL[count].find("access-group EGRESS") > -1
-                    or strACL[count].find("access-group INGRESS") > -1
+                strACL[count].find("access-group EGRESS") > -1
+                or strACL[count].find("access-group INGRESS") > -1
             ):
                 temp = (
-                        temp
-                        + strACL[count - 2]
-                        + "\n"
-                        + strACL[count - 1]
-                        + "\n"
-                        + strACL[count]
-                        + "\n"
+                    temp
+                    + strACL[count - 2]
+                    + "\n"
+                    + strACL[count - 1]
+                    + "\n"
+                    + strACL[count]
+                    + "\n"
                 )
         command = (
             "sh run | sec ip.access-list.exten.*.INGRESS|ip.access-list.exten.*.EGRESS"
@@ -8147,25 +8088,25 @@ def V216655(device_type, device_name):
         result = exec_command(command, device_name)
         check.finding = check.finding + result
         if (
-                result.find("no ip unreach", len(device_name) + len(command)) == -1
-                or result.find(
-            "icmp rate-limit unreachable", len(device_name) + len(command)
-        )
-                == -1
+            result.find("no ip unreach", len(device_name) + len(command)) == -1
+            or result.find(
+                "icmp rate-limit unreachable", len(device_name) + len(command)
+            )
+            == -1
         ):
             check.status = "NF"
             check.comments = check.comments + "IP unreachables is configured."
         else:
             check.comments = (
-                    check.comments
-                    + "Because this is a external facing router unreachables must be configured."
+                check.comments
+                + "Because this is a external facing router unreachables must be configured."
             )
     else:
         check.status = "NF"
         check.comments = (
-                check.comments + "  Because this is an internal router "
-                                 "ip unreachables"
-                                 " configuration not required."
+            check.comments + "  Because this is an internal router "
+            "ip unreachables"
+            " configuration not required."
         )
     return check
 
@@ -8188,19 +8129,19 @@ def V216656(device_type, device_name):
         if result.find("ip mask-reply", len(device_name) + len(command)) == -1:
             check.status = "NF"
             check.comments = (
-                    check.comments + "V-216656: NAF - mask-reply command is NOT configured."
+                check.comments + "V-216656: NAF - mask-reply command is NOT configured."
             )
         else:
             check.comments = (
-                    check.comments
-                    + "V-216656: OPEN - Because this is a external facing router mask-reply must not be configured."
+                check.comments
+                + "V-216656: OPEN - Because this is a external facing router mask-reply must not be configured."
             )
     else:
         check.status = "NF"
         check.comments = (
-                check.comments + "  Because this is an internal router "
-                                 "mask-reply"
-                                 " configuration is not applicable."
+            check.comments + "  Because this is an internal router "
+            "mask-reply"
+            " configuration is not applicable."
         )
     return check
 
@@ -8223,20 +8164,20 @@ def V216657(device_type, device_name):
         if result.find("no ip redirects", len(device_name) + len(command)) > -1:
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216656: NAF - no ip redirects command is configured."
+                check.comments
+                + "V-216656: NAF - no ip redirects command is configured."
             )
         else:
             check.comments = (
-                    check.comments
-                    + "V-216656: OPEN - Because this is a external facing router no ip redirects must be configured."
+                check.comments
+                + "V-216656: OPEN - Because this is a external facing router no ip redirects must be configured."
             )
     else:
         check.status = "NF"
         check.comments = (
-                check.comments + "  Because this is an internal router "
-                                 "no ip redirects"
-                                 " configuration is not required."
+            check.comments + "  Because this is an internal router "
+            "no ip redirects"
+            " configuration is not required."
         )
     return check
 
@@ -8325,24 +8266,24 @@ def V216662(device_type, device_name):
         result = exec_command(command, device_name)
         check.finding = check.finding + result
         if (
-                result.find("INGRESS", len(device_name) + len(command)) > -1
-                and result.find("EGRESS", len(device_name) + len(command)) > -1
+            result.find("INGRESS", len(device_name) + len(command)) > -1
+            and result.find("EGRESS", len(device_name) + len(command)) > -1
         ):
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216662: NAF - Both INGRESS and EGRESS ACLs are in place."
+                check.comments
+                + "V-216662: NAF - Both INGRESS and EGRESS ACLs are in place."
             )
         else:
             check.comments = (
-                    check.comments
-                    + "V-216662: OPEN - Because this is a external facing router ingress and egress acls are required.."
+                check.comments
+                + "V-216662: OPEN - Because this is a external facing router ingress and egress acls are required.."
             )
     else:
         check.status = "NF"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, so transit traffic is allowed."
+            check.comments
+            + "  This is not a perimeter router, so transit traffic is allowed."
         )
     return check
 
@@ -8363,24 +8304,24 @@ def V216663(device_type, device_name):
         result = exec_command(command, device_name)
         check.finding = check.finding + result
         if (
-                result.find("INGRESS", len(device_name) + len(command)) > -1
-                and result.find("EGRESS", len(device_name) + len(command)) > -1
+            result.find("INGRESS", len(device_name) + len(command)) > -1
+            and result.find("EGRESS", len(device_name) + len(command)) > -1
         ):
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216663: NAF - Both INGRESS and EGRESS ACLs are in place and control the flow of information."
+                check.comments
+                + "V-216663: NAF - Both INGRESS and EGRESS ACLs are in place and control the flow of information."
             )
         else:
             check.comments = (
-                    check.comments
-                    + "V-216663: OPEN - Because this is a external facing router ingress and egress acls are required.."
+                check.comments
+                + "V-216663: OPEN - Because this is a external facing router ingress and egress acls are required.."
             )
     else:
         check.status = "NF"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, so transit traffic is allowed."
+            check.comments
+            + "  This is not a perimeter router, so transit traffic is allowed."
         )
     return check
 
@@ -8401,24 +8342,24 @@ def V216664(device_type, device_name):
         result = exec_command(command, device_name)
         check.finding = check.finding + result
         if (
-                result.find("INGRESS", len(device_name) + len(command)) > -1
-                and result.find("EGRESS", len(device_name) + len(command)) > -1
+            result.find("INGRESS", len(device_name) + len(command)) > -1
+            and result.find("EGRESS", len(device_name) + len(command)) > -1
         ):
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216664: NAF - Both INGRESS and EGRESS ACLs are in place and control the flow of information."
+                check.comments
+                + "V-216664: NAF - Both INGRESS and EGRESS ACLs are in place and control the flow of information."
             )
         else:
             check.comments = (
-                    check.comments
-                    + "V-216664: OPEN - Because this is a external facing router ingress and egress acls are required.."
+                check.comments
+                + "V-216664: OPEN - Because this is a external facing router ingress and egress acls are required.."
             )
     else:
         check.status = "NF"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, so transit traffic is allowed."
+            check.comments
+            + "  This is not a perimeter router, so transit traffic is allowed."
         )
     return check
 
@@ -8441,19 +8382,19 @@ def V216665(device_type, device_name):
         if result.find("10.0.0", len(device_name) + len(command)) > -1:
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216664: NAF - Both INGRESS ACL is blocking Bogon IPs."
+                check.comments
+                + "V-216664: NAF - Both INGRESS ACL is blocking Bogon IPs."
             )
         else:
             check.comments = (
-                    check.comments
-                    + "V-216664: OPEN - Ingress ACL is missing or lacking filter ranges."
+                check.comments
+                + "V-216664: OPEN - Ingress ACL is missing or lacking filter ranges."
             )
     else:
         check.status = "NF"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, so transit traffic is allowed."
+            check.comments
+            + "  This is not a perimeter router, so transit traffic is allowed."
         )
     return check
 
@@ -8476,19 +8417,19 @@ def V216666(device_type, device_name):
         if result.find("INGRESS", len(device_name) + len(command)) > -1:
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216666: NAF - INGRESS ACL only allowed traffic to internal hosts."
+                check.comments
+                + "V-216666: NAF - INGRESS ACL only allowed traffic to internal hosts."
             )
         else:
             check.comments = (
-                    check.comments
-                    + "V-216666: OPEN - Ingress ACL is missing or lacking configurations."
+                check.comments
+                + "V-216666: OPEN - Ingress ACL is missing or lacking configurations."
             )
     else:
         check.status = "NF"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, so transit traffic is allowed."
+            check.comments
+            + "  This is not a perimeter router, so transit traffic is allowed."
         )
     return check
 
@@ -8509,14 +8450,14 @@ def V216667(device_type, device_name):
         result = exec_command(command, device_name)
         check.status = "NF"
         check.comments = (
-                check.comments
-                + "V-216666: NAF - RCC-SWA perimeter routers only peer with DISA."
+            check.comments
+            + "V-216666: NAF - RCC-SWA perimeter routers only peer with DISA."
         )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, and this check is not applicable.."
+            check.comments
+            + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
@@ -8537,14 +8478,14 @@ def V216668(device_type, device_name):
         result = exec_command(command, device_name)
         check.status = "NF"
         check.comments = (
-                check.comments
-                + "V-216668: NAF - RCC-SWA perimeter routers only peer with DISA."
+            check.comments
+            + "V-216668: NAF - RCC-SWA perimeter routers only peer with DISA."
         )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, and this check is not applicable.."
+            check.comments
+            + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
@@ -8567,14 +8508,14 @@ def V216670(device_type, device_name):
         if result.find("INGRESS", len(device_name) + len(command)) > -1:
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216670: NAF - RCC-SWA perimeter router has an ingress ACL."
+                check.comments
+                + "V-216670: NAF - RCC-SWA perimeter router has an ingress ACL."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, and this check is not applicable.."
+            check.comments
+            + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
@@ -8597,14 +8538,14 @@ def V216671(device_type, device_name):
         if result.find("INGRESS", len(device_name) + len(command)) > -1:
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216671: NAF - RCC-SWA perimeter router has an ingress ACL."
+                check.comments
+                + "V-216671: NAF - RCC-SWA perimeter router has an ingress ACL."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, and this check is not applicable.."
+            check.comments
+            + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
@@ -8627,14 +8568,14 @@ def V216672(device_type, device_name):
         if result.find("EGRESS", len(device_name) + len(command)) > -1:
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216672: NAF - RCC-SWA perimeter router has an Egress ACL."
+                check.comments
+                + "V-216672: NAF - RCC-SWA perimeter router has an Egress ACL."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, and this check is not applicable.."
+            check.comments
+            + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
@@ -8657,14 +8598,14 @@ def V216674(device_type, device_name):
         if result.find("not enabled", len(device_name) + len(command)) > -1:
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216674: NAF - LLDP is disabled on the RCC-SWA perimeter router."
+                check.comments
+                + "V-216674: NAF - LLDP is disabled on the RCC-SWA perimeter router."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, and this check is not applicable.."
+            check.comments
+            + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
@@ -8687,14 +8628,14 @@ def V216675(device_type, device_name):
         if result.find("not enabled", len(device_name) + len(command)) > -1:
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216675: NAF - CDP is disabled on the RCC-SWA perimeter router."
+                check.comments
+                + "V-216675: NAF - CDP is disabled on the RCC-SWA perimeter router."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, and this check is not applicable.."
+            check.comments
+            + "  This is not a perimeter router, and this check is not applicable.."
         )
     return check
 
@@ -8720,9 +8661,9 @@ def V216676(device_type, device_name):
             if line.find("nexthop") > -1:
                 strExtInterface = line.split()[2]
                 check.comments = (
-                        check.comments
-                        + "Egress interface for the perimeter router is "
-                        + strExtInterface
+                    check.comments
+                    + "Egress interface for the perimeter router is "
+                    + strExtInterface
                 )
         if strExtInterface.find("NA") == -1:
             command = "show run int " + strExtInterface
@@ -8731,16 +8672,16 @@ def V216676(device_type, device_name):
             if result.find("no ip proxy") > -1:
                 check.status = "NF"
                 check.comments = (
-                        check.comments
-                        + "V-216676: NAF - Proxy-arp is disabled on the external interface.."
+                    check.comments
+                    + "V-216676: NAF - Proxy-arp is disabled on the external interface.."
                 )
             else:
                 check.comments = "V-216676 -  The Cisco perimeter router must be configured to have Proxy ARP disabled on all external interfaces.."
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, and this check is not applicable."
+            check.comments
+            + "  This is not a perimeter router, and this check is not applicable."
         )
     return check
 
@@ -8765,14 +8706,14 @@ def V216677(device_type, device_name):
         if result.find("eq 22 log", len(device_name) + len(command)) > -1:
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216676: NAF - Egress ACLs are blockng management traffic.."
+                check.comments
+                + "V-216676: NAF - Egress ACLs are blockng management traffic.."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "  This is not a perimeter router, and this check is not applicable."
+            check.comments
+            + "  This is not a perimeter router, and this check is not applicable."
         )
     return check
 
@@ -8870,8 +8811,8 @@ def V216687(device_type, device_name):
     check.set_vulid()
     check.status = "OP"
     check.comments = (
-            check.vulid
-            + " - The Cisco BGP router must be configured to reject inbound route advertisements for any Bogon prefixes."
+        check.vulid
+        + " - The Cisco BGP router must be configured to reject inbound route advertisements for any Bogon prefixes."
     )
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
@@ -8888,20 +8829,20 @@ def V216687(device_type, device_name):
         check.comments = "This router seems to be running BGP.\n"
         # Find the external bgp peers.
         command = (
-                "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
-                + strBGP_AS
+            "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
+            + strBGP_AS
         )
         result = exec_command(command, device_name)
         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
         if len(result.splitlines()) <= 3:
             command = (
-                    "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
+                "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
             )
             result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         if len(result.splitlines()) <= 4:
             check.comments = (
-                    check.comments + "NAF: This router does not have any eBGP peers.\n"
+                check.comments + "NAF: This router does not have any eBGP peers.\n"
             )
             check.status = "NF"
         else:
@@ -8928,45 +8869,45 @@ def V216687(device_type, device_name):
                             for configline in result.splitlines():
                                 if configline.find("prefix-list") > -1:
                                     command = (
-                                            "show ip prefix-list " + configline.split()[-1]
+                                        "show ip prefix-list " + configline.split()[-1]
                                     )
                                     result = exec_command(command, device_name)
                                     check.finding = check.finding + "\n" + result
                                     if (
-                                            result.find("deny 0.0.0.0") > -1
-                                            or result.find("permit 0.0.0.0") == -1
+                                        result.find("deny 0.0.0.0") > -1
+                                        or result.find("permit 0.0.0.0") == -1
                                     ):
                                         check.comments = (
-                                                check.comments
-                                                + "Prefix list "
-                                                + configline.split()[-1]
-                                                + " filtering peer "
-                                                + peer
-                                                + " appears to only allow specific prefixes.\n"
+                                            check.comments
+                                            + "Prefix list "
+                                            + configline.split()[-1]
+                                            + " filtering peer "
+                                            + peer
+                                            + " appears to only allow specific prefixes.\n"
                                         )
                                     else:
                                         strPeerfinding = "OP"
                                         check.comments = (
-                                                check.comments
-                                                + "Prefix list "
-                                                + configline.split()[-1]
-                                                + " filtering peer "
-                                                + peer
-                                                + " appears to allow all routes.\n"
+                                            check.comments
+                                            + "Prefix list "
+                                            + configline.split()[-1]
+                                            + " filtering peer "
+                                            + peer
+                                            + " appears to allow all routes.\n"
                                         )
             # Now we'll check if there was a finding during any peer check.
             if strPeerfinding != "NF":
                 check.status = "OP"
                 check.comments = (
-                        check.comments
-                        + check.vulid
-                        + ":OPEN - Peering rule allows unexpected prefixes."
+                    check.comments
+                    + check.vulid
+                    + ":OPEN - Peering rule allows unexpected prefixes."
                 )
             else:
                 check.comments = (
-                        check.comments
-                        + check.vulid
-                        + ":NAF - Ingress route maps only allow expected and defined prefixes.  Or "
+                    check.comments
+                    + check.vulid
+                    + ":NAF - Ingress route maps only allow expected and defined prefixes.  Or "
                 )
                 check.status = "NF"
     else:
@@ -9018,14 +8959,14 @@ def V216688(device_type, device_name):
                         for configline in result.splitlines():
                             if configline.find("prefix-list") > -1:
                                 command = (
-                                        "show ip prefix-list " + configline.split()[-1]
+                                    "show ip prefix-list " + configline.split()[-1]
                                 )
                                 result = exec_command(command, device_name)
                                 check.finding = check.finding + "\n" + result
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "V-216688: NAF - Ingress route maps only allow expected and defined prefixes."
+                check.comments
+                + "V-216688: NAF - Ingress route maps only allow expected and defined prefixes."
             )
         else:
             check.status = "NF"
@@ -9033,8 +8974,8 @@ def V216688(device_type, device_name):
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "  This is not a router that peers with external BGP neighbors."
+            check.comments
+            + "  This is not a router that peers with external BGP neighbors."
         )
     return check
 
@@ -9046,8 +8987,8 @@ def V216689(device_type, device_name):
     check.set_vulid()
     check.status = "OP"
     check.comments = (
-            check.vulid
-            + " - The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core."
+        check.vulid
+        + " - The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core."
     )
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
@@ -9064,20 +9005,20 @@ def V216689(device_type, device_name):
         check.comments = "This router seems to be running BGP.\n"
         # Find the external bgp peers.
         command = (
-                "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
-                + strBGP_AS
+            "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
+            + strBGP_AS
         )
         result = exec_command(command, device_name)
         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
         if len(result.splitlines()) <= 3:
             command = (
-                    "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
+                "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
             )
             result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         if len(result.splitlines()) <= 4:
             check.comments = (
-                    check.comments + "NAF: This router does not have any eBGP peers.\n"
+                check.comments + "NAF: This router does not have any eBGP peers.\n"
             )
             check.status = "NF"
         else:
@@ -9103,45 +9044,45 @@ def V216689(device_type, device_name):
                             for configline in result.splitlines():
                                 if configline.find("prefix-list") > -1:
                                     command = (
-                                            "show ip prefix-list " + configline.split()[-1]
+                                        "show ip prefix-list " + configline.split()[-1]
                                     )
                                     result = exec_command(command, device_name)
                                     check.finding = check.finding + "\n" + result
                                     if (
-                                            result.find("deny 0.0.0.0") > -1
-                                            or result.find("permit 0.0.0.0") == -1
+                                        result.find("deny 0.0.0.0") > -1
+                                        or result.find("permit 0.0.0.0") == -1
                                     ):
                                         check.comments = (
-                                                check.comments
-                                                + "Prefix list "
-                                                + configline.split()[-1]
-                                                + " filtering peer "
-                                                + peer
-                                                + " appears to only allow specific prefixes.\n"
+                                            check.comments
+                                            + "Prefix list "
+                                            + configline.split()[-1]
+                                            + " filtering peer "
+                                            + peer
+                                            + " appears to only allow specific prefixes.\n"
                                         )
                                     else:
                                         strPeerfinding = "OP"
                                         check.comments = (
-                                                check.comments
-                                                + "Prefix list "
-                                                + configline.split()[-1]
-                                                + " filtering peer "
-                                                + peer
-                                                + " appears to allow all routes.\n"
+                                            check.comments
+                                            + "Prefix list "
+                                            + configline.split()[-1]
+                                            + " filtering peer "
+                                            + peer
+                                            + " appears to allow all routes.\n"
                                         )
             # Now we'll check if there was a finding during any peer check.
             if strPeerfinding != "NF":
                 check.status = "OP"
                 check.comments = (
-                        check.comments
-                        + check.vulid
-                        + ":OPEN - Peering rule allows unexpected prefixes."
+                    check.comments
+                    + check.vulid
+                    + ":OPEN - Peering rule allows unexpected prefixes."
                 )
             else:
                 check.comments = (
-                        check.comments
-                        + check.vulid
-                        + ":NAF - Ingress route maps only allow expected and defined prefixes. Or only has iBGP peers."
+                    check.comments
+                    + check.vulid
+                    + ":NAF - Ingress route maps only allow expected and defined prefixes. Or only has iBGP peers."
                 )
                 check.status = "NF"
     else:
@@ -9157,8 +9098,8 @@ def V216690(device_type, device_name):
     check.set_vulid()
     check.status = "OP"
     check.comments = (
-            check.vulid
-            + " - The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core."
+        check.vulid
+        + " - The Cisco BGP router must be configured to reject outbound route advertisements for any prefixes belonging to the IP core."
     )
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
@@ -9175,20 +9116,20 @@ def V216690(device_type, device_name):
         check.comments = "This router seems to be running BGP.\n"
         # Find the external bgp peers.
         command = (
-                "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
-                + strBGP_AS
+            "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
+            + strBGP_AS
         )
         result = exec_command(command, device_name)
         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
         if len(result.splitlines()) <= 3:
             command = (
-                    "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
+                "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
             )
             result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         if len(result.splitlines()) <= 5:
             check.comments = (
-                    check.comments + "NAF: This router does not have any eBGP peers.\n"
+                check.comments + "NAF: This router does not have any eBGP peers.\n"
             )
             check.status = "NF"
         else:
@@ -9214,45 +9155,45 @@ def V216690(device_type, device_name):
                             for configline in result.splitlines():
                                 if configline.find("prefix-list") > -1:
                                     command = (
-                                            "show ip prefix-list " + configline.split()[-1]
+                                        "show ip prefix-list " + configline.split()[-1]
                                     )
                                     result = exec_command(command, device_name)
                                     check.finding = check.finding + "\n" + result
                                     if (
-                                            result.find("deny 0.0.0.0") > -1
-                                            or result.find("permit 0.0.0.0") == -1
+                                        result.find("deny 0.0.0.0") > -1
+                                        or result.find("permit 0.0.0.0") == -1
                                     ):
                                         check.comments = (
-                                                check.comments
-                                                + "Prefix list "
-                                                + configline.split()[-1]
-                                                + " filtering peer "
-                                                + peer
-                                                + " appears to only allow specific prefixes.\n"
+                                            check.comments
+                                            + "Prefix list "
+                                            + configline.split()[-1]
+                                            + " filtering peer "
+                                            + peer
+                                            + " appears to only allow specific prefixes.\n"
                                         )
                                     else:
                                         strPeerfinding = "OP"
                                         check.comments = (
-                                                check.comments
-                                                + "Prefix list "
-                                                + configline.split()[-1]
-                                                + " filtering peer "
-                                                + peer
-                                                + " appears to allow all routes.\n"
+                                            check.comments
+                                            + "Prefix list "
+                                            + configline.split()[-1]
+                                            + " filtering peer "
+                                            + peer
+                                            + " appears to allow all routes.\n"
                                         )
             # Now we'll check if there was a finding during any peer check.
             if strPeerfinding != "NF":
                 check.status = "OP"
                 check.comments = (
-                        check.comments
-                        + check.vulid
-                        + ":OPEN - Peering rule allows unexpected prefixes."
+                    check.comments
+                    + check.vulid
+                    + ":OPEN - Peering rule allows unexpected prefixes."
                 )
             else:
                 check.comments = (
-                        check.comments
-                        + check.vulid
-                        + ":NAF - Ingress route maps only allow expected and defined prefixes."
+                    check.comments
+                    + check.vulid
+                    + ":NAF - Ingress route maps only allow expected and defined prefixes."
                 )
     else:
         check.comments = check.comments + "NAF: This router is not running BGP.\n"
@@ -9282,20 +9223,20 @@ def V216691(device_type, device_name):
         check.comments = "This router seems to be running BGP.\n"
         # Find the external bgp peers.
         command = (
-                "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
-                + strBGP_AS
+            "show ip bgp vpnv4 all summary | exc memory|BGP| 65... |path|Neighbor|"
+            + strBGP_AS
         )
         result = exec_command(command, device_name)
         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
         if len(result.splitlines()) <= 3:
             command = (
-                    "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
+                "show ip bgp sum | exc memory|BGP| 65...| path|Neighbor|" + strBGP_AS
             )
             result = exec_command(command, device_name)
         check.finding = check.finding + "\n" + result
         if len(result.splitlines()) <= 5:
             check.comments = (
-                    check.comments + "NAF: This router does not have any eBGP peers.\n"
+                check.comments + "NAF: This router does not have any eBGP peers.\n"
             )
             check.status = "NF"
         else:
@@ -9321,45 +9262,45 @@ def V216691(device_type, device_name):
                             for configline in result.splitlines():
                                 if configline.find("prefix-list") > -1:
                                     command = (
-                                            "show ip prefix-list " + configline.split()[-1]
+                                        "show ip prefix-list " + configline.split()[-1]
                                     )
                                     result = exec_command(command, device_name)
                                     check.finding = check.finding + "\n" + result
                                     if (
-                                            result.find("deny 0.0.0.0") > -1
-                                            or result.find("permit 0.0.0.0") == -1
+                                        result.find("deny 0.0.0.0") > -1
+                                        or result.find("permit 0.0.0.0") == -1
                                     ):
                                         check.comments = (
-                                                check.comments
-                                                + "Prefix list "
-                                                + configline.split()[-1]
-                                                + " filtering peer "
-                                                + peer
-                                                + " appears to only allow specific prefixes.\n"
+                                            check.comments
+                                            + "Prefix list "
+                                            + configline.split()[-1]
+                                            + " filtering peer "
+                                            + peer
+                                            + " appears to only allow specific prefixes.\n"
                                         )
                                     else:
                                         strPeerfinding = "OP"
                                         check.comments = (
-                                                check.comments
-                                                + "Prefix list "
-                                                + configline.split()[-1]
-                                                + " filtering peer "
-                                                + peer
-                                                + " appears to allow all routes.\n"
+                                            check.comments
+                                            + "Prefix list "
+                                            + configline.split()[-1]
+                                            + " filtering peer "
+                                            + peer
+                                            + " appears to allow all routes.\n"
                                         )
             # Now we'll check if there was a finding during any peer check.
             if strPeerfinding != "NF":
                 check.status = "OP"
                 check.comments = (
-                        check.comments
-                        + check.vulid
-                        + ":OPEN - Peering rule allows unexpected prefixes."
+                    check.comments
+                    + check.vulid
+                    + ":OPEN - Peering rule allows unexpected prefixes."
                 )
             else:
                 check.comments = (
-                        check.comments
-                        + check.vulid
-                        + ":NAF - Ingress route maps only allow expected and defined prefixes."
+                    check.comments
+                    + check.vulid
+                    + ":NAF - Ingress route maps only allow expected and defined prefixes."
                 )
     else:
         check.comments = check.comments + "NAF: This router is not running BGP.\n"
@@ -9374,8 +9315,8 @@ def V216692(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " - Verify the router is configured to deny updates received from eBGP peers that do not list their AS number as the first AS in the AS_PATH attribute.\n"
+        check.vulid
+        + " - Verify the router is configured to deny updates received from eBGP peers that do not list their AS number as the first AS in the AS_PATH attribute.\n"
     )
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
@@ -9399,22 +9340,22 @@ def V216692(device_type, device_name):
         if result.find("no") > -1:
             check.status = "OP"
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":OPEN - the router allows a peer to put another AS before its own."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":OPEN - the router allows a peer to put another AS before its own."
             )
         else:
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":NAF - The router denies updates from begp peers that do not list their AS number first."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NAF - The router denies updates from begp peers that do not list their AS number first."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments + "\n" + check.vulid + ":NA - Router is not running BGP."
+            check.comments + "\n" + check.vulid + ":NA - Router is not running BGP."
         )
     return check
 
@@ -9428,8 +9369,8 @@ def V216693(device_type, device_name):
     check.set_vulid()
     check.status = "NA"
     check.comments = (
-            check.vulid
-            + " - The Cisco BGP router must be configured to reject route advertisements from CE routers with an originating AS in the AS_PATH attribute that does not belong to that customer.\n NAF - There is no peering with CE devices."
+        check.vulid
+        + " - The Cisco BGP router must be configured to reject route advertisements from CE routers with an originating AS in the AS_PATH attribute that does not belong to that customer.\n NAF - There is no peering with CE devices."
     )
     return check
 
@@ -9441,8 +9382,8 @@ def V216694(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " - The Cisco BGP router must be configured to use the maximum prefixes feature to protect against route table flooding and prefix de-aggregation attacks..\n"
+        check.vulid
+        + " - The Cisco BGP router must be configured to use the maximum prefixes feature to protect against route table flooding and prefix de-aggregation attacks..\n"
     )
     strBGP_AS = "0"
     command = "show ip proto | i Routing.Protoc"
@@ -9474,27 +9415,27 @@ def V216694(device_type, device_name):
         for neighbor in result.splitlines():
             # strBGP_neighbor_status = 'Open'
             if (
-                    neighbor.find("#") == -1
-                    and neighbor.find("Neighbor") == -1
-                    and len(neighbor.split()) > 3
+                neighbor.find("#") == -1
+                and neighbor.find("Neighbor") == -1
+                and len(neighbor.split()) > 3
             ):
                 if neighbor.find(strBGP_AS) == -1:
                     strHasEBGP = "YES"
                     check.comments = (
-                            check.comments
-                            + "Found eBGP Neighbor "
-                            + neighbor.split()[0]
-                            + " with AS "
-                            + neighbor.split()[2]
-                            + "\n"
+                        check.comments
+                        + "Found eBGP Neighbor "
+                        + neighbor.split()[0]
+                        + " with AS "
+                        + neighbor.split()[2]
+                        + "\n"
                     )
                 if neighbor.find(strBGP_AS) > -1:
                     # If a host is an internal BGP neighbor, ttl-security hop is not required.
                     check.comments = (
-                            check.comments
-                            + "Found iBGP Neighbor "
-                            + neighbor.split()[0]
-                            + ", max prefix not applicable.\n"
+                        check.comments
+                        + "Found iBGP Neighbor "
+                        + neighbor.split()[0]
+                        + ", max prefix not applicable.\n"
                     )
 
         check.finding = check.finding + strBGP_Findings
@@ -9506,23 +9447,23 @@ def V216694(device_type, device_name):
             # If we have a no then we're in violation...
             if result.find("maximum-prefix") > -1:
                 check.comments = (
-                        check.comments
-                        + "\n"
-                        + check.vulid
-                        + ":NAF - The number of received prefixes from each eBGP neighbor is controlled."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":NAF - The number of received prefixes from each eBGP neighbor is controlled."
                 )
             else:
                 check.status = "OP"
                 check.comments = (
-                        check.comments
-                        + "\n"
-                        + check.vulid
-                        + ":OPEN - The number of received prefixes from each eBGP neighbor is NOT controlled.."
+                    check.comments
+                    + "\n"
+                    + check.vulid
+                    + ":OPEN - The number of received prefixes from each eBGP neighbor is NOT controlled.."
                 )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments + "\n" + check.vulid + ":NA - Router is not running eBGP."
+            check.comments + "\n" + check.vulid + ":NA - Router is not running eBGP."
         )
     return check
 
@@ -9536,8 +9477,8 @@ def V216695(device_type, device_name):
     check.finding = "N/A"
     check.status = "NA"
     check.comments = (
-            check.vulid
-            + " - The Cisco BGP router must be configured to limit the prefix size on any inbound route advertisement to /24, or the least significant prefixes issued to the customer.\nNAF - There is no peering with CE devices."
+        check.vulid
+        + " - The Cisco BGP router must be configured to limit the prefix size on any inbound route advertisement to /24, or the least significant prefixes issued to the customer.\nNAF - There is no peering with CE devices."
     )
     return check
 
@@ -9579,8 +9520,8 @@ def V216696(device_type, device_name):
                 for line in temp.splitlines():
                     if line.find("password 7") > 1:
                         strClean = (
-                                line[0: line.find("password")]
-                                + "password <-----***REMOVED***----->"
+                            line[0 : line.find("password")]
+                            + "password <-----***REMOVED***----->"
                         )
                         bolPassword = 1
                     else:
@@ -9614,8 +9555,8 @@ def V216696(device_type, device_name):
                     for line in temp.splitlines():
                         if line.find("password 7") > 1:
                             strClean = (
-                                    line[0: line.find("password")]
-                                    + "password <-----***REMOVED***----->"
+                                line[0 : line.find("password")]
+                                + "password <-----***REMOVED***----->"
                             )
                             bolPassword = 1
                         else:
@@ -9623,18 +9564,18 @@ def V216696(device_type, device_name):
                         result = result + "\n" + strClean
                     strBGP_Findings = strBGP_Findings + result + "\n"
                     check.comments = (
-                            check.comments
-                            + "Found iBGP Neighbor "
-                            + neighborIP
-                            + "\n"
+                        check.comments
+                        + "Found iBGP Neighbor "
+                        + neighborIP
+                        + "\n"
                     )
                     if result.find("update-source Loopback") > -1:
                         strBGP_neighbor_status = "NF"
                         check.comments = (
-                                check.comments
-                                + "BGP neighbor "
-                                + neighborIP
-                                + " is configured to use update-source Loopback.\n"
+                            check.comments
+                            + "BGP neighbor "
+                            + neighborIP
+                            + " is configured to use update-source Loopback.\n"
                         )
                     if result.find("inherit peer-session") > -1:
                         # If a neighbor has a peer session, check if the session has a password configured.
@@ -9643,20 +9584,20 @@ def V216696(device_type, device_name):
                             if result.find(peersession) > -1:
                                 strBGP_neighbor_status = "NF"
                                 check.comments = (
-                                        check.comments
-                                        + " - BGP neighbor "
-                                        + neighborIP
-                                        + " has a loopback for an update-source through peer-session "
-                                        + peersession
-                                        + ".\n"
+                                    check.comments
+                                    + " - BGP neighbor "
+                                    + neighborIP
+                                    + " has a loopback for an update-source through peer-session "
+                                    + peersession
+                                    + ".\n"
                                 )
                     if strBGP_neighbor_status == "OP":
                         strBGP_status = "OP"
                         check.comments = (
-                                check.comments
-                                + "Could not match a configuration for neighbor "
-                                + neighborIP
-                                + ".\n"
+                            check.comments
+                            + "Could not match a configuration for neighbor "
+                            + neighborIP
+                            + ".\n"
                         )
 
             if strBGP_status != "NF":
@@ -9671,7 +9612,7 @@ def V216696(device_type, device_name):
     else:
         check.status = "NA"
         check.comments = (
-                check.comments + "\n" + check.vulid + ":NA - Router is not running BGP."
+            check.comments + "\n" + check.vulid + ":NA - Router is not running BGP."
         )
     return check
 
@@ -9683,8 +9624,8 @@ def V216697(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " -The Cisco MPLS router must be configured to use its loopback address as the source address for LDP peering sessions.\n"
+        check.vulid
+        + " -The Cisco MPLS router must be configured to use its loopback address as the source address for LDP peering sessions.\n"
     )
     strPeerfinding = "NF"
     strLDP = "NA"
@@ -9704,26 +9645,26 @@ def V216697(device_type, device_name):
         # If we have a no then we're in violation...
         if result.find("ldp router-id Loopback") > -1:
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":NAF - The router is configured to use its loopback address for LDP peering."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NAF - The router is configured to use its loopback address for LDP peering."
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":OPEN - The router is not configured to use its loopback address for LDP peering."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":OPEN - The router is not configured to use its loopback address for LDP peering."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NA - Router is not running LDP/MPLS so this check is not applicable."
+            check.comments
+            + "\n"
+            + check.vulid
+            + ":NA - Router is not running LDP/MPLS so this check is not applicable."
         )
     return check
 
@@ -9735,8 +9676,8 @@ def V216698(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " -The Cisco MPLS router must be configured to synchronize Interior Gateway Protocol (IGP) and LDP to minimize packet loss.\n"
+        check.vulid
+        + " -The Cisco MPLS router must be configured to synchronize Interior Gateway Protocol (IGP) and LDP to minimize packet loss.\n"
     )
     strPeerfinding = "NF"
     strLDP = "NA"
@@ -9756,26 +9697,26 @@ def V216698(device_type, device_name):
         # If we have a no then we're in violation...
         if result.find("mpls ldp igp sync") > -1:
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":NAF -  The router is configured to synchronize IGP and LDP."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NAF -  The router is configured to synchronize IGP and LDP."
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":OPEN -  The router is not configured to synchronize IGP and LDP."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":OPEN -  The router is not configured to synchronize IGP and LDP."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NA - Router is not running LDP/MPLS so this check is not applicable."
+            check.comments
+            + "\n"
+            + check.vulid
+            + ":NA - Router is not running LDP/MPLS so this check is not applicable."
         )
     return check
 
@@ -9787,8 +9728,8 @@ def V216699(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " -The MPLS router with RSVP-TE enabled must be configured with message pacing to adjust maximum burst and maximum number of RSVP messages to an output queue based on the link speed and input queue size of adjacent core routers.\n"
+        check.vulid
+        + " -The MPLS router with RSVP-TE enabled must be configured with message pacing to adjust maximum burst and maximum number of RSVP messages to an output queue based on the link speed and input queue size of adjacent core routers.\n"
     )
     strPeerfinding = "NF"
     strLDP = "NA"
@@ -9808,23 +9749,23 @@ def V216699(device_type, device_name):
         # If we have a no then we're in violation...
         if result.find("ip rsvp signalling rate-limit") > -1:
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":NAF -  The router is configured  rate limit RSVP messages."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NAF -  The router is configured  rate limit RSVP messages."
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":OPEN -  The router is not configured to rate limit RSVP messages."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":OPEN -  The router is not configured to rate limit RSVP messages."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS-TE."
+            check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS-TE."
         )
     return check
 
@@ -9836,8 +9777,8 @@ def V216700(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " -The Cisco MPLS router must be configured to have TTL Propagation disabled.\n"
+        check.vulid
+        + " -The Cisco MPLS router must be configured to have TTL Propagation disabled.\n"
     )
     strPeerfinding = "NF"
     strLDP = "NA"
@@ -9857,23 +9798,23 @@ def V216700(device_type, device_name):
         # If we have a no then we're in violation...
         if result.find("no") > -1:
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":NAF -  The router is configured to disable TTL propagation."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NAF -  The router is configured to disable TTL propagation."
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":OPEN -  The router is not configured to disable TTL propagation."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":OPEN -  The router is not configured to disable TTL propagation."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
+            check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
         )
     return check
 
@@ -9885,8 +9826,8 @@ def V216701(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " -The Cisco PE router must be configured to have each Virtual Routing and Forwarding (VRF) instance bound to the appropriate physical or logical interfaces.\n"
+        check.vulid
+        + " -The Cisco PE router must be configured to have each Virtual Routing and Forwarding (VRF) instance bound to the appropriate physical or logical interfaces.\n"
     )
     strLDP = "NA"
     command = "show mpls ldp discovery"
@@ -9905,23 +9846,23 @@ def V216701(device_type, device_name):
         # If we have a no then we're in violation...
         if result.find("Interfaces") > -1:
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":NAF -  Each CE-facing interface is only associated to one VRF."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NAF -  Each CE-facing interface is only associated to one VRF."
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":OPEN -  Each CE-facing interface is NOT associated to one VRF"
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":OPEN -  Each CE-facing interface is NOT associated to one VRF"
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
+            check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
         )
     return check
 
@@ -9933,8 +9874,8 @@ def V216702(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " -The Cisco PE router must be configured to have each Virtual Routing and Forwarding (VRF) instance with the appropriate Route Target .\n"
+        check.vulid
+        + " -The Cisco PE router must be configured to have each Virtual Routing and Forwarding (VRF) instance with the appropriate Route Target .\n"
     )
     strLDP = "NA"
     command = "show mpls ldp discovery"
@@ -9953,19 +9894,19 @@ def V216702(device_type, device_name):
         # If we have a no then we're in violation...
         if result.find("route-target export") > -1:
             check.comments = (
-                    check.comments + "\n" + check.vulid + ":NAF -  The router"
-                                                          "s RT is configured for each VRF."
+                check.comments + "\n" + check.vulid + ":NAF -  The router"
+                "s RT is configured for each VRF."
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.comments + "\n" + check.vulid + ":OPEN -  The router"
-                                                          "s RT is NOT configured for each VRF"
+                check.comments + "\n" + check.vulid + ":OPEN -  The router"
+                "s RT is NOT configured for each VRF"
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
+            check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
         )
     return check
 
@@ -9977,8 +9918,8 @@ def V216703(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " -The Cisco PE router must be configured to have each VRF with the appropriate Route Distinguisher (RD).\n"
+        check.vulid
+        + " -The Cisco PE router must be configured to have each VRF with the appropriate Route Distinguisher (RD).\n"
     )
     strLDP = "NA"
     command = "show mpls ldp discovery"
@@ -9997,23 +9938,23 @@ def V216703(device_type, device_name):
         # If we have a no then we're in violation...
         if result.find("rd") > -1 and result.find(":") > -1:
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":NAF -  The Cisco PE router is configured to have each VRF with the appropriate Route Distinguisher (RD)"
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NAF -  The Cisco PE router is configured to have each VRF with the appropriate Route Distinguisher (RD)"
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":OPEN -  The Cisco PE router is NOT configured to have each VRF with the appropriate Route Distinguisher (RD)"
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":OPEN -  The Cisco PE router is NOT configured to have each VRF with the appropriate Route Distinguisher (RD)"
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
+            check.comments + "\n" + check.vulid + ":NA - Router is not running MPLS."
         )
     return check
 
@@ -10024,8 +9965,7 @@ def V216704(device_type, device_name):
     check.set_vulid()
     check.status = "NF"  # Default status
     # Initial comment about the STIG ID and description
-    check.comments = (
-        f"{check.vulid} - The Cisco PE router providing MPLS L2VPN services must authenticate targeted LDP sessions.\n")
+    check.comments = (f"{check.vulid} - The Cisco PE router providing MPLS L2VPN services must authenticate targeted LDP sessions.\n")
     command = "show mpls ldp discovery"
     result = exec_command(command, device_name)
     check.finding = result
@@ -10057,8 +9997,8 @@ def V216705(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " - Verify the correct VC ID is configured for each attachment circuit.\n"
+        check.vulid
+        + " - Verify the correct VC ID is configured for each attachment circuit.\n"
     )
     strLDP = "NA"
     command = "show xconnect pwmib | i up|VC"
@@ -10077,26 +10017,26 @@ def V216705(device_type, device_name):
         # If we have a no then we're in violation...
         if result.find("Encap") > -1:
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":NAF - The CE-facing interface that is configured for VPWS is unique."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NAF - The CE-facing interface that is configured for VPWS is unique."
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":OPEN - The CE-facing interface that is configured for VPWS is NOT unique."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":OPEN - The CE-facing interface that is configured for VPWS is NOT unique."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NA - Router is not terminating any Virtual Private Wire Service (VPWS)."
+            check.comments
+            + "\n"
+            + check.vulid
+            + ":NA - Router is not terminating any Virtual Private Wire Service (VPWS)."
         )
     return check
 
@@ -10108,8 +10048,8 @@ def V216706(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have all attachment circuits defined to the virtual forwarding instance (VFI) with the globally unique VPN ID assigned for each customer VLAN.\n"
+        check.vulid
+        + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have all attachment circuits defined to the virtual forwarding instance (VFI) with the globally unique VPN ID assigned for each customer VLAN.\n"
     )
     strLDP = "NA"
     command = "show run | sec l2.vfi"
@@ -10128,26 +10068,26 @@ def V216706(device_type, device_name):
         # If we have a no then we're in violation...
         if result.find("VC ID") > -1:
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":NAF - Attachment circuits are associated to the appropriate VFI."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NAF - Attachment circuits are associated to the appropriate VFI."
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":OPEN - Attachment circuits are NOT associated to the appropriate VFI."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":OPEN - Attachment circuits are NOT associated to the appropriate VFI."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NA - Router is not providing L2 VFI services."
+            check.comments
+            + "\n"
+            + check.vulid
+            + ":NA - Router is not providing L2 VFI services."
         )
     return check
 
@@ -10159,8 +10099,8 @@ def V216707(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have all attachment circuits defined to the virtual forwarding instance (VFI) with the globally unique VPN ID assigned for each customer VLAN.\n"
+        check.vulid
+        + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have all attachment circuits defined to the virtual forwarding instance (VFI) with the globally unique VPN ID assigned for each customer VLAN.\n"
     )
     strLDP = "NA"
     command = "show run | sec l2.vfi"
@@ -10175,26 +10115,26 @@ def V216707(device_type, device_name):
         # If we have a no split horizon then we're in violation...
         if result.find("no-split-horizon") == -1:
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":NAF - Split horizon is not enabled."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":NAF - Split horizon is not enabled."
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.comments
-                    + "\n"
-                    + check.vulid
-                    + ":OPEN - If split horizon is not enabled, this is a finding.."
+                check.comments
+                + "\n"
+                + check.vulid
+                + ":OPEN - If split horizon is not enabled, this is a finding.."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NA - Router is not providing L2 VFI services."
+            check.comments
+            + "\n"
+            + check.vulid
+            + ":NA - Router is not providing L2 VFI services."
         )
     return check
 
@@ -10206,8 +10146,8 @@ def V216708(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have traffic storm control thresholds on CE-facing interfaces.\n"
+        check.vulid
+        + " - The Cisco PE router providing Virtual Private LAN Services (VPLS) must be configured to have traffic storm control thresholds on CE-facing interfaces.\n"
     )
     strLDP = "NA"
     strVPLS = "NF"
@@ -10229,16 +10169,16 @@ def V216708(device_type, device_name):
                     if result.find("storm-control") == -1:
                         strVPLS = "OP"
                         check.comments = (
-                                check.comments
-                                + "OPEN: Missing storm control on VPLS interface "
-                                + line.split()[-1]
-                                + "\n"
+                            check.comments
+                            + "OPEN: Missing storm control on VPLS interface "
+                            + line.split()[-1]
+                            + "\n"
                         )
             if strVPLS != "NF":
                 check.status = "OP"
                 check.comments = (
-                        check.comments
-                        + "OPEN: Private LAN Services (VPLS) must be configured to have traffic storm control thresholds on CE-facing interfaces.\n"
+                    check.comments
+                    + "OPEN: Private LAN Services (VPLS) must be configured to have traffic storm control thresholds on CE-facing interfaces.\n"
                 )
             else:
                 check.status = "NF"
@@ -10246,16 +10186,16 @@ def V216708(device_type, device_name):
         else:
             check.status = "NF"
             check.comments = (
-                    check.comments
-                    + "NAF: There is no service instance or bridge group configured.\n"
+                check.comments
+                + "NAF: There is no service instance or bridge group configured.\n"
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NA - Router is not providing L2 VFI services."
+            check.comments
+            + "\n"
+            + check.vulid
+            + ":NA - Router is not providing L2 VFI services."
         )
     return check
 
@@ -10267,8 +10207,8 @@ def V216709(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " - The Cisco PE router must be configured to implement Internet Group Management Protocol (IGMP) or Multicast Listener Discovery (MLD) snooping for each Virtual Private LAN Services (VPLS) bridge domain.\n"
+        check.vulid
+        + " - The Cisco PE router must be configured to implement Internet Group Management Protocol (IGMP) or Multicast Listener Discovery (MLD) snooping for each Virtual Private LAN Services (VPLS) bridge domain.\n"
     )
     strLDP = "NA"
     strVPLS = "NF"
@@ -10290,14 +10230,14 @@ def V216709(device_type, device_name):
             if result.find("ip igmp snooping") == -1:
                 check.status = "OP"
                 check.comments = (
-                        check.comments
-                        + "OPEN: Missing IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
+                    check.comments
+                    + "OPEN: Missing IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
                 )
             else:
                 check.status = "NF"
                 check.comments = (
-                        check.comments
-                        + "NAF: Found IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
+                    check.comments
+                    + "NAF: Found IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
                 )
         else:
             check.status = "NF"
@@ -10306,10 +10246,10 @@ def V216709(device_type, device_name):
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NA - Router is not providing L2 VFI services."
+            check.comments
+            + "\n"
+            + check.vulid
+            + ":NA - Router is not providing L2 VFI services."
         )
     return check
 
@@ -10321,8 +10261,8 @@ def V216710(device_type, device_name):
     check.set_vulid()
     check.status = "NF"
     check.comments = (
-            check.vulid
-            + " - The Cisco PE router must be configured to limit the number of MAC addresses it can learn for each Virtual Private LAN Services (VPLS) bridge domain.\n"
+        check.vulid
+        + " - The Cisco PE router must be configured to limit the number of MAC addresses it can learn for each Virtual Private LAN Services (VPLS) bridge domain.\n"
     )
     strLDP = "NA"
     strVPLS = "NF"
@@ -10340,14 +10280,14 @@ def V216710(device_type, device_name):
             if result.find("mac limit maximum") == -1:
                 check.status = "OP"
                 check.comments = (
-                        check.comments
-                        + "OPEN: Missing IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
+                    check.comments
+                    + "OPEN: Missing IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
                 )
             else:
                 check.status = "NF"
                 check.comments = (
-                        check.comments
-                        + "NAF: Found IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
+                    check.comments
+                    + "NAF: Found IGMP or MLD snooping for IPv4 and IPv6 multicast traffic respectively for each VPLS bridge domain.\n"
                 )
         else:
             check.status = "NF"
@@ -10356,13 +10296,12 @@ def V216710(device_type, device_name):
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + "\n"
-                + check.vulid
-                + ":NA - Router is not providing L2 VFI services."
+            check.comments
+            + "\n"
+            + check.vulid
+            + ":NA - Router is not providing L2 VFI services."
         )
     return check
-
 
 def V216711(device_type, device_name):
     # V-216711 -  The Cisco PE router must be configured to block any traffic that is destined to IP core infrastructure.
@@ -10381,16 +10320,16 @@ def V216711(device_type, device_name):
     for line in strInterfaces:
         if len(line.split()) > 1:
             if (
-                    line.split()[0].find("Lo") == -1
-                    and line.split()[0].find("Tu") == -1
-                    and line.split()[0].find("RESERVED") == -1
-                    and line.split()[0].find("#") == -1
-                    and line.split()[0].find("pw") == -1
+                line.split()[0].find("Lo") == -1
+                and line.split()[0].find("Tu") == -1
+                and line.split()[0].find("RESERVED") == -1
+                and line.split()[0].find("#") == -1
+                and line.split()[0].find("pw") == -1
             ):
                 command = (
-                        "sh run int "
-                        + line.split()[0]
-                        + " | i vrf.forwarding|ip.verify.unicast.source.*.any|description|inter"
+                    "sh run int "
+                    + line.split()[0]
+                    + " | i vrf.forwarding|ip.verify.unicast.source.*.any|description|inter"
                 )
                 result = exec_command(command, device_name)
                 check.finding = check.finding + result
@@ -10407,34 +10346,34 @@ def V216711(device_type, device_name):
                             strVRF = command.split()[2]
 
                     check.comments = (
-                            check.comments
-                            + "Interface "
-                            + line.split()[0]
-                            + " is configured for VRF "
-                            + strVRF
+                        check.comments
+                        + "Interface "
+                        + line.split()[0]
+                        + " is configured for VRF "
+                        + strVRF
                     )
                     if strIntStatus == "OP":
                         check.comments = (
-                                check.comments + " and does NOT have a VRF configured.\n"
+                            check.comments + " and does NOT have a VRF configured.\n"
                         )
                     else:
                         check.comments = (
-                                check.comments
-                                + ", which prevents core network elements from being accessible from any external hosts.\n"
+                            check.comments
+                            + ", which prevents core network elements from being accessible from any external hosts.\n"
                         )
     if bolHasSWAB == 0:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + check.vulid
-                + " -Not Applicable - This is not a PE router so this check is not applicable.."
+            check.comments
+            + check.vulid
+            + " -Not Applicable - This is not a PE router so this check is not applicable.."
         )
     else:
         check.status = strIntStatus
         check.comments = (
-                check.comments
-                + check.vulid
-                + " The Cisco PE router must be configured to block any traffic that is destined to IP core infrastructure."
+            check.comments
+            + check.vulid
+            + " The Cisco PE router must be configured to block any traffic that is destined to IP core infrastructure."
         )
     return check
 
@@ -10456,16 +10395,16 @@ def V216712(device_type, device_name):
     for line in strInterfaces:
         if len(line.split()) > 1:
             if (
-                    line.split()[0].find("Lo") == -1
-                    and line.split()[0].find("Tu") == -1
-                    and line.split()[0].find("RESERVED") == -1
-                    and line.split()[0].find("#") == -1
-                    and line.split()[0].find("pw") == -1
+                line.split()[0].find("Lo") == -1
+                and line.split()[0].find("Tu") == -1
+                and line.split()[0].find("RESERVED") == -1
+                and line.split()[0].find("#") == -1
+                and line.split()[0].find("pw") == -1
             ):
                 command = (
-                        "sh run int "
-                        + line.split()[0]
-                        + " | i vrf.forwarding|ip.verify.unicast.source.*.any|inter"
+                    "sh run int "
+                    + line.split()[0]
+                    + " | i vrf.forwarding|ip.verify.unicast.source.*.any|inter"
                 )
                 result = exec_command(command, device_name)
                 check.finding = check.finding + result
@@ -10483,31 +10422,31 @@ def V216712(device_type, device_name):
                             strVRF = command.split()[2]
 
                     check.comments = (
-                            check.comments
-                            + "Interface "
-                            + line.split()[0]
-                            + " is configured for VRF "
-                            + strVRF
+                        check.comments
+                        + "Interface "
+                        + line.split()[0]
+                        + " is configured for VRF "
+                        + strVRF
                     )
                     if strIntStatus == "OP":
                         check.comments = (
-                                check.comments + " and does NOT have uRPF configured.\n"
+                            check.comments + " and does NOT have uRPF configured.\n"
                         )
                     else:
                         check.comments = check.comments + " and has uRPF configured.\n"
     if bolHasSWAB == 0:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + check.vulid
-                + " -Not Applicable - This is not a PE router so this check is not applicable.."
+            check.comments
+            + check.vulid
+            + " -Not Applicable - This is not a PE router so this check is not applicable.."
         )
     else:
         check.status = strIntStatus
         check.comments = (
-                check.comments
-                + check.vulid
-                + " -OPEN - The Cisco PE router must be configured with Unicast Reverse Path Forwarding (uRPF) loose mode enabled on all CE-facing interfaces."
+            check.comments
+            + check.vulid
+            + " -OPEN - The Cisco PE router must be configured with Unicast Reverse Path Forwarding (uRPF) loose mode enabled on all CE-facing interfaces."
         )
     # else:
     #    check.comments = check.comments + check.vulid + " -NAF - The Cisco PE router is configured with Unicast Reverse Path Forwarding (uRPF) loose mode enabled on all CE-facing interfaces."
@@ -10530,40 +10469,40 @@ def V216714(device_type, device_name):
     for line in strInterfaces:
         if len(line.split()) > 1:
             if (
-                    line.split()[0].find("Lo") == -1
-                    and line.split()[0].find("Tu") == -1
-                    and line.split()[0].find("RESERVED") == -1
-                    and line.split()[0].find("#") == -1
-                    and line.split()[0].find("pw") == -1
+                line.split()[0].find("Lo") == -1
+                and line.split()[0].find("Tu") == -1
+                and line.split()[0].find("RESERVED") == -1
+                and line.split()[0].find("#") == -1
+                and line.split()[0].find("pw") == -1
             ):
                 command = (
-                        "sh run int "
-                        + line.split()[0]
-                        + " | i service-policy.input|service-policy.output|description|inter"
+                    "sh run int "
+                    + line.split()[0]
+                    + " | i service-policy.input|service-policy.output|description|inter"
                 )
                 result = exec_command(command, device_name)
                 check.finding = check.finding + result
                 # Look for the config line that specifies policies.
                 for command in result.splitlines():
                     if (
-                            command.find("service-policy input") > -1
-                            or command.find("service-policy output") > -1
+                        command.find("service-policy input") > -1
+                        or command.find("service-policy output") > -1
                     ):
                         # If we have a QoS policy defined, add it to our list of QoS policies.
                         if command.split()[2] not in strPolicies:
                             strPolicies.append(command.split()[2])
                         check.status = "NF"
                         check.comments = (
-                                check.comments
-                                + "Found QoS policy on interface "
-                                + line.split()[0]
-                                + ".\n"
+                            check.comments
+                            + "Found QoS policy on interface "
+                            + line.split()[0]
+                            + ".\n"
                         )
 
     if check.status == "OP":
         check.comments = (
-                check.vulid
-                + " -OPEN - The Cisco PE router must be configured to implement a Quality-of-Service (QoS) policy in accordance with the QoS DODIN Technical Profile."
+            check.vulid
+            + " -OPEN - The Cisco PE router must be configured to implement a Quality-of-Service (QoS) policy in accordance with the QoS DODIN Technical Profile."
         )
     else:
         for policy in strPolicies:
@@ -10571,9 +10510,9 @@ def V216714(device_type, device_name):
             result = exec_command(command, device_name)
             check.finding = check.finding + result
         check.comments = (
-                check.comments
-                + check.vulid
-                + " -NAF - The Cisco PE router is configured to enforce a Quality-of-Service (QoS) policy."
+            check.comments
+            + check.vulid
+            + " -NAF - The Cisco PE router is configured to enforce a Quality-of-Service (QoS) policy."
         )
     return check
 
@@ -10594,40 +10533,40 @@ def V216715(device_type, device_name):
     for line in strInterfaces:
         if len(line.split()) > 1:
             if (
-                    line.split()[0].find("Lo") == -1
-                    and line.split()[0].find("Tu") == -1
-                    and line.split()[0].find("RESERVED") == -1
-                    and line.split()[0].find("#") == -1
-                    and line.split()[0].find("pw") == -1
+                line.split()[0].find("Lo") == -1
+                and line.split()[0].find("Tu") == -1
+                and line.split()[0].find("RESERVED") == -1
+                and line.split()[0].find("#") == -1
+                and line.split()[0].find("pw") == -1
             ):
                 command = (
-                        "sh run int "
-                        + line.split()[0]
-                        + " | i service-policy.input|service-policy.output|description|inter"
+                    "sh run int "
+                    + line.split()[0]
+                    + " | i service-policy.input|service-policy.output|description|inter"
                 )
                 result = exec_command(command, device_name)
                 check.finding = check.finding + result
                 # Look for the config line that specifies policies.
                 for command in result.splitlines():
                     if (
-                            command.find("service-policy input") > -1
-                            or command.find("service-policy output") > -1
+                        command.find("service-policy input") > -1
+                        or command.find("service-policy output") > -1
                     ):
                         # If we have a QoS policy defined, add it to our list of QoS policies.
                         if command.split()[2] not in strPolicies:
                             strPolicies.append(command.split()[2])
                         check.status = "NF"
                         check.comments = (
-                                check.comments
-                                + "Found QoS policy on interface "
-                                + line.split()[0]
-                                + ".\n"
+                            check.comments
+                            + "Found QoS policy on interface "
+                            + line.split()[0]
+                            + ".\n"
                         )
 
     if check.status == "OP":
         check.comments = (
-                check.vulid
-                + " -OPEN - The Cisco P router must be configured to implement a Quality-of-Service (QoS) policy in accordance with the QoS DODIN Technical Profile."
+            check.vulid
+            + " -OPEN - The Cisco P router must be configured to implement a Quality-of-Service (QoS) policy in accordance with the QoS DODIN Technical Profile."
         )
     else:
         for policy in strPolicies:
@@ -10635,9 +10574,9 @@ def V216715(device_type, device_name):
             result = exec_command(command, device_name)
             check.finding = check.finding + result
         check.comments = (
-                check.comments
-                + check.vulid
-                + " -NAF - The Cisco P router is configured to implement a Quality-of-Service (QoS) policy."
+            check.comments
+            + check.vulid
+            + " -NAF - The Cisco P router is configured to implement a Quality-of-Service (QoS) policy."
         )
     return check
 
@@ -10654,7 +10593,7 @@ def V216716(device_type, device_name):
     if result.find("cs1") > -1:
         check.status = "NF"
         check.comments = (
-                check.vulid + " -NAF - QoS is configured to enforce a QoS policy to limit the effects of packet flooding DoS attacks."
+            check.vulid + " -NAF - QoS is configured to enforce a QoS policy to limit the effects of packet flooding DoS attacks."
         )
     else:
         check.comments = check.vulid + " -OPEN - QoS is NOT configured to enforce a QoS policy to limit the effects of packet flooding DoS attacks."
@@ -10679,42 +10618,42 @@ def V216717(device_type, device_name):
         for interface in strPIMInterfaces:
             if len(interface.split()) > 1:
                 if (
-                        interface.split()[1].find("Ether") > -1
-                        or interface.split()[1].find("Port") > -1
+                    interface.split()[1].find("Ether") > -1
+                    or interface.split()[1].find("Port") > -1
                 ):
                     command = "sh run int " + interface.split()[1]
                     result = exec_command(command, device_name)
                     check.finding = check.finding + result
                     if (
-                            result.find("shutdown") == -1
-                            and result.find("TIER0") == -1
+                        result.find("shutdown") == -1
+                        and result.find("TIER0") == -1
                     ):
                         strIntStatus = "OP"
                         check.comments = (
-                                check.comments
-                                + "PIM appears to be on an EGRESS interface "
-                                + interface.split()[1]
-                                + ".\n"
+                            check.comments
+                            + "PIM appears to be on an EGRESS interface "
+                            + interface.split()[1]
+                            + ".\n"
                         )
         if strIntStatus == "NF":
             check.comments = (
-                    check.vulid
-                    + "- NAF - The Cisco multicast router either has (PIM) neighbor filter configured or a disabled interface."
+                check.vulid
+                + "- NAF - The Cisco multicast router either has (PIM) neighbor filter configured or a disabled interface."
             )
             check.status = "NF"
         else:
             check.comments = (
-                    check.comments
-                    + check.vulid
-                    + "- OPEN - The Cisco multicast router must be configured to disable Protocol Independent Multicast (PIM) on all interfaces that are not required to support multicast routing.."
+                check.comments
+                + check.vulid
+                + "- OPEN - The Cisco multicast router must be configured to disable Protocol Independent Multicast (PIM) on all interfaces that are not required to support multicast routing.."
             )
             check.status = "OP"
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + check.vulid
-                + "- NA - Router does not have multicast configured"
+            check.comments
+            + check.vulid
+            + "- NA - Router does not have multicast configured"
         )
     return check
 
@@ -10737,42 +10676,42 @@ def V216718(device_type, device_name):
         for interface in strPIMInterfaces:
             if len(interface.split()) > 1:
                 if (
-                        interface.split()[1].find("Ether") > -1
-                        or interface.split()[1].find("Port") > -1
+                    interface.split()[1].find("Ether") > -1
+                    or interface.split()[1].find("Port") > -1
                 ):
                     command = "sh run int " + interface.split()[1]
                     result = exec_command(command, device_name)
                     check.finding = check.finding + result
                     if (
-                            result.find("shutdown") == -1
-                            and result.find("ip pim neighbor-filter") == -1
+                        result.find("shutdown") == -1
+                        and result.find("ip pim neighbor-filter") == -1
                     ):
                         strIntStatus = "OP"
                         check.comments = (
-                                check.comments
-                                + "Could not find a pim filter on interface "
-                                + interface.split()[1]
-                                + ".\n"
+                            check.comments
+                            + "Could not find a pim filter on interface "
+                            + interface.split()[1]
+                            + ".\n"
                         )
         if strIntStatus == "NF":
             check.comments = (
-                    check.vulid
-                    + "- NAF - The Cisco multicast router either has (PIM) neighbor filter configured or a disabled interface."
+                check.vulid
+                + "- NAF - The Cisco multicast router either has (PIM) neighbor filter configured or a disabled interface."
             )
             check.status = "NF"
         else:
             check.comments = (
-                    check.comments
-                    + check.vulid
-                    + "- OPEN - The Cisco multicast router must have a (PIM) neighbor filter applied to interfaces that have PIM enabled."
+                check.comments
+                + check.vulid
+                + "- OPEN - The Cisco multicast router must have a (PIM) neighbor filter applied to interfaces that have PIM enabled."
             )
             check.status = "OP"
     else:
         check.status = "NA"
         check.comments = (
-                check.comments
-                + check.vulid
-                + "- NA - Router does not have multicast configured"
+            check.comments
+            + check.vulid
+            + "- NA - Router does not have multicast configured"
         )
     return check
 
@@ -10799,27 +10738,27 @@ def V216719(device_type, device_name):
             if result.find("pim accept-register list") > -1:
                 check.status = "NF"
                 check.comments = (
-                        check.vulid
-                        + "- OPEN - The Cisco multicast edge router must be configured to establish boundaries for administratively scoped multicast traffic.."
+                    check.vulid
+                    + "- OPEN - The Cisco multicast edge router must be configured to establish boundaries for administratively scoped multicast traffic.."
                 )
             else:
                 check.status = "OP"
                 check.comments = (
-                        check.vulid
-                        + "- NAF - The Cisco multicast edge router is configured to establish boundaries for administratively scoped multicast traffic."
+                    check.vulid
+                    + "- NAF - The Cisco multicast edge router is configured to establish boundaries for administratively scoped multicast traffic."
                 )
         else:
             check.status = "NA"
             check.comments = (
-                    check.comments
-                    + check.vulid
-                    + "- NA - Router  does not have multicast configured.."
+                check.comments
+                + check.vulid
+                + "- NA - Router  does not have multicast configured.."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.vulid
-                + "- NA - Router is not a multicast edge or it does not have multicast configured.."
+            check.vulid
+            + "- NA - Router is not a multicast edge or it does not have multicast configured.."
         )
     check.finding = result
     return check
@@ -10839,19 +10778,19 @@ def V216720(device_type, device_name):
         if result.find("pim accept-register list") > -1:
             check.status = "NF"
             check.comments = (
-                    check.vulid
-                    + "- OPEN - The router must be configured to limit the multicast forwarding cache so that its resources are not saturated."
+                check.vulid
+                + "- OPEN - The router must be configured to limit the multicast forwarding cache so that its resources are not saturated."
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.vulid
-                    + "- NAF - router is configured to limit the multicast forwarding cache so that its resources are not saturated."
+                check.vulid
+                + "- NAF - router is configured to limit the multicast forwarding cache so that its resources are not saturated."
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.vulid + "- NA - Router does not have multicast configured"
+            check.vulid + "- NA - Router does not have multicast configured"
         )
     check.finding = result
     return check
@@ -10871,19 +10810,19 @@ def V216721(device_type, device_name):
         if result.find("pim accept-register list") > -1:
             check.status = "NF"
             check.comments = (
-                    check.vulid
-                    + "- OPEN - router must be configured to filter Protocol Independent Multicast (PIM) Register messages "
+                check.vulid
+                + "- OPEN - router must be configured to filter Protocol Independent Multicast (PIM) Register messages "
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.vulid
-                    + "- NAF - router is configured to filter Protocol Independent Multicast (PIM) Register messages "
+                check.vulid
+                + "- NAF - router is configured to filter Protocol Independent Multicast (PIM) Register messages "
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.vulid + "- NA - Router does not have multicast configured"
+            check.vulid + "- NA - Router does not have multicast configured"
         )
     check.finding = result
     return check
@@ -10903,19 +10842,19 @@ def V216722(device_type, device_name):
         if result.find("pim accept-rp") > -1:
             check.status = "NF"
             check.comments = (
-                    check.vulid
-                    + "- OPEN - RP is configured to filter join messages received from the DR for any undesirable multicast groups"
+                check.vulid
+                + "- OPEN - RP is configured to filter join messages received from the DR for any undesirable multicast groups"
             )
         else:
             check.status = "OP"
             check.comments = (
-                    check.vulid
-                    + "- NAF - RP is not configured to filter join messages received from the DR for any undesirable multicast groups"
+                check.vulid
+                + "- NAF - RP is not configured to filter join messages received from the DR for any undesirable multicast groups"
             )
     else:
         check.status = "NA"
         check.comments = (
-                check.vulid + "- NA - Router does not have multicast configured"
+            check.vulid + "- NA - Router does not have multicast configured"
         )
     check.finding = result
     return check
@@ -10937,26 +10876,26 @@ def V216723(device_type, device_name):
             if pimneigh.find("Address") == -1 and pimneigh.find("DR") > -1:
                 # If a PIM neighbor is a DR, check the interface for IGMP limit.
                 command = (
-                        "sh run interface " + pimneigh.split()[1] + " | inc igmp.limit"
+                    "sh run interface " + pimneigh.split()[1] + " | inc igmp.limit"
                 )
                 result = result + "\r" + exec_command(command, device_name)
                 if result.find("igmp limit") > -1:
                     check.status = "NF"
                     check.comments = (
-                            check.comments
-                            + check.vulid
-                            + "- NAF - DR interface "
-                            + pimneigh.split()[1]
-                            + " RP is limiting PIM register messages.\n"
+                        check.comments
+                        + check.vulid
+                        + "- NAF - DR interface "
+                        + pimneigh.split()[1]
+                        + " RP is limiting PIM register messages.\n"
                     )
                 else:
                     check.status = "OP"
                     check.comments = (
-                            check.comments
-                            + check.vulid
-                            + "- OPEN - DR interface "
-                            + pimneigh.split()[1]
-                            + " RP is not limiting PIM register messages.\n"
+                        check.comments
+                        + check.vulid
+                        + "- OPEN - DR interface "
+                        + pimneigh.split()[1]
+                        + " RP is not limiting PIM register messages.\n"
                     )
     else:
         check.status = "NA"
@@ -11007,26 +10946,26 @@ def V216726(device_type, device_name):
             if pimneigh.find("Address") == -1 and pimneigh.find("DR") > -1:
                 # If a PIM neighbor is a DR, check the interface for IGMP limit.
                 command = (
-                        "sh run interface " + pimneigh.split()[1] + " | inc igmp.limit"
+                    "sh run interface " + pimneigh.split()[1] + " | inc igmp.limit"
                 )
                 result = result + "\r" + exec_command(command, device_name)
                 if result.find("igmp limit") > -1:
                     check.status = "NF"
                     check.comments = (
-                            check.comments
-                            + check.vulid
-                            + "- NAF - DR interface "
-                            + pimneigh.split()[1]
-                            + " is configured to limit the number of mroute states.\n"
+                        check.comments
+                        + check.vulid
+                        + "- NAF - DR interface "
+                        + pimneigh.split()[1]
+                        + " is configured to limit the number of mroute states.\n"
                     )
                 else:
                     check.status = "OP"
                     check.comments = (
-                            check.comments
-                            + check.vulid
-                            + "- OPEN - DR interface "
-                            + pimneigh.split()[1]
-                            + " is not configured to limit the number of mroute states.\n"
+                        check.comments
+                        + check.vulid
+                        + "- OPEN - DR interface "
+                        + pimneigh.split()[1]
+                        + " is not configured to limit the number of mroute states.\n"
                     )
     else:
         check.status = "NA"
@@ -11051,14 +10990,14 @@ def V216727(device_type, device_name):
         if result.find("pim spt-threshold infinity") > -1:
             check.status = "NF"
             check.comments = (
-                    check.vulid
-                    + "- NAF - DR is configured to increase the SPT threshold or set to infinity to minimalize (S, G) state"
+                check.vulid
+                + "- NAF - DR is configured to increase the SPT threshold or set to infinity to minimalize (S, G) state"
             )
         if result.find("pim spt-threshold infinity") == -1:
             check.status = "OP"
             check.comments = (
-                    check.vulid
-                    + "- OPEN - DR is not configured to increase the SPT threshold or set to infinity to minimalize (S, G) state"
+                check.vulid
+                + "- OPEN - DR is not configured to increase the SPT threshold or set to infinity to minimalize (S, G) state"
             )
         else:
             check.status = "NA"
@@ -11217,7 +11156,7 @@ def V216997(device_type, device_name):
     if result.find("RT1") == -1:
         check.status = "NF"
         check.comments = (
-                check.vulid + " - NAF as this device is not a perimeter router."
+            check.vulid + " - NAF as this device is not a perimeter router."
         )
     else:
         command = "sh run | in unicast.source"
@@ -11241,7 +11180,7 @@ def V216998(device_type, device_name):
     if result.find("RT1", len(device_name) + len(command)) == -1:
         check.status = "NF"
         check.comments = (
-                check.vulid + " - NAF as this device is not a perimeter router."
+            check.vulid + " - NAF as this device is not a perimeter router."
         )
     else:
         command = "sh access-lists | i option"
@@ -11288,14 +11227,14 @@ def V216999(device_type, device_name):
         for neighbor in result.splitlines():
             strBGP_neighbor_status = "OP"
             if (
-                    neighbor.find("#") == -1
-                    and neighbor.find("Neighbor") == -1
-                    and len(neighbor.split()) > 3
+                neighbor.find("#") == -1
+                and neighbor.find("Neighbor") == -1
+                and len(neighbor.split()) > 3
             ):
                 if neighbor.find(strBGP_AS) == -1:
                     # If a host is an external BGP neighbor, make sure there is a ttl-security hop configured for neighbor.
                     command = (
-                            "sh run | in neighbor.*." + neighbor.split()[0] + ".*.ttl"
+                        "sh run | in neighbor.*." + neighbor.split()[0] + ".*.ttl"
                     )
                     result = exec_command(command, device_name)
                     strBGP_Findings = strBGP_Findings + result + "\n"
@@ -11303,27 +11242,27 @@ def V216999(device_type, device_name):
                     if result.find("ttl-security hops") > -1:
                         strBGP_neighbor_status = "NF"
                         check.comments = (
-                                check.comments
-                                + "BGP neighbor "
-                                + neighbor.split()[0]
-                                + " is configured to use ttl-security hop.\n"
+                            check.comments
+                            + "BGP neighbor "
+                            + neighbor.split()[0]
+                            + " is configured to use ttl-security hop.\n"
                         )
                 if neighbor.find(strBGP_AS) > -1:
                     # If a host is an internal BGP neighbor, ttl-security hop is not required.
                     strBGP_neighbor_status = "NF"
                     check.comments = (
-                            check.comments
-                            + "BGP neighbor "
-                            + neighbor.split()[0]
-                            + " is an internal BGP neighbor.\n"
+                        check.comments
+                        + "BGP neighbor "
+                        + neighbor.split()[0]
+                        + " is an internal BGP neighbor.\n"
                     )
                 if strBGP_neighbor_status == "OP":
                     strBGP_status = "OP"
                     check.comments = (
-                            check.comments
-                            + "Could not find ttl-security hop for neighbor "
-                            + neighbor.split()[0]
-                            + ".\n"
+                        check.comments
+                        + "Could not find ttl-security hop for neighbor "
+                        + neighbor.split()[0]
+                        + ".\n"
                     )
         if strBGP_status != "NF":
             check.status = "OP"
@@ -11339,11 +11278,11 @@ def V217000(device_type, device_name):
     check.vulid = "V-217000"
     bolPassword = 0
     strBGP_Findings = ""
-
+    
     # Lets find out if the BGP routing protocols is in use
     command = "show ip proto | i Routing.Protoc"
     result = exec_command(command, device_name)
-
+    
     # Identify if BGP routing protocols is in use
     if "bgp" not in result:
         check.comments = "V-217000 - NAF - BGP not running."
@@ -11353,38 +11292,38 @@ def V217000(device_type, device_name):
         command = "sh bgp ipv4 unicast summ | b Neighbor"
         result = exec_command(command, device_name)
         strBGP_Findings += result + "\n"
-
-        if len(result.splitlines()) >= 3:
+        
+        if len(result.splitlines()) >= 3: 
             for neighbor in result.splitlines():
                 if "#" not in neighbor and "Neighbor" not in neighbor and len(neighbor.split()) > 3:
                     neighbor_ip = neighbor.split()[0]
                     command = f"sh run | in ^_neighbor {neighbor_ip} password"
                     temp_result = exec_command(command, device_name)
-
+                    
                     if len(temp_result.splitlines()) >= 3:
                         strBGP_Findings += f"Neighbor {neighbor_ip} is using a unique key\n"
                     else:
                         command = f"sh run | in {neighbor_ip}.*.peer-session"
                         temp_result = exec_command(command, device_name)
-
+                        
                         if len(temp_result.splitlines()) >= 3:
                             for peerSession in temp_result.splitlines():
                                 if "#" not in peerSession:
                                     command = f"sh run | sec template.*.{peerSession.split()[4]}"
                                     temp_result_2 = exec_command(command, device_name)
-
+                                    
                                     if "password" in temp_result_2:
                                         strBGP_Findings += f"Neighbor {neighbor_ip} in peer-session {peerSession.split()[4]} is using a unique key\n"
                         else:
                             command = f"sh run | in {neighbor_ip}.peer-group"
                             temp_result = exec_command(command, device_name)
-
+                            
                             if len(temp_result.splitlines()) >= 3:
                                 for peerGroup in temp_result.splitlines():
                                     if "#" not in peerGroup:
                                         command = f"sh run | in {peerGroup.split()[3]}.password"
                                         temp_result_2 = exec_command(command, device_name)
-
+                                        
                                         if "password" in temp_result_2:
                                             strBGP_Findings += f"Neighbor {neighbor_ip} in peer-group {peerGroup.split()[3]} is using a unique key\n"
                             else:
@@ -11394,34 +11333,34 @@ def V217000(device_type, device_name):
         # Look for BGP VPNv4 neighbors
         command = "sh bgp vpnv4 unicast all summ | b Neighbor"
         result = exec_command(command, device_name)
-        strBGP_Findings += result + "\n"
-
-        if len(result.splitlines()) >= 3:
+        strBGP_Findings += result + "\n"        
+        
+        if len(result.splitlines()) >= 3: 
             for neighbor in result.splitlines():
                 if "#" not in neighbor and "Neighbor" not in neighbor and len(neighbor.split()) > 3:
                     neighbor_ip = neighbor.split()[0]
-
+                    
                     command = f"sh run | in ^_neighbor {neighbor_ip} password"
                     temp_result = exec_command(command, device_name)
-
+                    
                     if len(temp_result.splitlines()) >= 3:
                         strBGP_Findings += f"Neighbor {neighbor_ip} is using a unique key\n"
                     else:
                         command = f"sh run | in ^_ neighbor {neighbor_ip} password"
                         temp_result = exec_command(command, device_name)
-
+                        
                         if len(temp_result.splitlines()) >= 3:
                             strBGP_Findings += f"Neighbor {neighbor_ip} is using a unique key\n"
                         else:
                             command = f"sh run | in {neighbor_ip}.*.peer-session"
                             temp_result = exec_command(command, device_name)
-
+                            
                             if len(temp_result.splitlines()) >= 3:
                                 for peerSession in temp_result.splitlines():
                                     if "#" not in peerSession:
                                         command = f"sh run | sec template.*.{peerSession.split()[4]}"
                                         temp_result_2 = exec_command(command, device_name)
-
+                                        
                                         if "password" in temp_result_2:
                                             strBGP_Findings += f"Neighbor {neighbor_ip} in peer-session {peerSession.split()[4]} is using a unique key\n"
                                         elif "ao" in temp_result_2:
@@ -11436,10 +11375,12 @@ def V217000(device_type, device_name):
         else:
             check.comments += "V-217000 - OPEN - The router is not using unique keys within the same or between autonomous systems (AS)."
             check.status = "OP"
-
+        
         check.finding = strBGP_Findings
-
+    
     return check
+
+
 
 
 def V217001(device_type, device_name):
@@ -11454,8 +11395,8 @@ def V217001(device_type, device_name):
     result = exec_command(command, device_name)
     # Find services that are not disabled
     if (
-            result.find("ip options ignore", len(device_name) + len(command))
-            or result.find("ip options drop", len(device_name) + len(command)) > -1
+        result.find("ip options ignore", len(device_name) + len(command))
+        or result.find("ip options drop", len(device_name) + len(command)) > -1
     ):
         check.status = "NF"
         check.comments = "V-217001 - NAF -The router is configured to drop or block all packets with IP options"
@@ -11649,9 +11590,8 @@ def Vtemplate(device_type, device_name):
 # ----------------------------------------------------------------------------------------
 
 
-# Main Processing Functions
-def process_host(host, checklist_file, auth_method, current_host_number, total_hosts_count, stig_instance,
-                 command_cache_instance):
+#Main Processing Functions
+def process_host(host, checklist_file, auth_method, current_host_number, total_hosts_count, stig_instance, command_cache_instance):
     """
     Connects to a host device, executes STIG checks, logs the results, and updates the checklist file.
 
@@ -11669,10 +11609,10 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
     device_type = "IOS"
     connection_type_map = {'2FA': 'pki', 'un': 'user_pass'}
     connection_type = connection_type_map.get(auth_method, 'default')
-
+    
     # Try to establish a connection to the host
     device_name, common_name = connect_to_host(host, connection_type, current_host_number, total_hosts_count)
-
+    
     if device_name is None:
         # Connection failed, return False
         return False
@@ -11705,13 +11645,15 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
         return process_success
 
 
-# Here may want to add a lookup/call to map the Vul number to the severity of Vul
-# This way it can be used in logs and other looks up, maybe even a setting for Scans to scan for
-# CATI, CATII, CATIII or mix there of
+
+
+#Here may want to add a lookup/call to map the Vul number to the severity of Vul
+#This way it can be used in logs and other looks up, maybe even a setting for Scans to scan for
+#CATI, CATII, CATIII or mix there of
 def create_stig_list_from_host(device_name, checklist_file, device_type):
     """
     Creates a list of STIG objects for the given host device, handling any exceptions.
-    It logs any errors that occur during the execution of vulnerability check functions
+    It logs any errors that occur during the execution of vulnerability check functions 
     both to a CSV file and within the Stig object for CKL/CKLB inclusion.
 
     Args:
@@ -11722,18 +11664,21 @@ def create_stig_list_from_host(device_name, checklist_file, device_type):
     Returns:
     list: A list of STIG objects.
     """
-    stig_vul_list = read_function_names(checklist_file)
+    checklist_manager = ChecklistManager()
+    vuln_info = checklist_manager.read_vuln_info(checklist_file)
     stig_list = []
-    for func_name in stig_vul_list:
+
+    for original_vuln_num, (function_name, severity) in vuln_info.items():
         try:
-            func = globals()[func_name]
-            stig_list.append(func(device_type, device_name.strip()))
+            func = globals()[function_name]
+            stig_instance = func(device_type, device_name.strip())
+            stig_instance.severity = severity  # Assign severity to the stig instance, if applicable
+            stig_list.append(stig_instance)
         except Exception as e:
-            # Create a Stig object and handle the error using the handle_error method
             error_stig = Stig()
-            error_stig.device_name = device_name  # Set device name for logging
-            error_stig.device_type = device_type  # Set device type for logging
-            error_stig.handle_error(func_name, e)
+            error_stig.device_name = device_name
+            error_stig.device_type = device_type
+            error_stig.handle_error(function_name, e)
             stig_list.append(error_stig)
 
     return stig_list
@@ -11756,6 +11701,7 @@ def update_and_write_checklist(stig_list, device_name, host, checklist_file):
     checklist_manager = ChecklistManager()
     file_extension = os.path.splitext(checklist_file)[1].lower()
 
+
     if file_extension == '.ckl':
         checklist_manager.update_and_write_ckl(stig_list, device_name, host, checklist_file)
     elif file_extension == '.cklb':
@@ -11768,12 +11714,11 @@ def update_and_write_checklist(stig_list, device_name, host, checklist_file):
     else:
         raise ValueError("Unsupported checklist file format. Provide a .ckl, .cklb, or no extension for both.")
 
-
-# noticed an issue with this on if you try to 'x' of the auth it loops and keeps asking.
-# Need to find a way to stop the looping, this is likely do to it being called in a loop in another function
-# Need to add support that allows a user to provide other username/password per device if they mark it
-# in the CSV file, this will help with device that may not be on TACACS or is using another auth source
-# Maybe use getpass here to get the password?
+#noticed an issue with this on if you try to 'x' of the auth it loops and keeps asking.
+#Need to find a way to stop the looping, this is likely do to it being called in a loop in another function
+#Need to add support that allows a user to provide other username/password per device if they mark it
+#in the CSV file, this will help with device that may not be on TACACS or is using another auth source
+#Maybe use getpass here to get the password?
 def get_credentials():
     """
     Prompts the user for 'un' authentication only once and stores it globally.
@@ -11799,10 +11744,9 @@ def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
         checklist_file = host_info['checklist']
         auth_method = host_info['auth']
 
-        if not process_host(host, checklist_file, auth_method, processed_hosts_count, int_total_hosts, stig_instance,
-                            command_cache_instance):
+        if not process_host(host, checklist_file, auth_method, processed_hosts_count, int_total_hosts, stig_instance, command_cache_instance):
             int_failed_hosts += 1
-    return int_failed_hosts, processed_hosts_count
+    return int_failed_hosts, processed_hosts_count    
 
 
 def display_summary(processed_hosts_count, int_failed_hosts):
@@ -11816,7 +11760,7 @@ def display_summary(processed_hosts_count, int_failed_hosts):
     crt.Dialog.MessageBox(summary_message)
 
 
-# Main Execution
+#Main Execution
 def Main():
     """
     The main function that orchestrates the entire script.
@@ -11828,7 +11772,7 @@ def Main():
     # Initialize credentials with default values
     stored_username = ""
     stored_password = ""
-
+    #add file slect box for this file, it just needs to state host and end in csv
     csv_filename = "host.csv"
     hosts_data = read_hosts_from_csv(csv_filename)
 
@@ -11843,8 +11787,8 @@ def Main():
 
     display_summary(processed_hosts_count, int_failed_hosts)
 
-
 Main()
+
 
 """
  In a typical Python environment, the following guard is used to ensure that
@@ -11855,3 +11799,4 @@ Main()
  if __name__ == '__main__':
      Main()
 """
+# Version:4.1.2.L.1
