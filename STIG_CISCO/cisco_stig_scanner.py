@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.34
+# Version:4.1.2.P.35
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -343,7 +343,7 @@ class EnvironmentManager:
 
     def disconnect_from_host(self):
         if not self.running_in_securecrt:
-            print(f"\nDisconnecting from host {self.prompt.replace}...")
+            print(f"\nDisconnecting from host {self.prompt}...")
 
         if self.running_in_securecrt:
             self.crt_disconnect_from_host()
@@ -351,7 +351,7 @@ class EnvironmentManager:
             self.paramiko_disconnect_from_host()
 
         if not self.running_in_securecrt:
-            print(f"Disconnected from host {self.prompt.replace}\n")
+            print(f"Disconnected from host {self.prompt}\n")
 
     def crt_disconnect_from_host(self):
         crt.Session.Disconnect()
@@ -12000,11 +12000,7 @@ def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
 
         # Provide feedback for host processing
         if not env_manager.running_in_securecrt:
-            print(f"\nProcessing host {processed_hosts_count} of {int_total_hosts}: {host}...")
-        if not process_host(...):
-            print(f"Failed to process host {host}.")
-        else:
-            print(f"Successfully processed host {host}.")
+            print(f"\n{'-'*40}\nProcessing host {processed_hosts_count} of {int_total_hosts}: {host}...\n")
 
         # Use the preloaded checklist information
         if not process_host(host, checklist_file, auth_method, processed_hosts_count, int_total_hosts, stig_instance, command_cache_instance):
@@ -12016,6 +12012,7 @@ def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
                 print(f"Successfully processed host {host}.")
 
     return int_failed_hosts, processed_hosts_count
+
 
 #Main Execution
 def Main():
