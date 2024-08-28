@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.12
+# Version:4.1.2.P.13
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -289,37 +289,26 @@ class EnvironmentManager:
 
     def paramiko_send_command(self, command, device_name):
         if self.session:
-            # Use a more relaxed prompt detection method
-            prompt = "#"
-            print(f"[DEBUG] Expected prompt: {prompt}")
-
-            # Wait for the initial prompt to ensure the device is ready
-            print("[DEBUG] Waiting for the initial prompt...")
-            initial_prompt_output = self.wait_for_prompt([prompt])
-            print(f"[DEBUG] Initial prompt detected: {initial_prompt_output}")
-
             # Send the command
-            print(f"[DEBUG] Sending command: {command}")
             self.session.send(command + "\n")
 
             # Capture the output until the prompt appears again
-            print("[DEBUG] Waiting for command output...")
-            output = self.wait_for_prompt([prompt])
-            print(f"[DEBUG] Command output received: {output}")
+            output = self.wait_for_prompt([self.prompt])
 
-            # Clean and format the output to match CRT's behavior
-            if output.startswith(prompt):
-                print(f"[DEBUG] Cleaning output by removing prompt: {prompt}")
-                output = output.replace(prompt, "", 1).strip()
+            # Standardize the output format
+            if output.startswith(self.prompt):
+                output = output.replace(self.prompt, "", 1).strip()
 
-            # Further clean the output, if needed
-            output = output.replace("\r\n", "\n").strip()
-            print(f"[DEBUG] Final cleaned output: {output}")
+            # Append device name to the output (following CRT logic)
+            if "." in device_name:
+                output = output.strip()
+            else:
+                output = f"{device_name}#{output}{device_name}#"
 
             return output
 
-        print("[DEBUG] Session is not active.")
         return ""
+
 
 
     def get_device_name(self):
