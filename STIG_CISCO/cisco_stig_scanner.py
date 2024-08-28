@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.14
+# Version:4.1.2.P.15
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -296,11 +296,15 @@ class EnvironmentManager:
             raw_output = self.wait_for_prompt([self.prompt])
             print(f"[DEBUG] Raw output after capturing from session:\n{raw_output}")
             
-            # Standardize the output format
+            # Remove the prompt at the beginning if it exists
             if raw_output.startswith(self.prompt):
-                raw_output = raw_output.replace(self.prompt, "", 1).strip()
+                raw_output = raw_output[len(self.prompt):].strip()
 
-            # Log the output after initial processing
+            # Remove the duplicated prompt at the end if it exists
+            if raw_output.endswith(self.prompt):
+                raw_output = raw_output[:-len(self.prompt)].strip()
+            
+            # Log the output after prompt removal
             print(f"[DEBUG] Output after processing prompt removal:\n{raw_output}")
             
             # Append device name to the output (following CRT logic)
@@ -313,6 +317,7 @@ class EnvironmentManager:
             print(f"[DEBUG] Final processed output:\n{processed_output}")
             
             return processed_output
+
 
     def get_device_name(self):
         if self.running_in_securecrt:
