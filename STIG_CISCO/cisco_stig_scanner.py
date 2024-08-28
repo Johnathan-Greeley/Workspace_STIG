@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.25
+# Version:4.1.2.P.26
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -141,12 +141,12 @@ import uuid #Needed for updating the CKLB templet.
 import xml.etree.ElementTree as ET #For working with CKL files
 import xml.sax.saxutils # For working with CKL files
 import getpass
-import tkinter as tk
-from tkinter import messagebox
+#import tkinter as tk #imported in tk_display as its not needed in crt
+#from tkinter import messagebox #imported in tk_display as its not needed in crt
 from collections import OrderedDict, namedtuple
 
 # Third-party imports
-import paramiko
+#import paramiko #doing this import in the paramiko_connect_to_host to reduce load time in crt
 from packaging import version
 
 # Check if 'crt' is a defined variable in the globals() dictionary
@@ -201,6 +201,8 @@ class EnvironmentManager:
             return None, None
 
     def paramiko_connect_to_host(self, strHost, connection_type):
+        # Import paramiko only when this function is called
+        import paramiko
         try:
             self.ssh_client = paramiko.SSHClient()
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -319,12 +321,6 @@ class EnvironmentManager:
 
             return processed_output
 
-
-
-
-
-
-
     def get_device_name(self):
         if self.running_in_securecrt:
             return self.crt_get_device_name()
@@ -442,6 +438,9 @@ class EnvironmentManager:
         crt.Dialog.MessageBox(summary_message)
 
     def tk_display_summary(self, summary_message):
+        # Import tkinter only when this function is called
+        import tkinter as tk
+        from tkinter import messagebox
         root = tk.Tk()
         root.withdraw()  # Hide the root window
 
@@ -11978,6 +11977,9 @@ def Main():
     # Display summary
     env_manager.display_summary(processed_hosts_count, int_failed_hosts)
 Main()
-
+"""
+If I only use this in crt the main won't load so I added the main call above
+However if I leave this and the main call above the main gets called two times.
 if __name__ == '__main__':
     Main()
+"""
