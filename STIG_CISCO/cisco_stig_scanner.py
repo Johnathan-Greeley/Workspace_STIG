@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.N.2
+# Version:4.1.2.N.3
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -883,9 +883,7 @@ def log_connection_error(host, auth_method, error_message):
 
 
 #Commection Management
-#this function is used in many vul checks, will need to update each vul to moved it to a calss
-def send_command(command, device_name):
-    return env_manager.send_command(command, device_name)
+
 
 #Command and Error Handling
 
@@ -906,7 +904,7 @@ def exec_command(command, device_name):
 
     # If the output is not in the cache, execute the command and clean the result
     if output is None:
-        result = send_command(command, device_name)
+        result = result = env_manager.send_command(command, device_name)
         result = env_manager.handle_errors(result, command, device_name)
 
         # Cleaning the output
