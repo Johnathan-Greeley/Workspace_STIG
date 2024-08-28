@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.21
+# Version:4.1.2.P.22
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -1031,26 +1031,25 @@ def exec_command(command, device_name):
     - device_name (str): The name of the device.
    
     Returns:
-    - str: The cleaned output from the command execution, with device name included.
+    - str: The cleaned output from the command execution, with the correct prompt included at the end.
     """
+    # Try to retrieve the cleaned output from the cache first
     output = command_cache.get(device_name, command)
 
+    # If the output is not in the cache, execute the command
     if output is None:
         result = env_manager.send_command(command, device_name)
         result = env_manager.handle_errors(result, command, device_name)
 
-        # Cleaning the output
+        # Since paramiko_send_command/crt_send_command now correctly handles prompts, we do not modify the result
         cleaned_output = command_cache.clean_output(result)
-
-        # Ensure no prompt duplication at the end of the output
-        if cleaned_output.endswith(device_name + "#"):
-            cleaned_output = cleaned_output[:cleaned_output.rfind(device_name + "#")].strip()
 
         # Cache the cleaned output
         command_cache.add(device_name, command, cleaned_output)
 
-        # Return the cleaned output for CRT or Paramiko
+        # Return the cleaned output, which now should include the correct prompt at the end
         return cleaned_output
+    
     return output
 
 
