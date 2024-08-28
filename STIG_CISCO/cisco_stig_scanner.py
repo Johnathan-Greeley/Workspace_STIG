@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.M.6
+# Version:4.1.2.N.1
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -161,6 +161,206 @@ else:
 # Local application/library specific imports
 #import SecureCRT  
 
+class EnvironmentManager:
+    def __init__(self):
+        self.running_in_securecrt = RUNNING_IN_SECURECRT
+        self.stored_username = ""
+        self.stored_password = ""
+        self.start_time = start_time_stamp
+
+    def connect_to_host(self, strHost, connection_type, current_host_number, total_hosts_count):
+        if self.running_in_securecrt:
+            return self.crt_connect_to_host(strHost, connection_type, current_host_number, total_hosts_count)
+        else:
+            return self.pass_connect_to_host(strHost, connection_type)
+
+    def crt_connect_to_host(self, strHost, connection_type, current_host_number, total_hosts_count):
+        connect_string = self.get_connection_method(strHost, connection_type)
+        try:
+            newTab = crt.Session.ConnectInTab(connect_string, False, True)
+            if newTab.Session.Connected:
+                tab_title = f"{strHost} ({current_host_number} of {total_hosts_count})"
+                newTab.Caption = tab_title
+                newTab.Screen.Synchronous = True
+                self.crt_terminal_settings(strHost)
+                device_name = self.crt_get_device_name()
+                return device_name, device_name
+            else:
+                self.handle_connection_failure(strHost, connection_type)
+                return None, None
+        except ScriptError as e:
+            self.handle_connection_failure(strHost, connection_type, f"ScriptError: {e}")
+            return None, None
+
+    def pass_connect_to_host(self, strHost, connection_type):
+        raise NotImplementedError("No other connection methods are configured at this time.")
+
+    def get_connection_method(self, strHost, connection_type):
+        if self.running_in_securecrt:
+            return self.crt_connection_string(strHost, connection_type)
+        else:
+            return self.pass_connection_method()
+
+    def crt_connection_string(self, strHost, connection_type):
+        connect_string_default = f"/SSH2 /ACCEPTHOSTKEYS /Z 0 {strHost}"
+        connect_string_pki = f"/SSH2 /AUTH publickey /ACCEPTHOSTKEYS /Z 0 {strHost}"
+
+        if connection_type == 'user_pass':
+            if not self.stored_username:
+                self.stored_username = crt.Dialog.Prompt("Enter your username:", "Login", "", False).strip()
+            if not self.stored_password:
+                self.stored_password = crt.Dialog.Prompt("Enter your password:", "Login", "", True).strip()
+            return f"/SSH2 /L {self.stored_username} /PASSWORD {self.stored_password} /AUTH keyboard-interactive /ACCEPTHOSTKEYS /Z 0 {strHost}"
+        if connection_type == 'pki':
+            return connect_string_pki
+        else:
+            return connect_string_default
+
+    def pass_connection_method(self):
+        raise NotImplementedError("No other connection methods are configured at this time.")
+
+    def set_terminal_settings(self, strHost):
+        if self.running_in_securecrt:
+            self.crt_terminal_settings(strHost)
+        else:
+            self.pass_terminal_settings()
+
+    def crt_terminal_settings(self, strHost):
+        crt.Screen.WaitForStrings(["#", ">"], 15)
+        term_len = "term len 0"
+        term_width = "term width 400"
+        self.exec_command(f"{term_len}", strHost)
+        self.exec_command(f"{term_width}", strHost)
+
+    def pass_terminal_settings(self):
+        raise NotImplementedError("Terminal settings configuration is not implemented for this connection method.")
+
+    def get_device_name(self):
+        if self.running_in_securecrt:
+            return self.crt_get_device_name()
+        else:
+            return self.pass_get_device_name()
+
+    def crt_get_device_name(self):
+        return crt.Screen.Get(crt.Screen.CurrentRow, 0, crt.Screen.CurrentRow, crt.Screen.CurrentColumn - 2).replace("#", "")
+
+    def pass_get_device_name(self):
+        raise NotImplementedError("Device name retrieval is not implemented for this connection method.")
+
+    def disconnect_from_host(self):
+        if self.running_in_securecrt:
+            self.crt_disconnect_from_host()
+        else:
+            self.pass_disconnect_from_host()
+
+    def crt_disconnect_from_host(self):
+        crt.Session.Disconnect()
+
+    def pass_disconnect_from_host(self):
+        raise NotImplementedError("No other disconnect methods are configured at this time.")
+
+    def send_command(self, command, device_name):
+        if self.running_in_securecrt:
+            return self.crt_send_command(command, device_name)
+        else:
+            return self.pass_send_command(command, device_name)
+
+    def crt_send_command(self, command, device_name):
+        if device_name.find(".") > -1:
+            prompt = "#"
+        else:
+            prompt = device_name + "#"
+        crt.Screen.WaitForStrings([prompt], 1)
+        crt.Screen.Send(command + "\r")
+        return crt.Screen.ReadString(prompt, 30)
+
+    def pass_send_command(self, command, device_name):
+        raise NotImplementedError("Command sending is not implemented for this connection method.")
+
+    def handle_errors(self, result, command, device_name):
+        if self.running_in_securecrt:
+            return self.crt_handle_errors(result, command, device_name)
+        else:
+            return self.pass_handle_errors(result, command, device_name)
+
+    def crt_handle_errors(self, result, command, device_name):
+        prompt = "#" if "." in device_name else f"{device_name}#"
+
+        if len(result) < len(device_name):
+            crt.Screen.WaitForStrings([prompt], 1)
+            crt.Screen.Send("\x03\r")
+            result = crt.Screen.ReadString(prompt, 10)
+            crt.Screen.WaitForStrings([prompt], 5)
+            crt.Screen.Send(f"{command}\r")
+            result = crt.Screen.ReadString(prompt, 110)
+
+        return result
+
+    def pass_handle_errors(self, result, command, device_name):
+        raise NotImplementedError("Error handling is not implemented for this connection method.")
+
+    def handle_connection_failure(self, strHost, connection_type, additional_info=""):
+        if self.running_in_securecrt:
+            self.crt_handle_connection_failure(strHost, connection_type, additional_info)
+        else:
+            self.pass_handle_connection_failure(strHost, connection_type, additional_info)
+
+    def crt_handle_connection_failure(self, strHost, connection_type, additional_info=""):
+        error_message = crt.GetLastErrorMessage()
+        if "Authentication failed" in error_message or "Login incorrect" in error_message:
+            error_message = f"Authentication failed for {strHost} using {connection_type}: {error_message}"
+        if additional_info:
+            error_message += f" Additional info: {additional_info}"
+        log_connection_error(strHost, connection_type, error_message)
+
+    def pass_handle_connection_failure(self, strHost, connection_type, additional_info=""):
+        raise NotImplementedError("Connection failure handling is not implemented for this connection method.")
+
+    def get_credentials(self):
+        if self.running_in_securecrt:
+            return self.crt_get_credentials()
+        else:
+            return self.pass_get_credentials()
+
+    def crt_get_credentials(self):
+        self.stored_username = crt.Dialog.Prompt("Enter your username for 'un' authentication:", "Login", "", False).strip()
+        self.stored_password = crt.Dialog.Prompt("Enter your password for 'un' authentication:", "Login", "", True).strip()
+
+    def pass_get_credentials(self):
+        raise NotImplementedError("No other credential methods are configured at this time.")
+
+    def display_summary(self, processed_hosts_count, int_failed_hosts):
+        """
+        Displays the summary of the script's execution.
+        """
+        end_time_stamp = time.perf_counter()
+        elapsed_time = end_time_stamp - self.start_time  # Use the stored start_time
+        elapsed_minutes, elapsed_seconds = divmod(elapsed_time, 60)
+        summary_message = f"The script finished executing in {int(elapsed_minutes)} minutes and {int(elapsed_seconds)} seconds with {processed_hosts_count - int_failed_hosts} hosts scanned and {int_failed_hosts} failed."
+        
+        if self.running_in_securecrt:
+            self.crt_display_summary(summary_message)
+        else:
+            self.pass_display_summary(summary_message)
+
+    def crt_display_summary(self, summary_message):
+        crt.Dialog.MessageBox(summary_message)
+
+    def pass_display_summary(self, summary_message):
+        print(summary_message)  # You can also raise NotImplementedError if you prefer
+
+    def exec_command(self, command, device_name):
+        output = command_cache.get(device_name, command)
+        if output is None:
+            result = self.send_command(command, device_name)
+            result = self.handle_errors(result, command, device_name)
+            cleaned_output = command_cache.clean_output(result)
+            if "." in device_name:
+                output = cleaned_output.strip()
+            else:
+                output = f"{device_name}#{cleaned_output}{device_name}#"
+            command_cache.add(device_name, command, output)
+        return output
 
 class Stig:
     # Class-level mappings for status codes and severity
@@ -683,173 +883,11 @@ def log_connection_error(host, auth_method, error_message):
 
 
 #Commection Management
-
-
-#Look into moving crt logic out of this function in prep for creating connection Class
-def connect_to_host(strHost, connection_type, current_host_number, total_hosts_count):
-    if RUNNING_IN_SECURECRT:
-        return crt_connect_to_host(strHost, connection_type, current_host_number, total_hosts_count)
-    else:
-        return pass_connect_to_host(strHost, connection_type)
-
-def crt_connect_to_host(strHost, connection_type, current_host_number, total_hosts_count):
-    global stored_username, stored_password
-
-    # Generate the connection string
-    connect_string = get_connection_method(strHost, connection_type, stored_username, stored_password)
-
-    try:
-        # Attempt to connect to the host in a new tab
-        newTab = crt.Session.ConnectInTab(connect_string, False, True)
-        if newTab.Session.Connected:
-            # Set the tab title to include the host being scanned and its progress number
-            tab_title = f"{strHost} ({current_host_number} of {total_hosts_count})"
-            newTab.Caption = tab_title
-            newTab.Screen.Synchronous = True
-
-            # Set terminal settings and get the device name
-            crt_terminal_settings(strHost)
-            device_name = crt_get_device_name()
-            return device_name, device_name
-        else:
-            handle_connection_failure(strHost, connection_type)
-            return None, None
-    except ScriptError as e:
-        handle_connection_failure(strHost, connection_type, f"ScriptError: {e}")
-        return None, None
-
-def pass_connect_to_host(strHost, connection_type):
-    raise NotImplementedError("No other connection methods are configured at this time.")
-
-#this may be turn into connection type and then move the crt logic into its own function
-#this would be needed in prep for the connection class
-def get_connection_method(strHost, connection_type, stored_username, stored_password):
-    if RUNNING_IN_SECURECRT:
-        return crt_connection_string(strHost, connection_type, stored_username, stored_password)
-    else:
-        return pass_connection_method()
-
-def crt_connection_string(strHost, connection_type, stored_username, stored_password):
-    connect_string_default = f"/SSH2 /ACCEPTHOSTKEYS /Z 0 {strHost}"
-    connect_string_pki = f"/SSH2 /AUTH publickey /ACCEPTHOSTKEYS /Z 0 {strHost}"
-   
-    if connection_type == 'user_pass':
-        if not stored_username:
-            stored_username = crt.Dialog.Prompt("Enter your username:", "Login", "", False).strip()
-        if not stored_password:
-            stored_password = crt.Dialog.Prompt("Enter your password:", "Login", "", True).strip()
-        return f"/SSH2 /L {stored_username} /PASSWORD {stored_password} /AUTH keyboard-interactive /ACCEPTHOSTKEYS /Z 0 {strHost}"
-   
-    if connection_type == 'pki':
-        return connect_string_pki
-    else:
-        return connect_string_default
-
-def pass_connection_method():
-    raise NotImplementedError("No other connection methods are configured at this time.")
-
-
-#need to move crt logic out of here in prep for connection Class
-#also some ssh clients may not need to set 'term len' or may do it already, will need to account for this
-def set_terminal_settings(strHost):
-    if RUNNING_IN_SECURECRT:
-        crt_terminal_settings(strHost)
-    else:
-        pass_terminal_settings()
-
-def crt_terminal_settings(strHost):
-    crt.Screen.WaitForStrings(["#", ">"], 15)
-    term_len = "term len 0"
-    term_width = "term width 400"
-    exec_command(f"{term_len}", strHost)
-    exec_command(f"{term_width}", strHost)
-
-def pass_terminal_settings():
-    # Placeholder function, could be expanded for other SSH clients
-    raise NotImplementedError("Terminal settings configuration is not implemented for this connection method.")
-
-#write a function that gets device info like make/model/SN/OS
-#def get_device_info():
-
-#This may get turn into get prompt and the crt logic will be moved into its own function
-#This would be done to prep for the connection Class
-def get_device_name():
-    if RUNNING_IN_SECURECRT:
-        return crt_get_device_name()
-    else:
-        return pass_get_device_name()
-
-def crt_get_device_name():
-    return crt.Screen.Get(crt.Screen.CurrentRow, 0, crt.Screen.CurrentRow, crt.Screen.CurrentColumn - 2).replace("#", "")
-
-def pass_get_device_name():
-    # Placeholder function for non-SecureCRT environments
-    raise NotImplementedError("Device name retrieval is not implemented for this connection method.")
-
-def disconnect_from_host():
-    """
-    Disconnects from the host using the appropriate method based on the environment.
-    """
-    if RUNNING_IN_SECURECRT:
-        crt_disconnect_from_host()
-    else:
-        pass_disconnect_from_host()
-
-def crt_disconnect_from_host():
-    """
-    Disconnects from the host in SecureCRT.
-    """
-    crt.Session.Disconnect()
-
-def pass_disconnect_from_host():
-    """
-    Placeholder function for disconnecting from the host in other environments.
-    Raises NotImplementedError for now.
-    """
-    raise NotImplementedError("No other disconnect methods are configured at this time.")
+#this function is used in many vul checks, will need to update each vul to moved it to a calss
+def send_command(command, device_name):
+    return env_manager.send_command(command, device_name)
 
 #Command and Error Handling
-
-#Need to bust out the crt logic from this and turn this into a passthrough for
-#for ssh clients in prep of connection Class.
-def send_command(command, device_name):
-    if RUNNING_IN_SECURECRT:
-        return crt_send_command(command, device_name)
-    else:
-        return pass_send_command(command, device_name)
-
-def crt_send_command(command, device_name):
-    """
-    Sends a command to the terminal in SecureCRT and returns the output.
-   
-    Args:
-    - command (str): The command to send.
-    - device_name (str): The name of the device to send the command to.
-   
-    Returns:
-    - str: The output from the command execution.
-    """
-    if device_name.find(".") > -1:
-        prompt = "#"
-    else:
-        prompt = device_name + "#"
-    
-    crt.Screen.WaitForStrings([prompt], 1)
-    crt.Screen.Send(command + "\r")
-    return crt.Screen.ReadString(prompt, 30)
-
-def pass_send_command(command, device_name):
-    """
-    Placeholder function for sending commands to non-SecureCRT environments.
-   
-    Args:
-    - command (str): The command to send.
-    - device_name (str): The name of the device to send the command to.
-   
-    Raises:
-    - NotImplementedError: This function is a placeholder for future integration with other SSH clients.
-    """
-    raise NotImplementedError("Command sending is not implemented for this connection method.")
 
 
 def exec_command(command, device_name):
@@ -869,7 +907,7 @@ def exec_command(command, device_name):
     # If the output is not in the cache, execute the command and clean the result
     if output is None:
         result = send_command(command, device_name)
-        result = handle_errors(result, command, device_name)
+        result = env_manager.handle_errors(result, command, device_name)
 
         # Cleaning the output
         cleaned_output = command_cache.clean_output(result)
@@ -885,91 +923,6 @@ def exec_command(command, device_name):
 
     return output
 
-
-#Need to bust out the crt logic for prep of the connection Class
-def handle_errors(result, command, device_name):
-    if RUNNING_IN_SECURECRT:
-        return crt_handle_errors(result, command, device_name)
-    else:
-        return pass_handle_errors(result, command, device_name)
-
-def crt_handle_errors(result, command, device_name):
-    """
-    Handles errors during command execution in SecureCRT and logs them.
-   
-    Args:
-    - result (str): The result from the command execution.
-    - command (str): The command that was executed.
-    - device_name (str): The name of the device.
-   
-    Returns:
-    - str: The processed result, taking into account any errors.
-    """
-    prompt = "#" if "." in device_name else f"{device_name}#"
-
-    if len(result) < len(device_name):
-        crt.Screen.WaitForStrings([prompt], 1)
-        crt.Screen.Send("\x03\r")
-        result = crt.Screen.ReadString(prompt, 10)
-        crt.Screen.WaitForStrings([prompt], 5)
-        crt.Screen.Send(f"{command}\r")
-        result = crt.Screen.ReadString(prompt, 110)
-
-    return result
-
-def pass_handle_errors(result, command, device_name):
-    """
-    Placeholder function for handling errors in non-SecureCRT environments.
-   
-    Args:
-    - result (str): The result from the command execution.
-    - command (str): The command that was executed.
-    - device_name (str): The name of the device.
-   
-    Raises:
-    - NotImplementedError: This function is a placeholder for future error handling integration.
-    """
-    raise NotImplementedError("Error handling is not implemented for this connection method.")
-
-    
-    
-def handle_connection_failure(strHost, connection_type, additional_info=""):
-    if RUNNING_IN_SECURECRT:
-        crt_handle_connection_failure(strHost, connection_type, additional_info)
-    else:
-        pass_handle_connection_failure(strHost, connection_type, additional_info)
-
-def crt_handle_connection_failure(strHost, connection_type, additional_info=""):
-    """
-    SecureCRT specific error handling for authentication failure.
-   
-    Args:
-    - strHost (str): The hostname.
-    - connection_type (str): The type of connection used.
-    - additional_info (str, optional): Additional information about the failure.
-    """
-    error_message = crt.GetLastErrorMessage()
-    if "Authentication failed" in error_message or "Login incorrect" in error_message:
-        error_message = f"Authentication failed for {strHost} using {connection_type}: {error_message}"
-
-    if additional_info:
-        error_message += f" Additional info: {additional_info}"
-
-    log_connection_error(strHost, connection_type, error_message)
-
-def pass_handle_connection_failure(strHost, connection_type, additional_info=""):
-    """
-    Placeholder function for handling connection failures in non-SecureCRT environments.
-   
-    Args:
-    - strHost (str): The hostname.
-    - connection_type (str): The type of connection used.
-    - additional_info (str, optional): Additional information about the failure.
-   
-    Raises:
-    - NotImplementedError: This function is a placeholder for future connection failure handling integration.
-    """
-    raise NotImplementedError("Connection failure handling is not implemented for this connection method.")
 
 #Vulnerability Check Functions 
 
@@ -11750,7 +11703,7 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
     connection_type = connection_type_map.get(auth_method, 'default')
     
     # Try to establish a connection to the host
-    device_name, common_name = connect_to_host(host, connection_type, current_host_number, total_hosts_count)
+    device_name, common_name = env_manager.connect_to_host(host, connection_type, current_host_number, total_hosts_count)
     
     if device_name is None:
         # Connection failed, return False
@@ -11851,37 +11804,6 @@ def update_and_write_checklist(stig_list, device_name, host, checklist_file):
     else:
         raise ValueError("Unsupported checklist file format. Provide a .ckl, .cklb, or no extension for both.")
 
-#noticed an issue with this on if you try to 'x' of the auth it loops and keeps asking.
-#Need to find a way to stop the looping, this is likely do to it being called in a loop in another function
-#Need to add support that allows a user to provide other username/password per device if they mark it
-#in the CSV file, this will help with device that may not be on TACACS or is using another auth source
-#Maybe use getpass here to get the password?
-def get_credentials():
-    """
-    Prompts the user for 'un' authentication and stores it globally.
-    Calls the appropriate method based on the environment.
-    """
-    if RUNNING_IN_SECURECRT:
-        crt_get_credentials()
-    else:
-        pass_get_credentials()
-
-def crt_get_credentials():
-    """
-    Prompts the user for 'un' authentication in SecureCRT and stores it globally.
-    """
-    global stored_username, stored_password
-    stored_username = crt.Dialog.Prompt("Enter your username for 'un' authentication:", "Login", "", False).strip()
-    stored_password = crt.Dialog.Prompt("Enter your password for 'un' authentication:", "Login", "", True).strip()
-
-def pass_get_credentials():
-    """
-    Placeholder function for getting credentials in other environments.
-    Raises NotImplementedError for now.
-    """
-    raise NotImplementedError("No other credential methods are configured at this time.")
-
-
 def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
     """
     Processes all hosts and returns the count of failed hosts.
@@ -11902,43 +11824,17 @@ def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
             int_failed_hosts += 1
     return int_failed_hosts, processed_hosts_count
 
-
-def display_summary(processed_hosts_count, int_failed_hosts):
-    """
-    Displays the summary of the script's execution.
-    Calls the appropriate method based on the environment.
-    """
-    t2 = time.perf_counter()
-    elapsed_time = t2 - t1
-    elapsed_minutes, elapsed_seconds = divmod(elapsed_time, 60)
-    summary_message = f"The script finished executing in {int(elapsed_minutes)} minutes and {int(elapsed_seconds)} seconds with {processed_hosts_count - int_failed_hosts} hosts scanned and {int_failed_hosts} failed."
-    
-    if RUNNING_IN_SECURECRT:
-        crt_display_summary(summary_message)
-    else:
-        pass_display_summary(summary_message)
-
-def crt_display_summary(summary_message):
-    """
-    Displays the summary of the script's execution in SecureCRT.
-    """
-    crt.Dialog.MessageBox(summary_message)
-
-def pass_display_summary(summary_message):
-    """
-    Placeholder function for displaying the summary in other environments.
-    Raises NotImplementedError for now.
-    """
-    raise NotImplementedError("No other display method is configured at this time.")
-
 #Main Execution
 def Main():
     """
     The main function that orchestrates the entire script.
     """
-    global t1, stored_username, stored_password, command_cache
-    t1 = time.perf_counter()
+    global start_time_stamp, stored_username, stored_password, command_cache, env_manager  # Added env_manager to the global statement
+    start_time_stamp = time.perf_counter()
     command_cache = Commandcache()
+    
+    # Initialize EnvironmentManager
+    env_manager = EnvironmentManager()    
 
     # Initialize credentials with default values
     stored_username = ""
@@ -11949,23 +11845,16 @@ def Main():
 
     # Check if 'un' authentication is needed and prompt for it once
     if any(host_info['auth'] == 'un' for host_info in hosts_data):
-        get_credentials()
+        env_manager.get_credentials()
 
     stig_instance = Stig()
     command_cache_instance = Commandcache()
 
     int_failed_hosts, processed_hosts_count = process_all_hosts(hosts_data, stig_instance, command_cache_instance)
 
-    display_summary(processed_hosts_count, int_failed_hosts)
+    env_manager.display_summary(processed_hosts_count, int_failed_hosts)
 
 Main()
 
-"""
- In a typical Python environment, the following guard is used to ensure that
- the code is only executed when the script is run directly. However, in SecureCRT,
- each script runs in its own isolated environment, and this guard may not behave as expected.
- Therefore, it is commented out.
-
- if __name__ == '__main__':
+if __name__ == '__main__':
      Main()
-"""
