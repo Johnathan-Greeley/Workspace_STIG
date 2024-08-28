@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.k.3
+# Version:4.1.2.L.1
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -239,23 +239,53 @@ class ChecklistManager:
         "NF": "not_a_finding"
     }
 
-    
     def __init__(self):
         pass
 
-    def read_function_names_from_ckl(self, checklist_file):
-        function_names = []
+    def read_vuln_info(self, checklist_file):
+        """
+        Determines the checklist file type and reads the vulnerability information accordingly.
+        Returns a dictionary where keys are original Vuln_Num and values are tuples of 
+        (function_name, severity).
+        """
+        file_extension = os.path.splitext(checklist_file)[1].lower()
+        
+        if file_extension == '.ckl':
+            return self.read_vuln_info_from_ckl(checklist_file)
+        elif file_extension == '.cklb':
+            function_names = self.read_function_names_from_cklb(checklist_file)
+            return {vuln_num: (vuln_num.replace("-", ""), None) for vuln_num in function_names}
+        else:
+            raise ValueError("Unsupported checklist file format. Provide a .ckl, .cklb, or no extension for both.")
+
+    def read_vuln_info_from_ckl(self, checklist_file):
+        vuln_info = {}
         tree = ET.parse(checklist_file)
         root = tree.getroot()
+        
         for vuln in root.iter('VULN'):
+            original_vuln_num = None
+            function_name = None
+            severity = None
+            
             for stig_data in vuln.findall('STIG_DATA'):
                 vuln_attribute = stig_data.find('VULN_ATTRIBUTE')
-                if vuln_attribute is not None and vuln_attribute.text == 'Vuln_Num':
-                    attribute_data = stig_data.find('ATTRIBUTE_DATA')
-                    if attribute_data is not None:
-                        function_name = attribute_data.text.replace("-", "")
-                        function_names.append(function_name)
-        return function_names
+                if vuln_attribute is not None:
+                    if vuln_attribute.text == 'Vuln_Num':
+                        attribute_data = stig_data.find('ATTRIBUTE_DATA')
+                        if attribute_data is not None:
+                            original_vuln_num = attribute_data.text
+                            function_name = original_vuln_num.replace("-", "")
+                    
+                    if vuln_attribute.text == 'Severity':
+                        severity_data = stig_data.find('ATTRIBUTE_DATA')
+                        if severity_data is not None:
+                            severity = severity_data.text
+            
+            if original_vuln_num and function_name and severity:
+                vuln_info[original_vuln_num] = (function_name, severity)
+        
+        return vuln_info
 
     def read_function_names_from_cklb(self, checklist_file):
         with open(checklist_file, 'r', encoding='utf-8') as file:
@@ -271,12 +301,6 @@ class ChecklistManager:
                     function_name = group_id_src.replace("-", "")
                     function_names.append(function_name)
         return function_names
-
-    def read_function_names_from_csv(self, filename):
-        with open(filename, "r") as file:
-            reader = csv.reader(file)
-            next(reader, None)
-            return [row[0] for row in reader if row]
 
     def load_ckl_template(self, template_name):
         try:
@@ -330,13 +354,12 @@ class ChecklistManager:
             json.dump(cklb_content, file, indent=4)
 
     def update_ckl_template(self, obj, ckl):
-        # Using class attribute for status map
         full_status_ckl = ChecklistManager.STATUS_MAP_CKL.get(obj.status, "OP")
         root = ET.fromstring(ckl)
         for vuln in root.iter('VULN'):
             for stig_data in vuln.findall('STIG_DATA'):
                 vuln_attribute = stig_data.find('VULN_ATTRIBUTE')
-                if vuln_attribute is not None and vuln_attribute.text == 'Vuln_Num':
+                if vuln_attribute is not None and vuln_attribute.text == obj.vulid:
                     attribute_data = stig_data.find('ATTRIBUTE_DATA')
                     if attribute_data is not None and attribute_data.text == obj.vulid:
                         vuln.find('STATUS').text = full_status_ckl
@@ -345,7 +368,6 @@ class ChecklistManager:
         return ET.tostring(root, encoding='utf-8').decode('utf-8')
 
     def update_cklb_template(self, obj, cklb):
-        # Using class attribute for status map
         full_status_cklb = ChecklistManager.STATUS_MAP_CKLB.get(obj.status, "open")
         for stig in cklb['stigs']:
             for rule in stig['rules']:
@@ -355,6 +377,7 @@ class ChecklistManager:
                     rule['comments'] = html.escape(obj.comments)
                     break
         return cklb
+
 
 class IntStatus:
     def __init__(self):
@@ -11641,18 +11664,21 @@ def create_stig_list_from_host(device_name, checklist_file, device_type):
     Returns:
     list: A list of STIG objects.
     """
-    stig_vul_list = read_function_names(checklist_file)
+    checklist_manager = ChecklistManager()
+    vuln_info = checklist_manager.read_vuln_info(checklist_file)
     stig_list = []
-    for func_name in stig_vul_list:
+
+    for original_vuln_num, (function_name, severity) in vuln_info.items():
         try:
-            func = globals()[func_name]
-            stig_list.append(func(device_type, device_name.strip()))
+            func = globals()[function_name]
+            stig_instance = func(device_type, device_name.strip())
+            stig_instance.severity = severity  # Assign severity to the stig instance, if applicable
+            stig_list.append(stig_instance)
         except Exception as e:
-            # Create a Stig object and handle the error using the handle_error method
             error_stig = Stig()
-            error_stig.device_name = device_name  # Set device name for logging
-            error_stig.device_type = device_type  # Set device type for logging
-            error_stig.handle_error(func_name, e)
+            error_stig.device_name = device_name
+            error_stig.device_type = device_type
+            error_stig.handle_error(function_name, e)
             stig_list.append(error_stig)
 
     return stig_list
