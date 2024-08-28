@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.L.13
+# Version:4.1.2.L.14
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -573,13 +573,14 @@ def read_function_names(checklist_file):
 
 def read_hosts_and_templates_from_csv(filename):
     """
-    Reads host information from a CSV file and preloads all necessary checklist templates.
+    Reads host information from a CSV file, preloads all necessary checklist templates,
+    and sorts the hosts by authentication method (2FA, then un, then others).
 
     Args:
     - filename (str): The name of the CSV file.
 
     Returns:
-    - list: A list of dictionaries, each containing host information.
+    - list: A sorted list of dictionaries, each containing host information.
     """
     host_data = []
     checklist_manager = ChecklistManager()
@@ -592,6 +593,9 @@ def read_hosts_and_templates_from_csv(filename):
             host_data.append(row)
             checklist_file = row['checklist']
             checklist_manager.read_vuln_info(checklist_file)  # Preload the checklist template
+
+    # Sort the host data: 2FA first, then un, then others
+    host_data.sort(key=lambda x: (x['auth'] != '2FA', x['auth'] != 'un'))
 
     return host_data
 
