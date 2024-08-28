@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.L.9
+# Version:4.1.2.L.10
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -556,21 +556,28 @@ def read_function_names(checklist_file):
     return function_names
 
 
-def read_hosts_from_csv(filename):
+def read_hosts_and_templates_from_csv(filename):
     """
-    Reads host information from a CSV file.
-   
+    Reads host information from a CSV file and preloads all necessary checklist templates.
+
     Args:
     - filename (str): The name of the CSV file.
-   
+
     Returns:
     - list: A list of dictionaries, each containing host information.
     """
     host_data = []
+    checklist_manager = ChecklistManager()
+
     with open(filename, 'r') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
+            if row['skip'].strip() == "#":
+                continue  # Skip rows marked with '#'
             host_data.append(row)
+            checklist_file = row['checklist']
+            checklist_manager.read_vuln_info(checklist_file)  # Preload the checklist template
+
     return host_data
 
 
@@ -11773,19 +11780,19 @@ def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
     """
     int_failed_hosts = 0
     processed_hosts_count = 0
-    int_total_hosts = sum(1 for host_info in hosts_data if "#" not in host_info['skip'])
+    int_total_hosts = len(hosts_data)
+
     for host_info in hosts_data:
-        if "#" in host_info['skip']:  # Skip the processing for marked hosts
-            continue
         # Increment only for hosts that will be processed
         processed_hosts_count += 1
         host = host_info['host']
         checklist_file = host_info['checklist']
         auth_method = host_info['auth']
 
+        # Use the preloaded checklist information
         if not process_host(host, checklist_file, auth_method, processed_hosts_count, int_total_hosts, stig_instance, command_cache_instance):
             int_failed_hosts += 1
-    return int_failed_hosts, processed_hosts_count    
+    return int_failed_hosts, processed_hosts_count
 
 
 def display_summary(processed_hosts_count, int_failed_hosts):
@@ -11811,12 +11818,12 @@ def Main():
     # Initialize credentials with default values
     stored_username = ""
     stored_password = ""
-    #add file slect box for this file, it just needs to state host and end in csv
+    # Add file select box for this file, it just needs to state host and end in csv
     csv_filename = "host.csv"
-    hosts_data = read_hosts_from_csv(csv_filename)
+    hosts_data = read_hosts_and_templates_from_csv(csv_filename)  # Updated function call
 
     # Check if 'un' authentication is needed and prompt for it once
-    if any(host_info['auth'] == 'un' and "#" not in host_info['skip'] for host_info in hosts_data):
+    if any(host_info['auth'] == 'un' for host_info in hosts_data):
         get_credentials()
 
     stig_instance = Stig()
@@ -11827,7 +11834,6 @@ def Main():
     display_summary(processed_hosts_count, int_failed_hosts)
 
 Main()
-
 
 """
  In a typical Python environment, the following guard is used to ensure that
