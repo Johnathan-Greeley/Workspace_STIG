@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.2
+# Version:4.1.2.P.3
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -230,6 +230,31 @@ class EnvironmentManager:
             self.handle_connection_failure(strHost, connection_type, str(e))
             return None, None
 
+    def get_connection_method(self, strHost, connection_type):
+        if self.running_in_securecrt:
+            return self.crt_connection_string(strHost, connection_type)
+        else:
+            return self.paramiko_connection_string(strHost, connection_type)
+
+    def crt_connection_string(self, strHost, connection_type):
+        connect_string_default = f"/SSH2 /ACCEPTHOSTKEYS /Z 0 {strHost}"
+        connect_string_pki = f"/SSH2 /AUTH publickey /ACCEPTHOSTKEYS /Z 0 {strHost}"
+
+        if connection_type == 'user_pass':
+            if not self.stored_username:
+                self.stored_username = crt.Dialog.Prompt("Enter your username:", "Login", "", False).strip()
+            if not self.stored_password:
+                self.stored_password = crt.Dialog.Prompt("Enter your password:", "Login", "", True).strip()
+            return f"/SSH2 /L {self.stored_username} /PASSWORD {self.stored_password} /AUTH keyboard-interactive /ACCEPTHOSTKEYS /Z 0 {strHost}"
+        if connection_type == 'pki':
+            return connect_string_pki
+        else:
+            return connect_string_default
+
+    def paramiko_connection_string(self, strHost, connection_type):
+        # Paramiko connection strings are handled in the connect method itself.
+        return None
+
     def wait_for_prompt(self, expected_prompts, timeout=15):
         output = ""
         start_time = time.time()
@@ -387,7 +412,7 @@ class EnvironmentManager:
     def tk_display_summary(self, summary_message):
         root = tk.Tk()
         root.withdraw()  # Hide the root window
-        messagebox.showinfo("Summary", summary_message)
+        messagebox.showinfo("Script Summary", summary_message)
         root.destroy()
                 
 #place holder to use this once a review/refactor of all VUL functions are done
