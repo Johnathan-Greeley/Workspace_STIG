@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.32
+# Version:4.1.2.P.33
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -964,6 +964,7 @@ def read_hosts_and_templates_from_csv(filename):
     """
     host_data = []
     checklist_manager = ChecklistManager()
+    loaded_checklists = set()  # Set to keep track of loaded checklists
 
     with open(filename, 'r') as csvfile:
         reader = csv.DictReader(csvfile)
@@ -973,15 +974,17 @@ def read_hosts_and_templates_from_csv(filename):
             host_data.append(row)
             checklist_file = row['checklist']
             
-            # Provide feedback when loading each checklist
-            print(f"Loading checklist: {checklist_file}...")
-            checklist_manager.read_vuln_info(checklist_file)  # Preload the checklist template
-            print(f"Checklist {checklist_file} loaded and cached.")
+            if checklist_file not in loaded_checklists:
+                print(f"Loading checklist: {checklist_file}...")
+                checklist_manager.read_vuln_info(checklist_file)  # Preload the checklist template
+                print(f"Checklist {checklist_file} loaded and cached.")
+                loaded_checklists.add(checklist_file)  # Add to set after loading
 
     # Sort the host data: 2FA first, then un, then others
     host_data.sort(key=lambda x: (x['auth'] != '2FA', x['auth'] != 'un'))
 
     return host_data
+
 
 #Look into moving logic into a logging Class
 def get_daily_log_filename(script_name="cisco_stig_scanner_v4", file_extension=".csv"):
