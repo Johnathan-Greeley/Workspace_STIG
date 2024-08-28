@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.M.3
+# Version:4.1.2.M.4
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -11869,11 +11869,28 @@ def update_and_write_checklist(stig_list, device_name, host, checklist_file):
 #Maybe use getpass here to get the password?
 def get_credentials():
     """
-    Prompts the user for 'un' authentication only once and stores it globally.
+    Prompts the user for 'un' authentication and stores it globally.
+    Calls the appropriate method based on the environment.
+    """
+    if RUNNING_IN_SECURECRT:
+        crt_get_credentials()
+    else:
+        pass_get_credentials()
+
+def crt_get_credentials():
+    """
+    Prompts the user for 'un' authentication in SecureCRT and stores it globally.
     """
     global stored_username, stored_password
     stored_username = crt.Dialog.Prompt("Enter your username for 'un' authentication:", "Login", "", False).strip()
     stored_password = crt.Dialog.Prompt("Enter your password for 'un' authentication:", "Login", "", True).strip()
+
+def pass_get_credentials():
+    """
+    Placeholder function for getting credentials in other environments.
+    Raises NotImplementedError for now.
+    """
+    raise NotImplementedError("No other credential methods are configured at this time.")
 
 
 def process_all_hosts(hosts_data, stig_instance, command_cache_instance):
