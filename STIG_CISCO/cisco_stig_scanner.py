@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.27
+# Version:4.1.2.P.28
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -475,23 +475,36 @@ class EnvironmentManager:
         summary_window.deiconify()  # Show the summary window
         root.mainloop()
 
-    def track_progress(self, current, total):
+    def display_progress(self, current, total, context="Progress"):
         """
-        Tracks and displays progress as a percentage with a progress bar.
+        Displays a progress bar in the console, showing the percentage of completion.
 
         Args:
-        - current (int): The current step in the process.
-        - total (int): The total number of steps in the process.
+        - current (int): The current progress count.
+        - total (int): The total number of tasks.
+        - context (str): A context message to display alongside the progress bar.
         """
-        percentage = (current / total) * 100
-        progress_bar = "#" * int(percentage / 5) + "." * (20 - int(percentage / 5))
-        sys.stdout.write(f"\r{int(percentage)}% [{progress_bar}]")
-        sys.stdout.flush()
+        if total == 0:
+            return  # Avoid division by zero
 
-        # Final update to 100% once done
+        progress_percentage = (current / total) * 100
+        bar_length = 20  # Length of the progress bar
+        block = int(round(bar_length * (current / total)))
+
+        # Ensure the bar reaches 100% on the final iteration
         if current == total:
-            sys.stdout.write("\r100% [####################]\n")
-            sys.stdout.flush()
+            progress_percentage = 100
+            block = bar_length
+
+        progress_bar = "#" * block + "." * (bar_length - block)
+        progress_message = f"\r{int(progress_percentage)}% [{progress_bar}] {context}"
+        
+        # Print the progress bar message
+        print(progress_message, end='')
+
+        # Print a newline when the process is complete
+        if current == total:
+            print()
 
     def exec_command(self, command, device_name):
         output = command_cache.get(device_name, command)
@@ -11889,11 +11902,9 @@ def create_stig_list_from_host(device_name, checklist_file, device_type):
     checklist_manager = ChecklistManager()
     vuln_info = checklist_manager.read_vuln_info(checklist_file)
     stig_list = []
-
     total_vulns = len(vuln_info)
-    completed_vulns = 0
 
-    for original_vuln_num, (function_name, severity) in vuln_info.items():
+    for idx, (original_vuln_num, (function_name, severity)) in enumerate(vuln_info.items(), 1):
         try:
             func = globals()[function_name]
             stig_instance = func(device_type, device_name.strip())
@@ -11906,9 +11917,8 @@ def create_stig_list_from_host(device_name, checklist_file, device_type):
             error_stig.handle_error(function_name, e)
             stig_list.append(error_stig)
 
-        # Update progress using the EnvironmentManager's method
-        env_manager.track_progress(completed_vulns, total_vulns)
-        completed_vulns += 1
+        # Update progress
+        env_manager.display_progress(idx, total_vulns, context="Vuln check status")
 
     return stig_list
 
