@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.18
+# Version:4.1.2.P.19
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -289,6 +289,10 @@ class EnvironmentManager:
 
     def paramiko_send_command(self, command, device_name):
         if self.session:
+            # Clear the session buffer before sending the command
+            while self.session.recv_ready():
+                self.session.recv(65535).decode('utf-8')
+
             # Send the command
             self.session.send(command + "\n")
 
@@ -296,18 +300,18 @@ class EnvironmentManager:
             raw_output = self.wait_for_prompt([self.prompt])
             print(f"[DEBUG] Raw output after capturing from session:\n{raw_output}")
 
-            # Remove the initial prompt if it exists
+            # Remove the prompt at the beginning if it exists
             if raw_output.startswith(self.prompt):
                 raw_output = raw_output[len(self.prompt):].strip()
 
             # Remove the duplicated prompt at the end if it exists
             if raw_output.endswith(self.prompt):
-                raw_output = raw_output[:raw_output.rfind(self.prompt)].strip()
+                raw_output = raw_output[:-len(self.prompt)].strip()
 
             # Log the output after prompt removal
             print(f"[DEBUG] Output after processing prompt removal:\n{raw_output}")
 
-            # Format the output according to CRT logic
+            # Append device name to the output (following CRT logic)
             if "." in device_name:
                 processed_output = raw_output.strip()
             else:
@@ -317,6 +321,7 @@ class EnvironmentManager:
             print(f"[DEBUG] Final processed output:\n{processed_output}")
 
             return processed_output
+
 
 
 
@@ -440,7 +445,7 @@ class EnvironmentManager:
     def tk_display_summary(self, summary_message):
         root = tk.Tk()
         root.withdraw()  # Hide the root window
-        
+
         # Create a new top-level window to display the message box
         summary_window = tk.Toplevel(root)
         summary_window.title("Script Summary")
@@ -448,10 +453,10 @@ class EnvironmentManager:
         # Center the window on the screen
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
-        window_width = 300  # You can adjust the width and height as needed
+        window_width = 300  # Adjust the width and height as needed
         window_height = 150
-        x_cordinate = int((screen_width/2) - (window_width/2))
-        y_cordinate = int((screen_height/2) - (window_height/2))
+        x_cordinate = int((screen_width / 2) - (window_width / 2))
+        y_cordinate = int((screen_height / 2) - (window_height / 2))
         summary_window.geometry(f"{window_width}x{window_height}+{x_cordinate}+{y_cordinate}")
 
         # Display the message in a label
@@ -468,12 +473,8 @@ class EnvironmentManager:
         tk.Button(summary_window, text="OK", command=close_summary_window).pack(pady=10)
 
         # Start the event loop
-        root.deiconify()  # Show the root window if necessary
+        summary_window.deiconify()  # Show the summary window
         root.mainloop()
-
-        # Destroy the root window once done to avoid ghost windows
-        root.destroy()
-
 
 
                 
