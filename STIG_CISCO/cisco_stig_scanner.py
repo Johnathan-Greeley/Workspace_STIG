@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.L.7
+# Version:4.1.2.L.8
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -262,8 +262,8 @@ class ChecklistManager:
     def log_to_file(self, message):
         """Logs messages to a debug file."""
         with open("debug_log.txt", "a", encoding="utf-8") as log_file:
-            log_file.write(message + "\n")    
-    
+            log_file.write(message + "\n")
+
     def read_vuln_info(self, checklist_file):
         if checklist_file in self.vuln_info_cache:
             return self.vuln_info_cache[checklist_file]
@@ -306,7 +306,7 @@ class ChecklistManager:
                 if vuln_attribute is not None and vuln_attribute.text == 'Severity':
                     severity_data = stig_data.find('ATTRIBUTE_DATA')
                     if severity_data is not None:
-                        severity = Stig.get_severity(severity_data.text)
+                        severity = severity_data.text  # Store the original severity code
             
             if original_vuln_num and function_name and severity:
                 vuln_info[original_vuln_num] = (function_name, severity)
@@ -331,7 +331,6 @@ class ChecklistManager:
                 
                 if group_id:
                     function_name = group_id.replace("-", "")
-                    severity = Stig.get_severity(severity)
                     vuln_info[group_id] = (function_name, severity)
 
         # Log the vuln_info for debugging
@@ -603,8 +602,8 @@ def log_stig_results_to_csv(stig_list, host, device_name):
             csv_writer.writerow(["Date", "Hostname", "CommonName", "DeviceName", "VulnID", "CAT", "Status", "Finding", "Comments"])
         
         for stig in stig_list:
-            # Map the severity to the CAT code
-            cat_code = Stig.get_severity(stig.severity)
+            # Map the severity using the Stig class method
+            cat = Stig.get_severity(stig.severity)
             
             csv_writer.writerow([
                 datetime.datetime.now().strftime("%b-%d-%Y"),
@@ -612,7 +611,7 @@ def log_stig_results_to_csv(stig_list, host, device_name):
                 "",  # CommonName (if applicable)
                 device_name,
                 stig.vulid,
-                cat_code,
+                cat,
                 stig.status,
                 stig.finding,
                 stig.comments
