@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.30
+# Version:4.1.2.P.31
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -11873,10 +11873,12 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
     connection_type = connection_type_map.get(auth_method, 'default')
     
     # Try to establish a connection to the host
+    print(f"Connecting to {host} ({current_host_number} of {total_hosts_count})...")  # Print connection message
     device_name, common_name = env_manager.connect_to_host(host, connection_type, current_host_number, total_hosts_count)
     
     if device_name is None:
         # Connection failed, return False
+        print(f"Failed to connect to {host}.")  # Print failure message
         return False
 
     # Initialize the flag for success to False
@@ -11884,17 +11886,18 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
 
     try:
         # Read the function names and create STIG list
+        print(f"Loading checklist file for {device_name}...")  # Print checklist loading message
         stig_list = create_stig_list_from_host(device_name, checklist_file, device_type)
+        print(f"Checklist file for {device_name} loaded.")  # Print completion message
 
         # Log the STIG results to the CSV file
-        if not env_manager.running_in_securecrt:
-            print("Writing results to CSV log...")
         log_stig_results_to_csv(stig_list, host, device_name)
 
         # Update and write CKL/CKLB
-        if not env_manager.running_in_securecrt:
-            print(f"Writing results to checklist file {checklist_file}...")
+        print(f"Writing CKL/CKLB and CSV log for {device_name}...")  # Print writing message
         update_and_write_checklist(stig_list, device_name, host, checklist_file)
+        print(f"CKL/CKLB and CSV log for {device_name} written.")  # Print completion message
+        
         process_success = True  # Set the flag to True if all steps are successful
     except Exception as e:
         # Exception handling (might want to include more detailed logging or handling here)
@@ -11902,8 +11905,10 @@ def process_host(host, checklist_file, auth_method, current_host_number, total_h
         tb_info = traceback.extract_tb(exc_traceback)[-1]
         line_number, function_name = tb_info[1], tb_info[2]
         # Handle the exception as needed
+        print(f"Error processing {device_name}: {e}")  # Print error message
     finally:
         # Disconnect session, regardless of success or failure
+        print(f"Disconnecting from {host}...")  # Print disconnection message
         env_manager.disconnect_from_host()
         # Clear the Stig and Commandcache instances for the next host
         stig_instance.clear()
@@ -12023,17 +12028,11 @@ def Main():
     stored_username = ""
     stored_password = ""
 
-    # Provide feedback about CSV loading
-    if not env_manager.running_in_securecrt:
-        print("Loading host data from CSV file...")
-
     # Load host data from CSV file
+    print("Loading host data from CSV file...")  # Print loading message
     csv_filename = "host.csv"
     hosts_data = read_hosts_and_templates_from_csv(csv_filename)
-
-    # Provide feedback on number of hosts loaded
-    if not env_manager.running_in_securecrt:
-        print(f"Loaded {len(hosts_data)} hosts from CSV file.")
+    print(f"Loaded {len(hosts_data)} hosts from CSV file.")  # Print completion message
 
     # Check if 'un' authentication is needed and prompt for it once
     if any(host_info['auth'] == 'un' for host_info in hosts_data):
@@ -12043,11 +12042,11 @@ def Main():
     command_cache_instance = Commandcache()
 
     # Process all hosts
+    print("Starting to process all hosts...")  # Print message before processing
     int_failed_hosts, processed_hosts_count = process_all_hosts(hosts_data, stig_instance, command_cache_instance)
 
     # Display summary
     env_manager.display_summary(processed_hosts_count, int_failed_hosts)
-
 Main()
 """
 If I only use this in crt the main won't load so I added the main call above
