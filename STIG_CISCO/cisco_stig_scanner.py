@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.L.2
+# Version:4.1.2.L.3
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -360,7 +360,7 @@ class ChecklistManager:
         for vuln in root.iter('VULN'):
             for stig_data in vuln.findall('STIG_DATA'):
                 vuln_attribute = stig_data.find('VULN_ATTRIBUTE')
-                if vuln_attribute is not None and vuln_attribute.text == obj.vulid:
+                if vuln_attribute is not None and vuln_attribute.text == 'Vuln_Num':
                     attribute_data = stig_data.find('ATTRIBUTE_DATA')
                     if attribute_data is not None and attribute_data.text == obj.vulid:
                         vuln.find('STATUS').text = full_status_ckl
