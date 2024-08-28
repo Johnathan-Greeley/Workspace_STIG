@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.1
+# Version:4.1.2.P.2
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -253,6 +253,15 @@ class EnvironmentManager:
         else:
             return self.paramiko_send_command(command, device_name)
 
+    def crt_send_command(self, command, device_name):
+        if device_name.find(".") > -1:
+            prompt = "#"
+        else:
+            prompt = device_name + "#"
+        crt.Screen.WaitForStrings([prompt], 1)
+        crt.Screen.Send(command + "\r")
+        return crt.Screen.ReadString(prompt, 30)
+
     def paramiko_send_command(self, command, device_name):
         if self.session:
             self.session.send(command + "\n")
@@ -269,6 +278,9 @@ class EnvironmentManager:
         else:
             return self.paramiko_get_device_name()
 
+    def crt_get_device_name(self):
+        return crt.Screen.Get(crt.Screen.CurrentRow, 0, crt.Screen.CurrentRow, crt.Screen.CurrentColumn - 2).replace("#", "")
+
     def paramiko_get_device_name(self):
         return self.prompt.replace("#", "").strip()
 
@@ -278,16 +290,42 @@ class EnvironmentManager:
         else:
             self.paramiko_disconnect_from_host()
 
+    def crt_disconnect_from_host(self):
+        crt.Session.Disconnect()
+
     def paramiko_disconnect_from_host(self):
         if self.ssh_client:
             self.ssh_client.close()
+
+    def handle_errors(self, result, command, device_name):
+        if self.running_in_securecrt:
+            return self.crt_handle_errors(result, command, device_name)
+        else:
+            return self.paramiko_handle_errors(result, command, device_name)
+
+    def crt_handle_errors(self, result, command, device_name):
+        prompt = "#" if "." in device_name else f"{device_name}#"
+
+        if len(result) < len(device_name):
+            crt.Screen.WaitForStrings([prompt], 1)
+            crt.Screen.Send("\x03\r")
+            result = crt.Screen.ReadString(prompt, 10)
+            crt.Screen.WaitForStrings([prompt], 5)
+            crt.Screen.Send(f"{command}\r")
+            result = crt.Screen.ReadString(prompt, 110)
+
+        return result
+
+    def paramiko_handle_errors(self, result, command, device_name):
+        if "error" in result.lower():
+            log_vuln_check_error(device_name, "paramiko", command, Exception(result))
+        return result
 
     def handle_connection_failure(self, strHost, connection_type, additional_info=""):
         if self.running_in_securecrt:
             self.crt_handle_connection_failure(strHost, connection_type, additional_info)
         else:
-            print(f"Failed to connect to {strHost} using {connection_type}. Info: {additional_info}")
-            log_connection_error(strHost, connection_type, additional_info)  # Log the failure
+            self.paramiko_handle_connection_failure(strHost, connection_type, additional_info)
 
     def crt_handle_connection_failure(self, strHost, connection_type, additional_info=""):
         error_message = crt.GetLastErrorMessage()
@@ -297,15 +335,40 @@ class EnvironmentManager:
             error_message += f" Additional info: {additional_info}"
         log_connection_error(strHost, connection_type, error_message)
 
+    def paramiko_handle_connection_failure(self, strHost, connection_type, additional_info=""):
+        print(f"Failed to connect to {strHost} using {connection_type}. Info: {additional_info}")
+        log_connection_error(strHost, connection_type, additional_info)  # Log the failure
+
     def set_terminal_settings(self, strHost):
         if self.running_in_securecrt:
             self.crt_terminal_settings(strHost)
         else:
             self.paramiko_terminal_settings()
 
+    def crt_terminal_settings(self, strHost):
+        crt.Screen.WaitForStrings(["#", ">"], 15)
+        term_len = "term len 0"
+        term_width = "term width 400"
+        self.exec_command(f"{term_len}", strHost)
+        self.exec_command(f"{term_width}", strHost)
+
     def paramiko_terminal_settings(self):
         self.send_command("terminal length 0", self.prompt)
         self.send_command("terminal width 400", self.prompt)
+
+    def get_credentials(self):
+        if self.running_in_securecrt:
+            return self.crt_get_credentials()
+        else:
+            return self.paramiko_get_credentials()
+
+    def crt_get_credentials(self):
+        self.stored_username = crt.Dialog.Prompt("Enter your username for 'un' authentication:", "Login", "", False).strip()
+        self.stored_password = crt.Dialog.Prompt("Enter your password for 'un' authentication:", "Login", "", True).strip()
+
+    def paramiko_get_credentials(self):
+        self.stored_username = input("Enter your username: ").strip()
+        self.stored_password = input("Enter your password: ").strip()
 
     def display_summary(self, processed_hosts_count, int_failed_hosts):
         end_time_stamp = time.perf_counter()
@@ -326,21 +389,6 @@ class EnvironmentManager:
         root.withdraw()  # Hide the root window
         messagebox.showinfo("Summary", summary_message)
         root.destroy()
-
-    def get_credentials(self):
-        if self.running_in_securecrt:
-            return self.crt_get_credentials()
-        else:
-            return self.paramiko_get_credentials()
-
-    def crt_get_credentials(self):
-        self.stored_username = crt.Dialog.Prompt("Enter your username for 'un' authentication:", "Login", "", False).strip()
-        self.stored_password = crt.Dialog.Prompt("Enter your password for 'un' authentication:", "Login", "", True).strip()
-
-    def paramiko_get_credentials(self):
-        # You can prompt for credentials here, or use any method that suits your environment.
-        self.stored_username = input("Enter your username: ").strip()
-        self.stored_password = input("Enter your password: ").strip()
                 
 #place holder to use this once a review/refactor of all VUL functions are done
     # def exec_command(self, command, device_name):
