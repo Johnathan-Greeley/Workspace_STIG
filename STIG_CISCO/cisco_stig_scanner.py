@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.L.5
+# Version:4.1.2.L.6
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -589,15 +589,19 @@ def log_stig_results_to_csv(stig_list, host, device_name):
     with open(log_filename, 'a', newline='', encoding='utf-8') as csvfile:
         csv_writer = csv.writer(csvfile)
         if not file_exists:
-            csv_writer.writerow(["Date", "Hostname", "CommonName", "DeviceName", "VulnID", "Status", "Finding", "Comments"])
+            csv_writer.writerow(["Date", "Hostname", "CommonName", "DeviceName", "VulnID", "CAT", "Status", "Finding", "Comments"])
         
         for stig in stig_list:
+            # Map the severity using the Stig class method
+            cat = Stig.get_severity(stig.severity)
+            
             csv_writer.writerow([
                 datetime.datetime.now().strftime("%b-%d-%Y"),
                 host,
                 "",  # CommonName (if applicable)
                 device_name,
                 stig.vulid,
+                cat,
                 stig.status,
                 stig.finding,
                 stig.comments
