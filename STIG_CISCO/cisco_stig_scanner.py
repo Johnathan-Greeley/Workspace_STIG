@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.L.3
+# Version:4.1.2.L.4
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -240,7 +240,8 @@ class ChecklistManager:
     }
 
     def __init__(self):
-        pass
+        self.template_cache = {}  # Cache for loaded checklist templates
+        self.vuln_info_cache = {}  # Cache for parsed vulnerability data
 
     def read_vuln_info(self, checklist_file):
         """
@@ -248,19 +249,30 @@ class ChecklistManager:
         Returns a dictionary where keys are original Vuln_Num or group_id and values are tuples of 
         (function_name, severity).
         """
+        if checklist_file in self.vuln_info_cache:
+            return self.vuln_info_cache[checklist_file]
+
         file_extension = os.path.splitext(checklist_file)[1].lower()
         
         if file_extension == '.ckl':
-            return self.read_vuln_info_from_ckl(checklist_file)
+            vuln_info = self.read_vuln_info_from_ckl(checklist_file)
         elif file_extension == '.cklb':
-            return self.read_vuln_info_from_cklb(checklist_file)
+            vuln_info = self.read_vuln_info_from_cklb(checklist_file)
         else:
             raise ValueError("Unsupported checklist file format. Provide a .ckl, .cklb, or no extension for both.")
 
+        self.vuln_info_cache[checklist_file] = vuln_info
+        return vuln_info
+
     def read_vuln_info_from_ckl(self, checklist_file):
+        if checklist_file in self.template_cache:
+            ckl_content = self.template_cache[checklist_file]
+        else:
+            ckl_content = self.load_ckl_template(checklist_file)
+            self.template_cache[checklist_file] = ckl_content
+
         vuln_info = {}
-        tree = ET.parse(checklist_file)
-        root = tree.getroot()
+        root = ET.fromstring(ckl_content)
         
         for vuln in root.iter('VULN'):
             original_vuln_num = None
@@ -269,17 +281,16 @@ class ChecklistManager:
             
             for stig_data in vuln.findall('STIG_DATA'):
                 vuln_attribute = stig_data.find('VULN_ATTRIBUTE')
-                if vuln_attribute is not None:
-                    if vuln_attribute.text == 'Vuln_Num':
-                        attribute_data = stig_data.find('ATTRIBUTE_DATA')
-                        if attribute_data is not None:
-                            original_vuln_num = attribute_data.text
-                            function_name = original_vuln_num.replace("-", "")
-                    
-                    if vuln_attribute.text == 'Severity':
-                        severity_data = stig_data.find('ATTRIBUTE_DATA')
-                        if severity_data is not None:
-                            severity = severity_data.text
+                if vuln_attribute is not None and vuln_attribute.text == 'Vuln_Num':
+                    attribute_data = stig_data.find('ATTRIBUTE_DATA')
+                    if attribute_data is not None:
+                        original_vuln_num = attribute_data.text
+                        function_name = original_vuln_num.replace("-", "")
+                
+                if vuln_attribute is not None and vuln_attribute.text == 'Severity':
+                    severity_data = stig_data.find('ATTRIBUTE_DATA')
+                    if severity_data is not None:
+                        severity = severity_data.text
             
             if original_vuln_num and function_name and severity:
                 vuln_info[original_vuln_num] = (function_name, severity)
@@ -287,12 +298,14 @@ class ChecklistManager:
         return vuln_info
 
     def read_vuln_info_from_cklb(self, checklist_file):
-        vuln_info = {}
-        
-        with open(checklist_file, 'r', encoding='utf-8') as file:
-            cklb_data = json.load(file)
+        if checklist_file in self.template_cache:
+            cklb_content = self.template_cache[checklist_file]
+        else:
+            cklb_content = self.load_cklb_template(checklist_file)
+            self.template_cache[checklist_file] = cklb_content
 
-        for stig in cklb_data.get('stigs', []):
+        vuln_info = {}
+        for stig in cklb_content.get('stigs', []):
             for rule in stig.get('rules', []):
                 group_id = rule.get('group_id')
                 severity = rule.get('severity')
@@ -304,22 +317,32 @@ class ChecklistManager:
         return vuln_info
 
     def load_ckl_template(self, template_name):
+        if template_name in self.template_cache:
+            return self.template_cache[template_name]
+
         try:
             with open(template_name, "r", encoding="utf-8") as ckl_file:
-                return ckl_file.read()
+                ckl_content = ckl_file.read()
+                self.template_cache[template_name] = ckl_content
+                return ckl_content
         except Exception as e:
             raise Exception(f"Error loading CKL template file {template_name}: {e}")
 
     def load_cklb_template(self, template_name):
+        if template_name in self.template_cache:
+            return self.template_cache[template_name]
+
         try:
             with open(template_name, "r", encoding="utf-8") as cklb_file:
-                return json.load(cklb_file)
+                cklb_content = json.load(cklb_file)
+                self.template_cache[template_name] = cklb_content
+                return cklb_content
         except json.JSONDecodeError as e:
             raise json.JSONDecodeError(f"Error parsing JSON from CKLB template file {template_name}: {e}")
 
     def update_and_write_ckl(self, stig_list, device_name, host, checklist_file):
         date_str = datetime.datetime.now().strftime("%d-%b-%Y").upper()
-        ckl_content = self.load_ckl_template(checklist_file)
+        ckl_content = self.template_cache.get(checklist_file) or self.load_ckl_template(checklist_file)
         for obj in stig_list:
             ckl_content = self.update_ckl_template(obj, ckl_content)
         root = ET.fromstring(ckl_content)
@@ -335,7 +358,7 @@ class ChecklistManager:
 
     def update_and_write_cklb(self, stig_list, device_name, host, checklist_file):
         date_str = datetime.datetime.now().strftime("%d-%b-%Y").upper()
-        cklb_content = self.load_cklb_template(checklist_file)
+        cklb_content = self.template_cache.get(checklist_file) or self.load_cklb_template(checklist_file)
 
         # Generate a new UUID and assign it to the id field
         cklb_content['id'] = str(uuid.uuid4())
