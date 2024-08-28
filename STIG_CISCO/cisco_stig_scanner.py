@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.9
+# Version:4.1.2.P.10
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -289,19 +289,25 @@ class EnvironmentManager:
 
     def paramiko_send_command(self, command, device_name):
         if self.session:
-            self.session.send(command + "\n")
-            output = self.wait_for_prompt([self.prompt])
-
-            # Standardize the output format
-            if output.startswith(self.prompt):
-                output = output.replace(self.prompt, "", 1).strip()
-
-            # Append device name to the output (following CRT logic)
-            if "." in device_name:
-                output = output.strip()
+            # Determine the prompt to wait for based on the device name
+            if device_name.find(".") > -1:
+                prompt = "#"
             else:
-                output = f"{device_name}#{output}{device_name}#"
-                
+                prompt = device_name + "#"
+
+            # Wait for the initial prompt to ensure the device is ready
+            self.wait_for_prompt([prompt])
+
+            # Send the command
+            self.session.send(command + "\n")
+
+            # Capture the output until the prompt appears again
+            output = self.wait_for_prompt([prompt])
+
+            # Clean and format the output to match CRT's behavior
+            if output.startswith(prompt):
+                output = output.replace(prompt, "", 1).strip()
+
             return output
 
     def get_device_name(self):
@@ -11950,7 +11956,7 @@ def Main():
 
     env_manager.display_summary(processed_hosts_count, int_failed_hosts)
 
-    print("Summary displayed. Script execution completed.")
+    #print("Summary displayed. Script execution completed.")
 
 if __name__ == '__main__':
      Main()
