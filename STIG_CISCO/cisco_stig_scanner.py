@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.L.14
+# Version:4.1.2.M.0
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -687,10 +687,16 @@ def log_connection_error(host, auth_method, error_message):
 
 #Look into moving crt logic out of this function in prep for creating connection Class
 def connect_to_host(strHost, connection_type, current_host_number, total_hosts_count):
+    if RUNNING_IN_SECURECRT:
+        return crt_connect_to_host(strHost, connection_type, current_host_number, total_hosts_count)
+    else:
+        return pass_connect_to_host(strHost, connection_type)
+
+def crt_connect_to_host(strHost, connection_type, current_host_number, total_hosts_count):
     global stored_username, stored_password
 
     # Generate the connection string
-    connect_string = get_connection_string(strHost, connection_type, stored_username, stored_password)
+    connect_string = get_connection_method(strHost, connection_type, stored_username, stored_password)
 
     try:
         # Attempt to connect to the host in a new tab
@@ -702,34 +708,28 @@ def connect_to_host(strHost, connection_type, current_host_number, total_hosts_c
             newTab.Screen.Synchronous = True
 
             # Set terminal settings and get the device name
-            set_terminal_settings(strHost)
-            device_name = get_device_name()
+            crt_terminal_settings(strHost)
+            device_name = crt_get_device_name()
             return device_name, device_name
         else:
-            # Connection failed but no exception was raised
-            handle_connection_failure(strHost, connection_type)  # Using handle_connection_failure
+            handle_connection_failure(strHost, connection_type)
             return None, None
     except ScriptError as e:
-        # Handle the failed connection attempt using handle_connection_failure
         handle_connection_failure(strHost, connection_type, f"ScriptError: {e}")
         return None, None
-        
+
+def pass_connect_to_host(strHost, connection_type):
+    raise NotImplementedError("No other connection methods are configured at this time.")
 
 #this may be turn into connection type and then move the crt logic into its own function
 #this would be needed in prep for the connection class
-def get_connection_string(strHost, connection_type, stored_username, stored_password):
-    """
-    Generates the connection string based on the connection type and credentials.
-   
-    Args:
-    - strHost (str): The hostname.
-    - connection_type (str): The type of connection ('user_pass', 'pki', or 'default').
-    - stored_username (str): The stored username for authentication.
-    - stored_password (str): The stored password for authentication.
-   
-    Returns:
-    - str: The generated connection string.
-    """
+def get_connection_method(strHost, connection_type, stored_username, stored_password):
+    if RUNNING_IN_SECURECRT:
+        return crt_connection_string(strHost, connection_type, stored_username, stored_password)
+    else:
+        return pass_connection_method()
+
+def crt_connection_string(strHost, connection_type, stored_username, stored_password):
     connect_string_default = f"/SSH2 /ACCEPTHOSTKEYS /Z 0 {strHost}"
     connect_string_pki = f"/SSH2 /AUTH publickey /ACCEPTHOSTKEYS /Z 0 {strHost}"
    
@@ -745,24 +745,28 @@ def get_connection_string(strHost, connection_type, stored_username, stored_pass
     else:
         return connect_string_default
 
+def pass_connection_method():
+    raise NotImplementedError("No other connection methods are configured at this time.")
+
+
 #need to move crt logic out of here in prep for connection Class
 #also some ssh clients may not need to set 'term len' or may do it already, will need to account for this
 def set_terminal_settings(strHost):
-    """
-    Sets terminal settings for the session.
-   
-    Args:
-    - strHost (str): The hostname.
-   
-    Returns:
-    None
-    """
+    if RUNNING_IN_SECURECRT:
+        crt_terminal_settings(strHost)
+    else:
+        pass_terminal_settings()
+
+def crt_terminal_settings(strHost):
     crt.Screen.WaitForStrings(["#", ">"], 15)
     term_len = "term len 0"
     term_width = "term width 400"
     exec_command(f"{term_len}", strHost)
     exec_command(f"{term_width}", strHost)
 
+def pass_terminal_settings():
+    # Placeholder function, could be expanded for other SSH clients
+    raise NotImplementedError("Terminal settings configuration is not implemented for this connection method.")
 
 #write a function that gets device info like make/model/SN/OS
 #def get_device_info():
@@ -770,17 +774,17 @@ def set_terminal_settings(strHost):
 #This may get turn into get prompt and the crt logic will be moved into its own function
 #This would be done to prep for the connection Class
 def get_device_name():
-    """
-    Retrieves the device name from the current screen in the terminal.
-   
-    Args:
-    None
-   
-    Returns:
-    - str: The device name.
-    """
+    if RUNNING_IN_SECURECRT:
+        return crt_get_device_name()
+    else:
+        return pass_get_device_name()
+
+def crt_get_device_name():
     return crt.Screen.Get(crt.Screen.CurrentRow, 0, crt.Screen.CurrentRow, crt.Screen.CurrentColumn - 2).replace("#", "")
 
+def pass_get_device_name():
+    # Placeholder function for non-SecureCRT environments
+    raise NotImplementedError("Device name retrieval is not implemented for this connection method.")
 
 #Command and Error Handling
 
