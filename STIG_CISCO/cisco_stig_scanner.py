@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.15
+# Version:4.1.2.P.16
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -995,26 +995,20 @@ def exec_command(command, device_name):
     Returns:
     - str: The cleaned output from the command execution, with device name included.
     """
-    # Try to retrieve the cleaned output from the cache first
     output = command_cache.get(device_name, command)
 
-    # If the output is not in the cache, execute the command and clean the result
     if output is None:
-        result = result = env_manager.send_command(command, device_name)
+        result = env_manager.send_command(command, device_name)
         result = env_manager.handle_errors(result, command, device_name)
 
         # Cleaning the output
         cleaned_output = command_cache.clean_output(result)
 
-        # Reconstructing the output with the device name
-        if "." in device_name:
-            output = cleaned_output.strip()
-        else:
-            output = f"{device_name}#{cleaned_output}{device_name}#"
+        # Cache the cleaned output
+        command_cache.add(device_name, command, cleaned_output)
 
-        # Adding the cleaned (and reconstructed) output to the cache
-        command_cache.add(device_name, command, output)
-
+        # Return the cleaned output for CRT or Paramiko
+        return cleaned_output
     return output
 
 
