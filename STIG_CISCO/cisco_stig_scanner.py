@@ -1,6 +1,6 @@
 # $language = "python3"
 # $interface = "1.0"
-# Version:4.1.2.P.3
+# Version:4.1.2.P.4
 
 '''
 This is a fork of the autostig scripts, starting with Version 4. This version consolidates all vulnerability checks into a single script.
@@ -415,19 +415,18 @@ class EnvironmentManager:
         messagebox.showinfo("Script Summary", summary_message)
         root.destroy()
                 
-#place holder to use this once a review/refactor of all VUL functions are done
-    # def exec_command(self, command, device_name):
-        # output = command_cache.get(device_name, command)
-        # if output is None:
-            # result = self.send_command(command, device_name)
-            # result = self.handle_errors(result, command, device_name)
-            # cleaned_output = command_cache.clean_output(result)
-            # if "." in device_name:
-                # output = cleaned_output.strip()
-            # else:
-                # output = f"{device_name}#{cleaned_output}{device_name}#"
-            # command_cache.add(device_name, command, output)
-        # return output
+    def exec_command(self, command, device_name):
+        output = command_cache.get(device_name, command)
+        if output is None:
+            result = self.send_command(command, device_name)
+            result = self.handle_errors(result, command, device_name)
+            cleaned_output = command_cache.clean_output(result)
+            if "." in device_name:
+                output = cleaned_output.strip()
+            else:
+                output = f"{device_name}#{cleaned_output}{device_name}#"
+            command_cache.add(device_name, command, output)
+        return output
 
 class Stig:
     # Class-level mappings for status codes and severity
