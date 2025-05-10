@@ -1,0 +1,156 @@
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:1130:     result = str(exec_command(command, device_name))
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:1670:     res.clean += "\r" + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:2634:     if re.search("does not exist", res.clean[len(device_name) + len(command2):]) and re.search("no ip address", res.clean[len(device_name) + len(command2):]):
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:2716:             or device_name in line
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:2754:             or device_name in line
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3538:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3540:         stig.comments = f"BGP is active on {device_name} please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3557:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3559:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3575:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3577:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3593:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3595:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3611:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3613:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3629:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3631:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3647:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3649:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3665:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3667:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3683:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3685:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3701:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3703:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3719:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3721:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3737:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:3739:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:4713:         stig.comments = f"IP CEF is not running on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:4715:         stig.comments = f"IP CEF is running on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:4740:             stig.comments = f"IPv6 hop limit less than 32 on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:4742:             stig.comments = f"IPv6 hop limit is set to {hop_limit} on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:4744:         stig.comments = f"No 'ipv6 hop-limit' configuration found on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:4899:     if res.clean.find("enabled", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:4903:         if res.clean.find("Transparent", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:4910:             if res.clean.find("password", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:4930: # def V220677(device_type, device_name):
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:4938:     # res.clean = exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:4996:             port_config = exec_command(f"show run int {port}", device_name)
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5023:     if "loopguard default" in res.clean[len(device_name) + len("show run | i loopguard"):]:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5231:     search_start = len(device_name) + len(command)
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5247:     if res.clean.find("does not exist", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5260:     result = res.clean + "\r" + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5262:         res.clean.find("does not exist", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5263:         and res.clean.find("ip address", len(device_name) + len(command)) == -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5368:     if res.clean.find("session-limit", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5381:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5395:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5409:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5423:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5435:     if res.clean.find("access-class", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5482:     if res.clean.find("User Agreement", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5494:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5506:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5522:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5533:     if res.clean.find("enabled", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5576:     if res.clean.find("ssh version 2", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5588:     if res.clean.find("no password", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5602:     if res.clean.find("no password", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5616:     if res.clean.find("no password", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5630:     if res.clean.find("no password", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5670:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5684:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5696:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5708:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5722:         if line.find(device_name) == -1 and line.find("server") > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5738:         res.clean.find("clock timezone ZULU 0 0", len(device_name) + len(command))
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5791:     if res.clean.find("ssh version 2", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5803:     if res.clean.find("ssh version 2", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5815:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5827:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5839:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5851:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5863:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5875:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5907:     if res.clean.find("applet", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:5929:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6038:     if res.clean.find("session-limit", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6054:     if res.clean.find("log config", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6068:     if res.clean.find("log config", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6082:     if res.clean.find("log config", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6096:     if res.clean.find("log config", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6109:     result = str(exec_command(command, device_name))
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6139:     if res.clean.find("block-for", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6173:     if res.clean.find("logging enable", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6186:     if res.clean.find("service timestamps log", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6201:     if res.clean.find("log", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6217:         res.clean.find("log config", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6218:         and res.clean.find("logging enable", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6232:     if res.clean.find("file privilege 15", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6247:     if res.clean.find("file privilege 15", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6262:     if res.clean.find("file privilege 15", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6423:     if res.clean.find("service password-", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6478:         res.clean.find("archive", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6479:         and res.clean.find("log config", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6480:         and res.clean.find("logging enable", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6496:     if res.clean.find("logging buffered", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6511:     if res.clean.find("Logging to ", len(device_name) + len(command)) > -1 and (
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6512:         res.clean.find("debugging", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6513:         or res.clean.find("critical", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6514:         or res.clean.find("warnings", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6515:         or res.clean.find("notifications", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6516:         or res.clean.find("informational", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6533:         if line.find(device_name) == -1 and line.find("server") > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6553:         if line.find("v3") == -1 or line.find(device_name) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6618:     if res.clean.find("md5", len(device_name + "#" + command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6632:         res.clean.find("ip ssh version 2", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6634:             res.clean.find("hmac-sha1-96", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6635:             or res.clean.find("hmac-sha2-256", len(device_name) + len(command))
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6654:         res.clean.find("ip ssh version 2", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6655:         and res.clean.find("encryption aes", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6670:         res.clean.find("archive", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6671:         and res.clean.find("logging enable", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6688:         res.clean.find("on-failure", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6689:         and res.clean.find("on-success", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6704:         res.clean.find("archive", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6705:         and res.clean.find("logging enable", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6746:     if res.clean.find("applet", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:6759:     result = res.clean + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7182:     if res.clean.find("down", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7193:     if res.clean.find("cns", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7248:             res.clean.find("no ip unreach", len(device_name) + len(command)) == -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7250:                 "icmp rate-limit unreachable", len(device_name) + len(command)
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7282:         if res.clean.find("ip mask-reply", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7313:         if res.clean.find("no ip redirects", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7340:     if res.clean.find(" log", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7352:     if res.clean.find("log-input", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7364:     if res.clean.find("log-input", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7376:     if res.clean.find("no exec", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7394:             res.clean.find("INGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7395:             and res.clean.find("EGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7428:             res.clean.find("INGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7429:             and res.clean.find("EGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7462:             res.clean.find("INGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7463:             and res.clean.find("EGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7495:         if res.clean.find("10.0.0", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7526:         if res.clean.find("INGRESS", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7605:         if res.clean.find("INGRESS", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7631:         if res.clean.find("INGRESS", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7657:         if res.clean.find("EGRESS", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7683:         if res.clean.find("not enabled", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7709:         if res.clean.find("not enabled", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7779:         if res.clean.find("eq 22 log", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:7799:     # res.clean = exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:9779:                 result = res.clean + "\r" + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:9838:                 result = res.clean + "\r" + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:9872:         result = res.clean + "\r" + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:10019:         if res.clean.find("unicast", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:10030:     if res.clean.find("RT1", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:10039:         if res.clean.find("option", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:10234:         res.clean.find("ip options ignore", len(device_name) + len(command))
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:10235:         or res.clean.find("ip options drop", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:10249:     if res.clean.find("IPv4 CEF is enabled", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:10262:     if res.clean.find("ipv6 hop-limit", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.pass4.fixed.clean.py:10275:     if res.clean.find("FEC0::", len(device_name) + len(command)) == -1:

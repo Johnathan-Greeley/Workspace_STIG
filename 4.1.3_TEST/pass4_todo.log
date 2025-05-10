@@ -1,0 +1,321 @@
+cisco_stig_scanner_v4.1.3.AC.2.py:174:     def __init__(self, device_name: str, exec_handle, cache):
+cisco_stig_scanner_v4.1.3.AC.2.py:175:         self.device_name   = device_name
+cisco_stig_scanner_v4.1.3.AC.2.py:179:         self.logger        = logging.getLogger(device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:180:         self.prompt_str    = f"{device_name}#"
+cisco_stig_scanner_v4.1.3.AC.2.py:185:         if (cached := self.cache.get(self.device_name, cmd)) is not None:
+cisco_stig_scanner_v4.1.3.AC.2.py:189:             self.cache.add(self.device_name, cmd, full_raw)
+cisco_stig_scanner_v4.1.3.AC.2.py:377:     def update_and_write_ckl(self, stig_list, device_name, host, checklist_file):
+cisco_stig_scanner_v4.1.3.AC.2.py:383:         root.find('.//ASSET/HOST_NAME').text = str(device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:389:         new_ckl_filename = f"{device_name}_{name_prefix}_{date_str}.ckl"
+cisco_stig_scanner_v4.1.3.AC.2.py:393:     def update_and_write_cklb(self, stig_list, device_name, host, checklist_file):
+cisco_stig_scanner_v4.1.3.AC.2.py:402:         cklb_content['target_data']['host_name'] = device_name
+cisco_stig_scanner_v4.1.3.AC.2.py:404:         cklb_content['title'] = f"{device_name}_{date_str}"
+cisco_stig_scanner_v4.1.3.AC.2.py:409:         new_cklb_filename = f"{device_name}_{name_prefix}_{date_str}.cklb"
+cisco_stig_scanner_v4.1.3.AC.2.py:450:         self.device_name = "undefined"
+cisco_stig_scanner_v4.1.3.AC.2.py:456:     def add(self, device_name, command, output):
+cisco_stig_scanner_v4.1.3.AC.2.py:459:         self.cache[(device_name, command)] = clean_output
+cisco_stig_scanner_v4.1.3.AC.2.py:461:     def get(self, device_name, command):
+cisco_stig_scanner_v4.1.3.AC.2.py:463:         return self.cache.get((device_name, command))
+cisco_stig_scanner_v4.1.3.AC.2.py:496: # command_cache.add(device_name, command, raw_output)
+cisco_stig_scanner_v4.1.3.AC.2.py:618: def log_stig_results_to_csv(stig_list, host, device_name):
+cisco_stig_scanner_v4.1.3.AC.2.py:635:                 device_name,
+cisco_stig_scanner_v4.1.3.AC.2.py:645: def log_vuln_check_error(device_name, device_type, func_name, e):
+cisco_stig_scanner_v4.1.3.AC.2.py:650:     - device_name (str): The name of the device.
+cisco_stig_scanner_v4.1.3.AC.2.py:665:             device_name,
+cisco_stig_scanner_v4.1.3.AC.2.py:720:             device_name = crt_get_device_name()
+cisco_stig_scanner_v4.1.3.AC.2.py:721:             return device_name, device_name
+cisco_stig_scanner_v4.1.3.AC.2.py:784: def get_device_name():
+cisco_stig_scanner_v4.1.3.AC.2.py:786:         return crt_get_device_name()
+cisco_stig_scanner_v4.1.3.AC.2.py:788:         return pass_get_device_name()
+cisco_stig_scanner_v4.1.3.AC.2.py:790: def crt_get_device_name():
+cisco_stig_scanner_v4.1.3.AC.2.py:793: def pass_get_device_name():
+cisco_stig_scanner_v4.1.3.AC.2.py:823: def send_command(command, device_name):
+cisco_stig_scanner_v4.1.3.AC.2.py:825:         return crt_send_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:827:         return pass_send_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:829: def crt_send_command(command, device_name):
+cisco_stig_scanner_v4.1.3.AC.2.py:835:     - device_name (str): The name of the device to send the command to.
+cisco_stig_scanner_v4.1.3.AC.2.py:840:     if device_name.find(".") > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:843:         prompt = device_name + "#"
+cisco_stig_scanner_v4.1.3.AC.2.py:849: def pass_send_command(command, device_name):
+cisco_stig_scanner_v4.1.3.AC.2.py:855:     - device_name (str): The name of the device to send the command to.
+cisco_stig_scanner_v4.1.3.AC.2.py:863: def exec_command(command, device_name):
+cisco_stig_scanner_v4.1.3.AC.2.py:869:     - device_name (str): The name of the device.
+cisco_stig_scanner_v4.1.3.AC.2.py:875:     output = command_cache.get(device_name, command)
+cisco_stig_scanner_v4.1.3.AC.2.py:879:         res.clean = send_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:880:         res.clean = handle_errors(res.clean, command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:886:         if "." in device_name:
+cisco_stig_scanner_v4.1.3.AC.2.py:889:             output = f"{device_name}#{cleaned_output}{device_name}#"
+cisco_stig_scanner_v4.1.3.AC.2.py:892:         command_cache.add(device_name, command, output)
+cisco_stig_scanner_v4.1.3.AC.2.py:898: def handle_errors(res.clean, command, device_name):
+cisco_stig_scanner_v4.1.3.AC.2.py:900:         return crt_handle_errors(res.clean, command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:902:         return pass_handle_errors(res.clean, command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:904: def crt_handle_errors(res.clean, command, device_name):
+cisco_stig_scanner_v4.1.3.AC.2.py:911:     - device_name (str): The name of the device.
+cisco_stig_scanner_v4.1.3.AC.2.py:916:     prompt = "#" if "." in device_name else f"{device_name}#"
+cisco_stig_scanner_v4.1.3.AC.2.py:918:     if len(res.clean) < len(device_name):
+cisco_stig_scanner_v4.1.3.AC.2.py:928: def pass_handle_errors(res.clean, command, device_name):
+cisco_stig_scanner_v4.1.3.AC.2.py:935:     - device_name (str): The name of the device.
+cisco_stig_scanner_v4.1.3.AC.2.py:1056:     if re.search(r'log config', res.clean[len(device_name) + len(command):]):
+cisco_stig_scanner_v4.1.3.AC.2.py:1077:     if re.search(r'log config', res.clean[len(device_name) + len(command):]):
+cisco_stig_scanner_v4.1.3.AC.2.py:1098:     if re.search(r'log config', res.clean[len(device_name) + len(command):]):
+cisco_stig_scanner_v4.1.3.AC.2.py:1119:     if re.search(r'log config', res.clean[len(device_name) + len(command):]):
+cisco_stig_scanner_v4.1.3.AC.2.py:1135:     res.clean = str(exec_command(command, device_name))
+cisco_stig_scanner_v4.1.3.AC.2.py:1330:     if "file privilege 15" in res.clean[len(device_name) + len(command):]:
+cisco_stig_scanner_v4.1.3.AC.2.py:1352:     if "file privilege 15" in res.clean[len(device_name) + len(command):]:
+cisco_stig_scanner_v4.1.3.AC.2.py:1696:     res.clean += "\r" + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:1811:     # Combine the results for the finding
+cisco_stig_scanner_v4.1.3.AC.2.py:1816:     for line in result1.splitlines():
+cisco_stig_scanner_v4.1.3.AC.2.py:1825:     users = re.findall(r"User name: (\S+)", result2)
+cisco_stig_scanner_v4.1.3.AC.2.py:1827:         user_data = re.search(rf"User name: {user}.*?Authentication Protocol: (\S+).*?Privacy Protocol: (\S+)", result2, re.DOTALL)
+cisco_stig_scanner_v4.1.3.AC.2.py:1855:     # Combine the results for the finding
+cisco_stig_scanner_v4.1.3.AC.2.py:1860:     for line in result1.splitlines():
+cisco_stig_scanner_v4.1.3.AC.2.py:1869:     if "no active users" not in result2:
+cisco_stig_scanner_v4.1.3.AC.2.py:1870:         users = re.findall(r"User name: (\S+)", result2)
+cisco_stig_scanner_v4.1.3.AC.2.py:1872:             user_data = re.search(rf"User name: {user}.*?Privacy Protocol: (\S+)", result2, re.DOTALL)
+cisco_stig_scanner_v4.1.3.AC.2.py:2103:     # Execute commands and get results
+cisco_stig_scanner_v4.1.3.AC.2.py:2111:     server_name_match = re.search(r"Server name: (\S+?)_", result1)
+cisco_stig_scanner_v4.1.3.AC.2.py:2115:     if "Server Status: Alive" not in result1:
+cisco_stig_scanner_v4.1.3.AC.2.py:2120:         if all(keyword in result2 for keyword in [server_name, "aaa authentication login", "aaa authentication enable", "aaa group server"]):
+cisco_stig_scanner_v4.1.3.AC.2.py:2127:     login_auth_matches = re.findall(r"aaa authentication login (\S+) group", result2)
+cisco_stig_scanner_v4.1.3.AC.2.py:2129:         if f"login authentication {login_auth_value}" in result2:
+cisco_stig_scanner_v4.1.3.AC.2.py:2135:     auth_sources = re.findall(r"aaa authentication login (\S+) local", result2)
+cisco_stig_scanner_v4.1.3.AC.2.py:2137:         if f"login authentication {source}" in result2:
+cisco_stig_scanner_v4.1.3.AC.2.py:2140:     # Clean up the result2 output
+cisco_stig_scanner_v4.1.3.AC.2.py:2141:     result2_cleaned = re.sub(r"(server-private \d+\.\d+\.\d+\.\d+ key) .*", r"\1 ***removed***", result2)
+cisco_stig_scanner_v4.1.3.AC.2.py:2143:     # Combine the results from both commands for the findings
+cisco_stig_scanner_v4.1.3.AC.2.py:2310:         if "Password" not in vtp_pass_result:
+cisco_stig_scanner_v4.1.3.AC.2.py:2404:     if "loopguard default" in res.clean[len(device_name) + len(command):]:
+cisco_stig_scanner_v4.1.3.AC.2.py:2556:     if "ip igmp snooping" in res.clean[len(device_name) + len(command):]:
+cisco_stig_scanner_v4.1.3.AC.2.py:2623:     matches1 = re.findall(pattern1, result1)
+cisco_stig_scanner_v4.1.3.AC.2.py:2631:     matches2 = re.findall(pattern2, result2)
+cisco_stig_scanner_v4.1.3.AC.2.py:2670:     if "does not exist" in res.clean[len(device_name) + len(command):]:
+cisco_stig_scanner_v4.1.3.AC.2.py:2687:     if re.search("does not exist", res.clean[len(device_name) + len(command):]):
+cisco_stig_scanner_v4.1.3.AC.2.py:2704:     if re.search("does not exist", res.clean[len(device_name) + len(command2):]) and re.search("no ip address", res.clean[len(device_name) + len(command2):]):
+cisco_stig_scanner_v4.1.3.AC.2.py:2789:             or device_name in line
+cisco_stig_scanner_v4.1.3.AC.2.py:2828:             or device_name in line
+cisco_stig_scanner_v4.1.3.AC.2.py:3646:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3648:         stig.comments = f"BGP is active on {device_name} please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3666:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3668:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3685:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3687:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3704:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3706:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3723:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3725:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3742:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3744:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3761:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3763:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3780:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3782:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3799:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3801:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3818:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3820:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3837:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3839:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3856:         stig.comments = f"No active BGP process on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:3858:         stig.comments = f"BGP is active on {device_name}; please review"
+cisco_stig_scanner_v4.1.3.AC.2.py:3878:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:3888:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:3927:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:3937:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:3975:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:3985:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4023:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4033:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4071:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4081:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4119:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4129:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4167:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4177:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4215:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4225:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4263:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4273:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4311:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4321:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4359:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4369:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4407:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4417:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4456:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4466:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4504:     for line in result_mpls.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4514:     for line in result_vrf.split('\n'):
+cisco_stig_scanner_v4.1.3.AC.2.py:4870:         stig.comments = f"IP CEF is not running on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:4872:         stig.comments = f"IP CEF is running on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:4898:             stig.comments = f"IPv6 hop limit less than 32 on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:4900:             stig.comments = f"IPv6 hop limit is set to {hop_limit} on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:4902:         stig.comments = f"No 'ipv6 hop-limit' configuration found on {device_name}"
+cisco_stig_scanner_v4.1.3.AC.2.py:5069:     if res.clean.find("enabled", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5073:         if res.clean.find("Transparent", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5080:             if res.clean.find("password", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5102: # def V220677(device_type, device_name):
+cisco_stig_scanner_v4.1.3.AC.2.py:5110:     # res.clean = exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:5170:             port_config = exec_command(f"show run int {port}", device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:5199:     if "loopguard default" in res.clean[len(device_name) + len("show run | i loopguard"):]:
+cisco_stig_scanner_v4.1.3.AC.2.py:5344:     # Store all command results as the finding
+cisco_stig_scanner_v4.1.3.AC.2.py:5367:     for currentline in result1.splitlines():
+cisco_stig_scanner_v4.1.3.AC.2.py:5380:     trunk_config_lines = result2.splitlines()
+cisco_stig_scanner_v4.1.3.AC.2.py:5416:     search_start = len(device_name) + len(command)
+cisco_stig_scanner_v4.1.3.AC.2.py:5433:     if res.clean.find("does not exist", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5447:     res.clean = res.clean + "\r" + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:5449:         res.clean.find("does not exist", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:5450:         and res.clean.find("ip address", len(device_name) + len(command)) == -1
+cisco_stig_scanner_v4.1.3.AC.2.py:5521:     native_vlan_match = re.search(regex, trunk_result)
+cisco_stig_scanner_v4.1.3.AC.2.py:5560:     if res.clean.find("session-limit", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5574:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5589:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5604:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5619:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5632:     if res.clean.find("access-class", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5682:     if res.clean.find("User Agreement", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5695:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5708:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5725:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5737:     if res.clean.find("enabled", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5782:     if res.clean.find("ssh version 2", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5795:     if res.clean.find("no password", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5810:     if res.clean.find("no password", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5825:     if res.clean.find("no password", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5840:     if res.clean.find("no password", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5882:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5897:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5910:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5923:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5938:         if line.find(device_name) == -1 and line.find("server") > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:5955:         res.clean.find("clock timezone ZULU 0 0", len(device_name) + len(command))
+cisco_stig_scanner_v4.1.3.AC.2.py:6012:     if res.clean.find("ssh version 2", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6025:     if res.clean.find("ssh version 2", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6038:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6051:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6064:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6077:     if res.clean.find("aaa accounting", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6090:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6103:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6137:     if res.clean.find("applet", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6161:     if res.clean.find("logging server", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6274:     if res.clean.find("session-limit", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6291:     if res.clean.find("log config", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6306:     if res.clean.find("log config", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6321:     if res.clean.find("log config", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6336:     if res.clean.find("log config", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6350:     res.clean = str(exec_command(command, device_name))
+cisco_stig_scanner_v4.1.3.AC.2.py:6381:     if res.clean.find("block-for", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6417:     if res.clean.find("logging enable", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6431:     if res.clean.find("service timestamps log", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6447:     if res.clean.find("log", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6464:         res.clean.find("log config", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6465:         and res.clean.find("logging enable", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6480:     if res.clean.find("file privilege 15", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6496:     if res.clean.find("file privilege 15", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6512:     if res.clean.find("file privilege 15", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6682:     if res.clean.find("service password-", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6739:         res.clean.find("archive", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6740:         and res.clean.find("log config", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6741:         and res.clean.find("logging enable", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6758:     if res.clean.find("logging buffered", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6774:     if res.clean.find("Logging to ", len(device_name) + len(command)) > -1 and (
+cisco_stig_scanner_v4.1.3.AC.2.py:6775:         res.clean.find("debugging", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6776:         or res.clean.find("critical", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6777:         or res.clean.find("warnings", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6778:         or res.clean.find("notifications", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6779:         or res.clean.find("informational", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6797:         if line.find(device_name) == -1 and line.find("server") > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6818:         if line.find("v3") == -1 or line.find(device_name) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6850:                 for snmp_user_line in snmp_result.splitlines():
+cisco_stig_scanner_v4.1.3.AC.2.py:6885:     if res.clean.find("md5", len(device_name + "#" + command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:6900:         res.clean.find("ip ssh version 2", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6902:             res.clean.find("hmac-sha1-96", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6903:             or res.clean.find("hmac-sha2-256", len(device_name) + len(command))
+cisco_stig_scanner_v4.1.3.AC.2.py:6923:         res.clean.find("ip ssh version 2", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6924:         and res.clean.find("encryption aes", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6940:         res.clean.find("archive", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6941:         and res.clean.find("logging enable", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6959:         res.clean.find("on-failure", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6960:         and res.clean.find("on-success", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6976:         res.clean.find("archive", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:6977:         and res.clean.find("logging enable", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:7020:     if res.clean.find("applet", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7034:     res.clean = res.clean + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:7462:     if res.clean.find("down", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7474:     if res.clean.find("cns", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7533:             res.clean.find("no ip unreach", len(device_name) + len(command)) == -1
+cisco_stig_scanner_v4.1.3.AC.2.py:7535:                 "icmp rate-limit unreachable", len(device_name) + len(command)
+cisco_stig_scanner_v4.1.3.AC.2.py:7568:         if res.clean.find("ip mask-reply", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7600:         if res.clean.find("no ip redirects", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7628:     if res.clean.find(" log", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7641:     if res.clean.find("log-input", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7654:     if res.clean.find("log-input", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7667:     if res.clean.find("no exec", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7686:             res.clean.find("INGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:7687:             and res.clean.find("EGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:7721:             res.clean.find("INGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:7722:             and res.clean.find("EGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:7756:             res.clean.find("INGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:7757:             and res.clean.find("EGRESS", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:7790:         if res.clean.find("10.0.0", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7822:         if res.clean.find("INGRESS", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7904:         if res.clean.find("INGRESS", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7931:         if res.clean.find("INGRESS", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7958:         if res.clean.find("EGRESS", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:7985:         if res.clean.find("not enabled", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:8012:         if res.clean.find("not enabled", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:8084:         if res.clean.find("eq 22 log", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:8105:     # res.clean = exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:8190:         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
+cisco_stig_scanner_v4.1.3.AC.2.py:8287:         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
+cisco_stig_scanner_v4.1.3.AC.2.py:8359:         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
+cisco_stig_scanner_v4.1.3.AC.2.py:8466:         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
+cisco_stig_scanner_v4.1.3.AC.2.py:8569:         # If we're running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
+cisco_stig_scanner_v4.1.3.AC.2.py:8861:         # If we're not running MP-BGP then the results will be empty.  If so we need to run the ipv4 command
+cisco_stig_scanner_v4.1.3.AC.2.py:10084:     # V-216722 - The Cisco multicast Designated Router (DR) must be configured to limit the number of mroute states resulting from Internet Group Management Protocol (IGMP) and Multicast Listener Discovery (MLD) Host Membership Reports.
+cisco_stig_scanner_v4.1.3.AC.2.py:10127:                 res.clean = res.clean + "\r" + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:10175:     # V-216726 - The Cisco multicast Designated Router (DR) must be configured to limit the number of mroute states resulting from Internet Group Management Protocol (IGMP) and Multicast Listener Discovery (MLD) Host Membership Reports.
+cisco_stig_scanner_v4.1.3.AC.2.py:10189:                 res.clean = res.clean + "\r" + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:10215:     # V-216727 - The Cisco multicast Designated Router (DR) must be configured to limit the number of mroute states resulting from Internet Group Management Protocol (IGMP) and Multicast Listener Discovery (MLD) Host Membership Reports.
+cisco_stig_scanner_v4.1.3.AC.2.py:10224:         res.clean = res.clean + "\r" + exec_command(command, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:10378:         if res.clean.find("unicast", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:10390:     if res.clean.find("RT1", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:10399:         if res.clean.find("option", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:10507:                     if len(temp_result.splitlines()) >= 3:
+cisco_stig_scanner_v4.1.3.AC.2.py:10513:                         if len(temp_result.splitlines()) >= 3:
+cisco_stig_scanner_v4.1.3.AC.2.py:10514:                             for peerSession in temp_result.splitlines():
+cisco_stig_scanner_v4.1.3.AC.2.py:10519:                                     if "password" in temp_result_2:
+cisco_stig_scanner_v4.1.3.AC.2.py:10525:                             if len(temp_result.splitlines()) >= 3:
+cisco_stig_scanner_v4.1.3.AC.2.py:10526:                                 for peerGroup in temp_result.splitlines():
+cisco_stig_scanner_v4.1.3.AC.2.py:10531:                                         if "password" in temp_result_2:
+cisco_stig_scanner_v4.1.3.AC.2.py:10550:                     if len(temp_result.splitlines()) >= 3:
+cisco_stig_scanner_v4.1.3.AC.2.py:10556:                         if len(temp_result.splitlines()) >= 3:
+cisco_stig_scanner_v4.1.3.AC.2.py:10562:                             if len(temp_result.splitlines()) >= 3:
+cisco_stig_scanner_v4.1.3.AC.2.py:10563:                                 for peerSession in temp_result.splitlines():
+cisco_stig_scanner_v4.1.3.AC.2.py:10568:                                         if "password" in temp_result_2:
+cisco_stig_scanner_v4.1.3.AC.2.py:10570:                                         elif "ao" in temp_result_2:
+cisco_stig_scanner_v4.1.3.AC.2.py:10597:         res.clean.find("ip options ignore", len(device_name) + len(command))
+cisco_stig_scanner_v4.1.3.AC.2.py:10598:         or res.clean.find("ip options drop", len(device_name) + len(command)) > -1
+cisco_stig_scanner_v4.1.3.AC.2.py:10613:     if res.clean.find("IPv4 CEF is enabled", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:10627:     if res.clean.find("ipv6 hop-limit", len(device_name) + len(command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:10641:     if res.clean.find("FEC0::", len(device_name) + len(command)) == -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:10738: def Vtemplate(device_type, device_name):
+cisco_stig_scanner_v4.1.3.AC.2.py:10747:     # Time to check the results of the command...   save check status to stig.status and commants to stig.comments
+cisco_stig_scanner_v4.1.3.AC.2.py:10748:     # if len(result1.splitlines()) < 3 and len(result2.splitlines()) < 3:
+cisco_stig_scanner_v4.1.3.AC.2.py:10751:     # if res.clean.find("logging level", len(device_name + "#" + command)) > -1:
+cisco_stig_scanner_v4.1.3.AC.2.py:10764:     Connects to a host device, executes STIG checks, logs the results, and updates the checklist file.
+cisco_stig_scanner_v4.1.3.AC.2.py:10782:     device_name, common_name = connect_to_host(host, connection_type, current_host_number, total_hosts_count)
+cisco_stig_scanner_v4.1.3.AC.2.py:10784:     if device_name is None:
+cisco_stig_scanner_v4.1.3.AC.2.py:10793:         stig_list = create_stig_list_from_host(device_name, checklist_file)
+cisco_stig_scanner_v4.1.3.AC.2.py:10795:         # Log the STIG results to the CSV file
+cisco_stig_scanner_v4.1.3.AC.2.py:10796:         log_stig_results_to_csv(stig_list, host, device_name)
+cisco_stig_scanner_v4.1.3.AC.2.py:10799:         update_and_write_checklist(stig_list, device_name, host, checklist_file)
+cisco_stig_scanner_v4.1.3.AC.2.py:10819: def create_stig_list_from_host(device_name, checklist_file):
+cisco_stig_scanner_v4.1.3.AC.2.py:10824:     scan_ctx   = ScanContext(device_name, send_command, cache)
+cisco_stig_scanner_v4.1.3.AC.2.py:10848: def update_and_write_checklist(stig_list, device_name, host, checklist_file):
+cisco_stig_scanner_v4.1.3.AC.2.py:10854:     - stig_list (list): A list of STIG check results.
+cisco_stig_scanner_v4.1.3.AC.2.py:10855:     - device_name (str): The name of the device.
+cisco_stig_scanner_v4.1.3.AC.2.py:10867:         checklist_manager.update_and_write_ckl(stig_list, device_name, host, checklist_file)
+cisco_stig_scanner_v4.1.3.AC.2.py:10869:         checklist_manager.update_and_write_cklb(stig_list, device_name, host, checklist_file)
+cisco_stig_scanner_v4.1.3.AC.2.py:10873:         checklist_manager.update_and_write_ckl(stig_list, device_name, host, base_filename + '.ckl')
+cisco_stig_scanner_v4.1.3.AC.2.py:10874:         checklist_manager.update_and_write_cklb(stig_list, device_name, host, base_filename + '.cklb')
